@@ -1656,7 +1656,7 @@ do
         return Textbox;
     end;
 
-    -- ========= НОВЫЙ ADDTOGGLE С АНИМАЦИЕЙ ЗАЛИВКИ (БЕЗ ГАЛОЧКИ) =========
+    -- ========= ПРОСТОЙ TOGGLE С АНИМАЦИЕЙ ПЛАВНОГО ИЗМЕНЕНИЯ ЦВЕТА =========
     function Funcs:AddToggle(Idx, Info)
         assert(Info.Text, 'AddToggle: Missing `Text` string.')
 
@@ -1684,7 +1684,7 @@ do
         });
 
         local ToggleInner = Library:Create('Frame', {
-            BackgroundColor3 = Library.MainColor;
+            BackgroundColor3 = Toggle.Value and Library.MainColor or Library.BackgroundColor;
             BorderColor3 = Library.OutlineColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
@@ -1693,7 +1693,7 @@ do
         });
 
         Library:AddToRegistry(ToggleInner, {
-            BackgroundColor3 = 'MainColor';
+            BackgroundColor3 = Toggle.Value and 'MainColor' or 'BackgroundColor';
             BorderColor3 = 'OutlineColor';
         });
 
@@ -1731,20 +1731,10 @@ do
             Library:AddToolTip(Info.Tooltip, ToggleRegion)
         end
 
-        -- Анимация заливки (появляется из центра)
-        local function AnimateFill(on)
-            local targetColor = on and Library.AccentColor or Library.MainColor
-            local targetBorder = on and Library.AccentColorDark or Library.OutlineColor
-            TweenService:Create(ToggleInner, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                BackgroundColor3 = targetColor;
-                BorderColor3 = targetBorder;
-            }):Play()
-        end
-
         function Toggle:Display()
-            AnimateFill(Toggle.Value)
-            Library.RegistryMap[ToggleInner].Properties.BackgroundColor3 = Toggle.Value and 'AccentColor' or 'MainColor';
-            Library.RegistryMap[ToggleInner].Properties.BorderColor3 = Toggle.Value and 'AccentColorDark' or 'OutlineColor';
+            -- просто устанавливаем цвет без анимации при инициализации
+            ToggleInner.BackgroundColor3 = Toggle.Value and Library.MainColor or Library.BackgroundColor
+            Library.RegistryMap[ToggleInner].Properties.BackgroundColor3 = Toggle.Value and 'MainColor' or 'BackgroundColor'
         end;
 
         function Toggle:OnChanged(Func)
@@ -1756,7 +1746,14 @@ do
             Bool = (not not Bool);
             if Toggle.Value == Bool then return end
             Toggle.Value = Bool;
-            Toggle:Display();
+
+            -- Анимация плавного изменения цвета
+            local targetColor = Toggle.Value and Library.MainColor or Library.BackgroundColor
+            TweenService:Create(ToggleInner, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundColor3 = targetColor
+            }):Play()
+
+            Library.RegistryMap[ToggleInner].Properties.BackgroundColor3 = Toggle.Value and 'MainColor' or 'BackgroundColor'
 
             for _, Addon in next, Toggle.Addons do
                 if Addon.Type == 'KeyPicker' and Addon.SyncToggleState then
@@ -2673,7 +2670,7 @@ function Library:CreateWindow(...)
         BorderColor3 = 'AccentColor';
     });
 
-    -- ЦЕНТРИРОВАННЫЙ ЗАГОЛОВОК
+    -- ЗАГОЛОВОК ПО ЦЕНТРУ (как ты просил ранее)
     local WindowLabel = Library:CreateLabel({
         AnchorPoint = Vector2.new(0.5, 0);
         Position = UDim2.new(0.5, 0, 0, 0);
@@ -2713,6 +2710,7 @@ function Library:CreateWindow(...)
         ZIndex = 1;
         Parent = MainSectionInner;
     });
+    -- ТАБЫ СЛЕВА (оригинальное поведение) — убираем центрирование
     local TabListLayout = Library:Create('UIListLayout', {
         Padding = UDim.new(0, Config.TabPadding);
         FillDirection = Enum.FillDirection.Horizontal;
@@ -3146,9 +3144,9 @@ function Library:CreateWindow(...)
     if Config.AutoShow then task.spawn(Library.Toggle) end
     Window.Holder = Outer;
     return Window;
-end;
+end
 
--- ========= ПОСТОЯННЫЙ КАСТОМНЫЙ КУРСОР =========
+-- ========= ПОСТОЯННЫЙ КАСТОМНЫЙ КУРСОР (всегда включён) =========
 task.spawn(function()
     local Cursor = Drawing.new('Triangle')
     Cursor.Thickness = 1
@@ -3175,7 +3173,7 @@ task.spawn(function()
     Cursor:Remove()
     CursorOutline:Remove()
 end)
--- =============================================
+-- =========================================================
 
 local function OnPlayerChange()
     local PlayerList = GetPlayersString();
