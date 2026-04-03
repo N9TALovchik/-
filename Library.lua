@@ -1656,7 +1656,7 @@ do
         return Textbox;
     end;
 
-    -- ========= НОВЫЙ TOGGLE: ВКЛ = MainColor, ВЫКЛ = BackgroundColor, АНИМАЦИЯ КРУГОМ ИЗ ЦЕНТРА =========
+    -- ========= НОВЫЙ ADDTOGGLE С АНИМАЦИЕЙ ЗАЛИВКИ (БЕЗ ГАЛОЧКИ) =========
     function Funcs:AddToggle(Idx, Info)
         assert(Info.Text, 'AddToggle: Missing `Text` string.')
 
@@ -1684,7 +1684,7 @@ do
         });
 
         local ToggleInner = Library:Create('Frame', {
-            BackgroundColor3 = Toggle.Value and Library.MainColor or Library.BackgroundColor;
+            BackgroundColor3 = Library.MainColor;
             BorderColor3 = Library.OutlineColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
@@ -1693,24 +1693,9 @@ do
         });
 
         Library:AddToRegistry(ToggleInner, {
-            BackgroundColor3 = Toggle.Value and 'MainColor' or 'BackgroundColor';
+            BackgroundColor3 = 'MainColor';
             BorderColor3 = 'OutlineColor';
         });
-
-        -- Круг для анимации (изначально скрыт)
-        local Circle = Library:Create('ImageLabel', {
-            BackgroundTransparency = 1;
-            Image = 'rbxassetid://266032885'; -- круглый градиент
-            ImageColor3 = Toggle.Value and Library.MainColor or Library.BackgroundColor;
-            ScaleType = Enum.ScaleType.Fit;
-            AnchorPoint = Vector2.new(0.5, 0.5);
-            Position = UDim2.new(0.5, 0, 0.5, 0);
-            Size = UDim2.new(0, 0, 0, 0);
-            ZIndex = 7;
-            Parent = ToggleInner;
-            Visible = false;
-        });
-        Library:AddToRegistry(Circle, { ImageColor3 = Toggle.Value and 'MainColor' or 'BackgroundColor' });
 
         local ToggleLabel = Library:CreateLabel({
             Size = UDim2.new(0, 216, 1, 0);
@@ -1746,35 +1731,20 @@ do
             Library:AddToolTip(Info.Tooltip, ToggleRegion)
         end
 
-        local function AnimateToggle(on)
-            local targetColor = on and Library.MainColor or Library.BackgroundColor
-            local startColor = on and Library.BackgroundColor or Library.MainColor
-            
-            -- Меняем цвет фона
-            TweenService:Create(ToggleInner, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
-                BackgroundColor3 = targetColor
+        -- Анимация заливки (появляется из центра)
+        local function AnimateFill(on)
+            local targetColor = on and Library.AccentColor or Library.MainColor
+            local targetBorder = on and Library.AccentColorDark or Library.OutlineColor
+            TweenService:Create(ToggleInner, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundColor3 = targetColor;
+                BorderColor3 = targetBorder;
             }):Play()
-            
-            -- Анимация круга из центра
-            Circle.ImageColor3 = targetColor
-            Circle.Visible = true
-            Circle.Size = UDim2.new(0, 0, 0, 0)
-            TweenService:Create(Circle, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = UDim2.new(1, 0, 1, 0)
-            }):Play()
-            task.wait(0.2)
-            Circle.Visible = false
-            Circle.Size = UDim2.new(0, 0, 0, 0)
-            
-            -- Обновляем реестр
-            Library.RegistryMap[ToggleInner].Properties.BackgroundColor3 = on and 'MainColor' or 'BackgroundColor'
-            Library.RegistryMap[Circle].Properties.ImageColor3 = on and 'MainColor' or 'BackgroundColor'
         end
 
         function Toggle:Display()
-            -- Без анимации при инициализации
-            ToggleInner.BackgroundColor3 = Toggle.Value and Library.MainColor or Library.BackgroundColor
-            Library.RegistryMap[ToggleInner].Properties.BackgroundColor3 = Toggle.Value and 'MainColor' or 'BackgroundColor'
+            AnimateFill(Toggle.Value)
+            Library.RegistryMap[ToggleInner].Properties.BackgroundColor3 = Toggle.Value and 'AccentColor' or 'MainColor';
+            Library.RegistryMap[ToggleInner].Properties.BorderColor3 = Toggle.Value and 'AccentColorDark' or 'OutlineColor';
         end;
 
         function Toggle:OnChanged(Func)
@@ -1786,8 +1756,8 @@ do
             Bool = (not not Bool);
             if Toggle.Value == Bool then return end
             Toggle.Value = Bool;
-            AnimateToggle(Bool)
-            
+            Toggle:Display();
+
             for _, Addon in next, Toggle.Addons do
                 if Addon.Type == 'KeyPicker' and Addon.SyncToggleState then
                     Addon.Toggled = Bool;
@@ -1825,7 +1795,7 @@ do
         Library:UpdateDependencyBoxes();
         return Toggle;
     end;
-    -- ======================================================================
+    -- =================================================================
 
     function Funcs:AddSlider(Idx, Info)
         assert(Info.Default, 'AddSlider: Missing default value.');
@@ -2746,7 +2716,6 @@ function Library:CreateWindow(...)
     local TabListLayout = Library:Create('UIListLayout', {
         Padding = UDim.new(0, Config.TabPadding);
         FillDirection = Enum.FillDirection.Horizontal;
-        HorizontalAlignment = Enum.HorizontalAlignment.Center; -- ТАБЫ ПО ЦЕНТРУ
         SortOrder = Enum.SortOrder.LayoutOrder;
         Parent = TabArea;
     });
@@ -3177,7 +3146,7 @@ function Library:CreateWindow(...)
     if Config.AutoShow then task.spawn(Library.Toggle) end
     Window.Holder = Outer;
     return Window;
-end
+end;
 
 -- ========= ПОСТОЯННЫЙ КАСТОМНЫЙ КУРСОР =========
 task.spawn(function()
