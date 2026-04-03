@@ -1656,7 +1656,7 @@ do
         return Textbox;
     end;
 
-    -- ========= ИСПРАВЛЕННЫЙ ADDTOGGLE С ГАЛОЧКОЙ ПО ЦЕНТРУ И ЦВЕТОМ OUTLINECOLOR =========
+    -- ========= НОВЫЙ ADDTOGGLE С АНИМАЦИЕЙ ЗАЛИВКИ (БЕЗ ГАЛОЧКИ) =========
     function Funcs:AddToggle(Idx, Info)
         assert(Info.Text, 'AddToggle: Missing `Text` string.')
 
@@ -1697,20 +1697,6 @@ do
             BorderColor3 = 'OutlineColor';
         });
 
-        -- Галочка: по центру, цветом OutlineColor
-        local Checkmark = Library:CreateLabel({
-            Text = "✓";
-            TextSize = 16;
-            TextColor3 = Library.OutlineColor;
-            Size = UDim2.new(1, 0, 1, 0);
-            Visible = Toggle.Value;
-            ZIndex = 7;
-            Parent = ToggleInner;
-            TextXAlignment = Enum.TextXAlignment.Center;
-            TextYAlignment = Enum.TextYAlignment.Center;
-        });
-        Library:AddToRegistry(Checkmark, { TextColor3 = 'OutlineColor' });
-
         local ToggleLabel = Library:CreateLabel({
             Size = UDim2.new(0, 216, 1, 0);
             Position = UDim2.new(1, 6, 0, 0);
@@ -1745,10 +1731,18 @@ do
             Library:AddToolTip(Info.Tooltip, ToggleRegion)
         end
 
+        -- Анимация заливки (появляется из центра)
+        local function AnimateFill(on)
+            local targetColor = on and Library.AccentColor or Library.MainColor
+            local targetBorder = on and Library.AccentColorDark or Library.OutlineColor
+            TweenService:Create(ToggleInner, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundColor3 = targetColor;
+                BorderColor3 = targetBorder;
+            }):Play()
+        end
+
         function Toggle:Display()
-            Checkmark.Visible = Toggle.Value;
-            ToggleInner.BackgroundColor3 = Toggle.Value and Library.AccentColor or Library.MainColor;
-            ToggleInner.BorderColor3 = Toggle.Value and Library.AccentColorDark or Library.OutlineColor;
+            AnimateFill(Toggle.Value)
             Library.RegistryMap[ToggleInner].Properties.BackgroundColor3 = Toggle.Value and 'AccentColor' or 'MainColor';
             Library.RegistryMap[ToggleInner].Properties.BorderColor3 = Toggle.Value and 'AccentColorDark' or 'OutlineColor';
         end;
@@ -1760,6 +1754,7 @@ do
 
         function Toggle:SetValue(Bool)
             Bool = (not not Bool);
+            if Toggle.Value == Bool then return end
             Toggle.Value = Bool;
             Toggle:Display();
 
@@ -1800,7 +1795,7 @@ do
         Library:UpdateDependencyBoxes();
         return Toggle;
     end;
-    -- ======================================================================
+    -- =================================================================
 
     function Funcs:AddSlider(Idx, Info)
         assert(Info.Default, 'AddSlider: Missing default value.');
@@ -3105,33 +3100,6 @@ function Library:CreateWindow(...)
         ModalElement.Modal = Toggled;
         if Toggled then
             Outer.Visible = true;
-            task.spawn(function()
-                local State = InputService.MouseIconEnabled;
-                local Cursor = Drawing.new('Triangle');
-                Cursor.Thickness = 1;
-                Cursor.Filled = true;
-                Cursor.Visible = true;
-                local CursorOutline = Drawing.new('Triangle');
-                CursorOutline.Thickness = 1;
-                CursorOutline.Filled = false;
-                CursorOutline.Color = Color3.new(0, 0, 0);
-                CursorOutline.Visible = true;
-                while Toggled and ScreenGui.Parent do
-                    InputService.MouseIconEnabled = false;
-                    local mPos = InputService:GetMouseLocation();
-                    Cursor.Color = Library.AccentColor;
-                    Cursor.PointA = Vector2.new(mPos.X, mPos.Y);
-                    Cursor.PointB = Vector2.new(mPos.X + 16, mPos.Y + 6);
-                    Cursor.PointC = Vector2.new(mPos.X + 6, mPos.Y + 16);
-                    CursorOutline.PointA = Cursor.PointA;
-                    CursorOutline.PointB = Cursor.PointB;
-                    CursorOutline.PointC = Cursor.PointC;
-                    RenderStepped:Wait();
-                end;
-                InputService.MouseIconEnabled = State;
-                Cursor:Remove();
-                CursorOutline:Remove();
-            end);
         end;
         for _, Desc in next, Outer:GetDescendants() do
             local Properties = {};
@@ -3179,6 +3147,35 @@ function Library:CreateWindow(...)
     Window.Holder = Outer;
     return Window;
 end;
+
+-- ========= ПОСТОЯННЫЙ КАСТОМНЫЙ КУРСОР =========
+task.spawn(function()
+    local Cursor = Drawing.new('Triangle')
+    Cursor.Thickness = 1
+    Cursor.Filled = true
+    Cursor.Visible = true
+    local CursorOutline = Drawing.new('Triangle')
+    CursorOutline.Thickness = 1
+    CursorOutline.Filled = false
+    CursorOutline.Color = Color3.new(0, 0, 0)
+    CursorOutline.Visible = true
+
+    while ScreenGui and ScreenGui.Parent do
+        InputService.MouseIconEnabled = false
+        local mPos = InputService:GetMouseLocation()
+        Cursor.Color = Library.AccentColor
+        Cursor.PointA = Vector2.new(mPos.X, mPos.Y)
+        Cursor.PointB = Vector2.new(mPos.X + 16, mPos.Y + 6)
+        Cursor.PointC = Vector2.new(mPos.X + 6, mPos.Y + 16)
+        CursorOutline.PointA = Cursor.PointA
+        CursorOutline.PointB = Cursor.PointB
+        CursorOutline.PointC = Cursor.PointC
+        RenderStepped:Wait()
+    end
+    Cursor:Remove()
+    CursorOutline:Remove()
+end)
+-- =============================================
 
 local function OnPlayerChange()
     local PlayerList = GetPlayersString();
