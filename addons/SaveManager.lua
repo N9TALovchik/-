@@ -283,7 +283,7 @@ local SaveManager = {} do
 		end)
 
 		-- Кнопка экспорта (копирует содержимое выбранного конфига в буфер)
-		section:AddButton('Export config (copy to clipboard)', function()
+		section:AddButton('Export config ', function()
 			local name = Options.SaveManager_ConfigList.Value
 			if not name then
 				return self.Library:Notify('Select a config first', 2)
@@ -295,8 +295,8 @@ local SaveManager = {} do
 		end)
 
 		-- Поле для импорта JSON строки
-		section:AddInput('SaveManager_ImportString', { Text = 'Import JSON string', Placeholder = 'Paste config JSON here' })
-		section:AddButton('Import config from string', function()
+		section:AddInput('SaveManager_ImportString', { Text = ' ', Placeholder = 'Paste config  here' })
+		section:AddButton('Import config ', function()
 			local json = Options.SaveManager_ImportString.Value
 			if not json or json:gsub(' ', '') == '' then
 				return self.Library:Notify('Empty import string', 2)
