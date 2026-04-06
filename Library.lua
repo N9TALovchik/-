@@ -2946,7 +2946,7 @@ function Library:CreateWindow(...)
 
     Library:MakeDraggable(Outer, 25);
 
-    -- Resize handle (bottom-right corner)
+    -- Resize handle (bottom-right corner) - исправленная версия (без Enum.Cursor)
     if Config.Resizable then
         local ResizeHandle = Library:Create('Frame', {
             BackgroundColor3 = Library.AccentColor;
@@ -2956,7 +2956,6 @@ function Library:CreateWindow(...)
             Size = UDim2.new(0, 10, 0, 10);
             ZIndex = 100;
             Parent = Outer;
-            Cursor = Enum.Cursor.SizeAll;
         });
 
         Library:AddToRegistry(ResizeHandle, {
@@ -2989,7 +2988,7 @@ function Library:CreateWindow(...)
             local newWidth = math.clamp(startSize.X.Offset + delta.X, Config.MinSize.X, Config.MaxSize.X);
             local newHeight = math.clamp(startSize.Y.Offset + delta.Y, Config.MinSize.Y, Config.MaxSize.Y);
             Outer.Size = UDim2.new(0, newWidth, 0, newHeight);
-            -- Adjust position if anchored
+            -- Adjust position if anchored (например, при центрировании)
             if Config.AnchorPoint.X == 0.5 then
                 local newXOffset = startPos.X.Offset + (startSize.X.Offset - newWidth) * 0.5;
                 Outer.Position = UDim2.new(0, newXOffset, startPos.Y.Offset, startPos.Y.Offset);
