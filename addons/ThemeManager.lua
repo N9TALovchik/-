@@ -19,8 +19,8 @@ local ThemeManager = {} do
 	}
 
 	-- Конфигурация эффекта клика (изменяется только в коде)
-	local CLICK_EFFECT_MAX_SIZE = 50                   -- максимальный радиус круга
-	local CLICK_EFFECT_GROW_TIME = 0.4                 -- время расширения до максимального размера (сек)
+	local CLICK_EFFECT_MAX_SIZE = 30                   -- максимальный радиус круга
+	local CLICK_EFFECT_GROW_TIME = 0.5                 -- время расширения до максимального размера (сек)
 	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.5      -- начальная прозрачность (0 = непрозрачный, 1 = полностью прозрачный)
 
 	local clickEffectGui = nil
