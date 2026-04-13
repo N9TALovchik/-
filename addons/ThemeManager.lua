@@ -11,11 +11,12 @@ local ThemeManager = {} do
 	ThemeManager.Library = nil
 	ThemeManager.BuiltInThemes = {
 		['Default'] 	= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232","ClickEffectColor":"ffffff"}') },
-		['Fatality']	= { 2, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d","ClickEffectColor":"ffffff"}') },
 		['Dark'] 		= { 3, httpService:JSONDecode('{"MainColor":"181818","AccentColor":"34363a","OutlineColor":"1b1b1b","BackgroundColor":"141414","FontColor":"cbcbcb","ClickEffectColor":"ffffff"}') },
+		['Fatality']	= { 2, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d","ClickEffectColor":"ffffff"}') },
+		['Neverlose'] 	= { 4, httpService:JSONDecode('{"FontColor":"e0e0e0","MainColor":"1a1a1a","AccentColor":"a64dff","BackgroundColor":"0f0f0f","OutlineColor":"2d2d2d","ClickEffectColor":"ffffff"}') },
 	}
 
-	-- Настройки эффекта клика
+	-- Настройки эффекта клика (как ты просил)
 	local CLICK_EFFECT_MAX_SIZE = 20
 	local CLICK_EFFECT_GROW_TIME = 0.4
 	local CLICK_EFFECT_FADE_TIME = 0.2
@@ -60,10 +61,14 @@ local ThemeManager = {} do
 			local mousePos = UserInputService:GetMouseLocation()
 			self:CreateClickEffect(mousePos.X, mousePos.Y)
 
-			-- Воспроизведение звука в Workspace
+			-- Звук в Workspace
 			if clickSoundId and clickSoundId ~= "" then
+				local soundId = clickSoundId
+				if not soundId:find("rbxassetid://") then
+					soundId = "rbxassetid://" .. soundId
+				end
 				local sound = Instance.new('Sound')
-				sound.SoundId = clickSoundId
+				sound.SoundId = soundId
 				sound.Volume = 1
 				sound.Parent = Workspace
 				sound:Play()
