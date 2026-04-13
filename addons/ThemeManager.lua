@@ -8,20 +8,16 @@ local ThemeManager = {} do
 
 	ThemeManager.Library = nil
 	ThemeManager.BuiltInThemes = {
-		['Default'] 		= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232","ClickEffectColor":"ffffff"}') },
-		['BBot'] 			= { 2, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1e1e","AccentColor":"7e48a3","BackgroundColor":"232323","OutlineColor":"141414","ClickEffectColor":"ffffff"}') },
-		['Fatality']		= { 3, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d","ClickEffectColor":"ffffff"}') },
-		['Jester'] 			= { 4, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"242424","AccentColor":"db4467","BackgroundColor":"1c1c1c","OutlineColor":"373737","ClickEffectColor":"ffffff"}') },
-		['Mint'] 			= { 5, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"242424","AccentColor":"3db488","BackgroundColor":"1c1c1c","OutlineColor":"373737","ClickEffectColor":"ffffff"}') },
-		['Tokyo Night'] 	= { 6, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"191925","AccentColor":"6759b3","BackgroundColor":"16161f","OutlineColor":"323232","ClickEffectColor":"ffffff"}') },
-		['Ubuntu'] 			= { 7, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"3e3e3e","AccentColor":"e2581e","BackgroundColor":"323232","OutlineColor":"191919","ClickEffectColor":"ffffff"}') },
-		['Quartz'] 			= { 8, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"232330","AccentColor":"426e87","BackgroundColor":"1d1b26","OutlineColor":"27232f","ClickEffectColor":"ffffff"}') },
+		['Default'] 	= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232","ClickEffectColor":"ffffff"}') },
+		['Fatality']	= { 2, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d","ClickEffectColor":"ffffff"}') },
+		['Dark'] 		= { 3, httpService:JSONDecode('{"MainColor":"181818","AccentColor":"34363a","OutlineColor":"1b1b1b","BackgroundColor":"141414","FontColor":"cbcbcb","ClickEffectColor":"ffffff"}') },
 	}
 
 	-- Конфигурация эффекта клика (изменяется только в коде)
-	local CLICK_EFFECT_MAX_SIZE = 25                   -- максимальный радиус круга
-	local CLICK_EFFECT_GROW_TIME = 0.3                 -- время расширения до максимального размера (сек)
-	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.3      -- начальная прозрачность (0 = непрозрачный, 1 = полностью прозрачный)
+	local CLICK_EFFECT_MAX_SIZE = 50                   -- максимальный радиус круга
+	local CLICK_EFFECT_GROW_TIME = 0.4                 -- время расширения до максимального размера (сек)
+	local CLICK_EFFECT_FADE_TIME = 0.2                 -- время затухания после роста (сек)
+	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.5      -- начальная прозрачность (0 = непрозрачный, 1 = полностью прозрачный)
 
 	local clickEffectGui = nil
 	local clickEffectEnabled = true -- всегда true, нельзя отключить
@@ -38,6 +34,7 @@ local ThemeManager = {} do
 		clickEffectGui.Name = 'ClickEffectGUI'
 		clickEffectGui.IgnoreGuiInset = true
 		clickEffectGui.ResetOnSpawn = false
+		clickEffectGui.DisplayOrder = 100 -- поверх всего
 		clickEffectGui.Parent = playerGui
 
 		-- Подключаем обработчик клика
@@ -63,7 +60,7 @@ local ThemeManager = {} do
 		circle.BorderSizePixel = 0
 		circle.Position = UDim2.new(0, x, 0, y)
 		circle.Size = UDim2.new(0, 0, 0, 0)
-		circle.ZIndex = 9999999
+		circle.ZIndex = 100 -- поверх всех элементов
 		circle.Parent = clickEffectGui
 
 		local corner = Instance.new('UICorner')
@@ -72,13 +69,18 @@ local ThemeManager = {} do
 
 		-- Анимация размера
 		local targetSize = UDim2.new(0, CLICK_EFFECT_MAX_SIZE * 2, 0, CLICK_EFFECT_MAX_SIZE * 2)
-		local tweenInfo = TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local sizeTween = TweenService:Create(circle, tweenInfo, { Size = targetSize })
+		local growTweenInfo = TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local sizeTween = TweenService:Create(circle, growTweenInfo, { Size = targetSize })
 		sizeTween:Play()
 
-		-- Удаляем круг сразу после завершения роста (без затухания)
+		-- После завершения роста запускаем затухание
 		sizeTween.Completed:Connect(function()
-			circle:Destroy()
+			local fadeTweenInfo = TweenInfo.new(CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Linear)
+			local fadeTween = TweenService:Create(circle, fadeTweenInfo, { BackgroundTransparency = 1 })
+			fadeTween:Play()
+			fadeTween.Completed:Connect(function()
+				circle:Destroy()
+			end)
 		end)
 	end
 
