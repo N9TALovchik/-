@@ -16,7 +16,7 @@ local ThemeManager = {} do
 	}
 
 	-- Настройки эффекта клика
-	local CLICK_EFFECT_MAX_SIZE = 25
+	local CLICK_EFFECT_MAX_SIZE = 20
 	local CLICK_EFFECT_GROW_TIME = 0.4
 	local CLICK_EFFECT_FADE_TIME = 0.2
 	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.4
