@@ -1,160 +1,56 @@
 local httpService = game:GetService('HttpService')
-local UserInputService = game:GetService('UserInputService')
-local TweenService = game:GetService('TweenService')
-local Players = game:GetService('Players')
-local CoreGui = game:GetService('CoreGui')
-local Workspace = game:GetService('Workspace')
 
 local ThemeManager = {} do
 	ThemeManager.Folder = 'LinoriaLibSettings'
 
 	ThemeManager.Library = nil
 	ThemeManager.BuiltInThemes = {
-		['Default'] 	= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232"}') },
-		['Dark'] 		= { 2, httpService:JSONDecode('{"MainColor":"181818","AccentColor":"34363a","OutlineColor":"1b1b1b","BackgroundColor":"141414","FontColor":"cbcbcb"}') },
-		['Fatality']	= { 3, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d"}') },
-		['Neverlose'] 	= { 4, httpService:JSONDecode('{"MainColor":"080e21","AccentColor":"120d64","OutlineColor":"100c31","BackgroundColor":"0c0a1c","FontColor":"ffffff"}') },
+		['Default'] 	= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232","FontTransparency":0,"MainTransparency":0,"AccentTransparency":0,"BackgroundTransparency":0,"OutlineTransparency":0}') },
+		['Dark'] 		= { 2, httpService:JSONDecode('{"MainColor":"181818","AccentColor":"34363a","OutlineColor":"1b1b1b","BackgroundColor":"141414","FontColor":"cbcbcb","FontTransparency":0,"MainTransparency":0,"AccentTransparency":0,"BackgroundTransparency":0,"OutlineTransparency":0}') },
+		['Fatality']	= { 3, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d","FontTransparency":0,"MainTransparency":0,"AccentTransparency":0,"BackgroundTransparency":0,"OutlineTransparency":0}') },
+		['Neverlose'] 	= { 4, httpService:JSONDecode('{"MainColor":"080e21","AccentColor":"120d64","OutlineColor":"100c31","BackgroundColor":"0c0a1c","FontColor":"ffffff","FontTransparency":0,"MainTransparency":0,"AccentTransparency":0,"BackgroundTransparency":0,"OutlineTransparency":0}') },
 	}
-
-	-- Настройки эффекта клика
-	local CLICK_EFFECT_MAX_SIZE = 20
-	local CLICK_EFFECT_GROW_TIME = 0.4
-	local CLICK_EFFECT_FADE_TIME = 0.2
-	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.4
-	local DEBOUNCE_TIME = 0.1
-
-	local clickEffectGui = nil
-	local clickSoundId = ""        -- текущий ID звука (может меняться через GUI)
-	local savedClickSound = ""     -- загруженный из файла ID
-	local clickEffectEnabled = true
-	local inputConnection = nil
-	local lastClickTime = 0
-
-	-- Инициализация GUI (CoreGui)
-	function ThemeManager:InitClickEffect()
-		if inputConnection then
-			inputConnection:Disconnect()
-			inputConnection = nil
-		end
-		if clickEffectGui then
-			clickEffectGui:Destroy()
-			clickEffectGui = nil
-		end
-
-		clickEffectGui = Instance.new('ScreenGui')
-		clickEffectGui.Name = 'ClickEffectGUI'
-		clickEffectGui.IgnoreGuiInset = true
-		clickEffectGui.ResetOnSpawn = false
-		clickEffectGui.DisplayOrder = 100
-		clickEffectGui.Parent = CoreGui
-
-		lastClickTime = 0
-
-		inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-			if not clickEffectEnabled then return end
-			if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-			if gameProcessed then return end
-
-			local now = tick()
-			if now - lastClickTime < DEBOUNCE_TIME then return end
-			lastClickTime = now
-
-			local mousePos = UserInputService:GetMouseLocation()
-			self:CreateClickEffect(mousePos.X, mousePos.Y)
-
-			-- Звук в Workspace
-			if clickSoundId and clickSoundId ~= "" then
-				local soundId = clickSoundId
-				if not soundId:find("rbxassetid://") then
-					soundId = "rbxassetid://" .. soundId
-				end
-				local sound = Instance.new('Sound')
-				sound.SoundId = soundId
-				sound.Volume = 1
-				sound.Parent = Workspace
-				sound:Play()
-				sound.Ended:Connect(function()
-					sound:Destroy()
-				end)
-			end
-		end)
-	end
-
-	-- Создание одного круга
-	function ThemeManager:CreateClickEffect(x, y)
-		if not self.Library then return end
-
-		local circle = Instance.new('Frame')
-		circle.Name = 'ClickCircle'
-		circle.AnchorPoint = Vector2.new(0.5, 0.5)
-		circle.BackgroundColor3 = self.Library.ClickEffectColor or self.Library.BackgroundColor or Color3.fromRGB(255, 255, 255)
-		circle.BackgroundTransparency = CLICK_EFFECT_INITIAL_TRANSPARENCY
-		circle.BorderSizePixel = 0
-		circle.Position = UDim2.new(0, x, 0, y)
-		circle.Size = UDim2.new(0, 0, 0, 0)
-		circle.ZIndex = 100
-		circle.Parent = clickEffectGui
-
-		local corner = Instance.new('UICorner')
-		corner.CornerRadius = UDim.new(1, 0)
-		corner.Parent = circle
-
-		local targetSize = UDim2.new(0, CLICK_EFFECT_MAX_SIZE * 2, 0, CLICK_EFFECT_MAX_SIZE * 2)
-		local growTweenInfo = TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local sizeTween = TweenService:Create(circle, growTweenInfo, { Size = targetSize })
-		sizeTween:Play()
-
-		sizeTween.Completed:Connect(function()
-			local fadeTweenInfo = TweenInfo.new(CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Linear)
-			local fadeTween = TweenService:Create(circle, fadeTweenInfo, { BackgroundTransparency = 1 })
-			fadeTween:Play()
-			fadeTween.Completed:Connect(function()
-				circle:Destroy()
-			end)
-		end)
-	end
 
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = self:GetCustomTheme(theme)
 		local data = customThemeData or self.BuiltInThemes[theme]
+
 		if not data then return end
 
 		local scheme = data[2]
 		local themeData = customThemeData or scheme
-
-		for idx, col in next, themeData do
-			if idx ~= 'ClickEffectColor' then
-				self.Library[idx] = Color3.fromHex(col)
+		
+		for idx, val in next, themeData do
+			if idx:find('Transparency') then
+				local colorName = idx:gsub('Transparency', '')
+				if self.Library[colorName] then
+					self.Library[idx] = tonumber(val) or 0
+					if Options[colorName] then
+						Options[colorName].Transparency = self.Library[idx]
+						Options[colorName]:Display()
+					end
+				end
+			else
+				self.Library[idx] = Color3.fromHex(val)
 				if Options[idx] then
-					Options[idx]:SetValueRGB(Color3.fromHex(col))
+					Options[idx]:SetValueRGB(Color3.fromHex(val))
 				end
 			end
-		end
-
-		-- Устанавливаем цвет клика: если задан явно — используем его, иначе берём цвет фона
-		if themeData.ClickEffectColor then
-			self.Library.ClickEffectColor = Color3.fromHex(themeData.ClickEffectColor)
-		elseif themeData.BackgroundColor then
-			self.Library.ClickEffectColor = Color3.fromHex(themeData.BackgroundColor)
-		else
-			self.Library.ClickEffectColor = Color3.fromRGB(255, 255, 255)
-		end
-		if Options.ClickEffectColor then
-			Options.ClickEffectColor:SetValueRGB(self.Library.ClickEffectColor)
 		end
 
 		self:ThemeUpdate()
 	end
 
 	function ThemeManager:ThemeUpdate()
-		local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
+		local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
 		for i, field in next, options do
 			if Options and Options[field] then
 				self.Library[field] = Options[field].Value
+				self.Library[field .. 'Transparency'] = Options[field].Transparency or 0
 			end
 		end
 
-		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor)
+		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor);
 		self.Library:UpdateColorsUsingRegistry()
 	end
 
@@ -168,7 +64,7 @@ local ThemeManager = {} do
 				theme = content
 			elseif self:GetCustomTheme(content) then
 				theme = content
-				isDefault = false
+				isDefault = false;
 			end
 		elseif self.BuiltInThemes[self.DefaultTheme] then
 		 	theme = self.DefaultTheme
@@ -185,55 +81,37 @@ local ThemeManager = {} do
 		writefile(self.Folder .. '/themes/default.txt', theme)
 	end
 
-	-- Загрузка сохранённого ID звука
-	function ThemeManager:LoadClickSound()
-		local path = self.Folder .. '/click_sound.txt'
-		if isfile(path) then
-			savedClickSound = readfile(path)
-		else
-			savedClickSound = ""
-		end
-		clickSoundId = savedClickSound
-	end
-
-	-- Сохранение ID звука
-	function ThemeManager:SaveClickSound(id)
-		local path = self.Folder .. '/click_sound.txt'
-		writefile(path, id)
-	end
-
 	function ThemeManager:CreateThemeManager(groupbox)
-		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = self.Library.BackgroundColor })
-		groupbox:AddLabel('Main color'):AddColorPicker('MainColor', { Default = self.Library.MainColor })
-		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = self.Library.AccentColor })
-		groupbox:AddLabel('Outline color'):AddColorPicker('OutlineColor', { Default = self.Library.OutlineColor })
-		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = self.Library.FontColor })
-		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = self.Library.ClickEffectColor or self.Library.BackgroundColor or Color3.fromRGB(255, 255, 255) })
+		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = self.Library.BackgroundColor, Transparency = self.Library.BackgroundTransparency or 0 })
+		groupbox:AddSlider('BackgroundTransparency', { Text = 'Background transparency', Default = self.Library.BackgroundTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
 		
-		groupbox:AddDivider()
-		groupbox:AddInput('ClickSoundId', { Text = 'Click Sound ID (rbxassetid://...)', Default = savedClickSound })
-		Options.ClickSoundId:OnChanged(function()
-			local id = Options.ClickSoundId.Value
-			if id ~= "" and not id:find("rbxassetid://") then
-				id = "rbxassetid://" .. id
-				Options.ClickSoundId:SetValue(id)
-			end
-			clickSoundId = id
-			self:SaveClickSound(id)   -- Сохраняем при каждом изменении
-		end)
+		groupbox:AddLabel('Main color'):AddColorPicker('MainColor', { Default = self.Library.MainColor, Transparency = self.Library.MainTransparency or 0 })
+		groupbox:AddSlider('MainTransparency', { Text = 'Main transparency', Default = self.Library.MainTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
+		
+		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = self.Library.AccentColor, Transparency = self.Library.AccentTransparency or 0 })
+		groupbox:AddSlider('AccentTransparency', { Text = 'Accent transparency', Default = self.Library.AccentTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
+		
+		groupbox:AddLabel('Outline color'):AddColorPicker('OutlineColor', { Default = self.Library.OutlineColor, Transparency = self.Library.OutlineTransparency or 0 })
+		groupbox:AddSlider('OutlineTransparency', { Text = 'Outline transparency', Default = self.Library.OutlineTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
+		
+		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = self.Library.FontColor, Transparency = self.Library.FontTransparency or 0 })
+		groupbox:AddSlider('FontTransparency', { Text = 'Font transparency', Default = self.Library.FontTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
 
 		local ThemesArray = {}
 		for Name, Theme in next, self.BuiltInThemes do
 			table.insert(ThemesArray, Name)
 		end
+
 		table.sort(ThemesArray, function(a, b) return self.BuiltInThemes[a][1] < self.BuiltInThemes[b][1] end)
 
 		groupbox:AddDivider()
 		groupbox:AddDropdown('ThemeManager_ThemeList', { Text = 'Theme list', Values = ThemesArray, Default = 1 })
+
 		groupbox:AddButton('Set as default', function()
 			self:SaveDefault(Options.ThemeManager_ThemeList.Value)
 			self.Library:Notify(string.format('Set default theme to %q', Options.ThemeManager_ThemeList.Value))
 		end)
+
 		Options.ThemeManager_ThemeList:OnChanged(function()
 			self:ApplyTheme(Options.ThemeManager_ThemeList.Value)
 		end)
@@ -245,6 +123,7 @@ local ThemeManager = {} do
 		
 		groupbox:AddButton('Save theme', function() 
 			self:SaveCustomTheme(Options.ThemeManager_CustomThemeName.Value)
+
 			Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
 			Options.ThemeManager_CustomThemeList:SetValue(nil)
 		end):AddButton('Load theme', function() 
@@ -274,14 +153,38 @@ local ThemeManager = {} do
 		Options.AccentColor:OnChanged(UpdateTheme)
 		Options.OutlineColor:OnChanged(UpdateTheme)
 		Options.FontColor:OnChanged(UpdateTheme)
-		Options.ClickEffectColor:OnChanged(UpdateTheme)
+		
+		Options.BackgroundTransparency:OnChanged(UpdateTheme)
+		Options.MainTransparency:OnChanged(UpdateTheme)
+		Options.AccentTransparency:OnChanged(UpdateTheme)
+		Options.OutlineTransparency:OnChanged(UpdateTheme)
+		Options.FontTransparency:OnChanged(UpdateTheme)
+		
+		local function syncTransparency(colorOption, transOption)
+			if colorOption and transOption then
+				colorOption.OnChanged = colorOption.OnChanged or function() end
+				local oldCallback = colorOption.Callback
+				colorOption.Callback = function(color)
+					if oldCallback then oldCallback(color) end
+					transOption:SetValue(colorOption.Transparency or 0)
+				end
+			end
+		end
+		
+		syncTransparency(Options.BackgroundColor, Options.BackgroundTransparency)
+		syncTransparency(Options.MainColor, Options.MainTransparency)
+		syncTransparency(Options.AccentColor, Options.AccentTransparency)
+		syncTransparency(Options.OutlineColor, Options.OutlineTransparency)
+		syncTransparency(Options.FontColor, Options.FontTransparency)
 	end
 
 	function ThemeManager:GetCustomTheme(file)
 		local path = self.Folder .. '/themes/' .. file
 		if not isfile(path) then return nil end
+
 		local data = readfile(path)
 		local success, decoded = pcall(httpService.JSONDecode, httpService, data)
+		
 		if not success then return nil end
 		return decoded
 	end
@@ -290,13 +193,15 @@ local ThemeManager = {} do
 		if file:gsub(' ', '') == '' then
 			return self.Library:Notify('Invalid file name for theme (empty)', 3)
 		end
+
 		local theme = {}
 		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
+
 		for _, field in next, fields do
 			theme[field] = Options[field].Value:ToHex()
+			theme[field .. 'Transparency'] = Options[field].Transparency or 0
 		end
-		-- Сохраняем текущий цвет эффекта клика
-		theme.ClickEffectColor = Options.ClickEffectColor.Value:ToHex()
+
 		writefile(self.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
 		self.Library:Notify(string.format('Theme "%s" saved', file))
 	end
@@ -309,10 +214,12 @@ local ThemeManager = {} do
 			if file:sub(-5) == '.json' then
 				local pos = file:find('.json', 1, true)
 				local char = file:sub(pos, pos)
+
 				while char ~= '/' and char ~= '\\' and char ~= '' do
 					pos = pos - 1
 					char = file:sub(pos, pos)
 				end
+
 				if char == '/' or char == '\\' then
 					table.insert(out, file:sub(pos + 1))
 				end
@@ -323,8 +230,6 @@ local ThemeManager = {} do
 
 	function ThemeManager:SetLibrary(lib)
 		self.Library = lib
-		self:LoadClickSound()   -- Загружаем сохранённый звук
-		self:InitClickEffect()
 	end
 
 	function ThemeManager:BuildFolderTree()
@@ -345,9 +250,7 @@ local ThemeManager = {} do
 		table.insert(paths, self.Folder .. '/settings')
 		for i = 1, #paths do
 			local str = paths[i]
-			if not isfolder(str) then
-				makefolder(str)
-			end
+			if not isfolder(str) then makefolder(str) end
 		end
 	end
 
