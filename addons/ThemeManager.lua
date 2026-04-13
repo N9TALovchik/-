@@ -19,17 +19,25 @@ local ThemeManager = {} do
 	local CLICK_EFFECT_GROW_TIME = 0.4
 	local CLICK_EFFECT_FADE_TIME = 0.2
 	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.4
+	local DEBOUNCE_TIME = 0.1
 
 	local clickEffectGui = nil
 	local clickSoundId = ""
 	local clickEffectEnabled = true
 	local inputConnection = nil
 	local lastClickTime = 0
-	local DEBOUNCE_TIME = 0.1 -- минимальный интервал между кликами (сек)
 
 	-- Инициализация GUI (CoreGui)
 	function ThemeManager:InitClickEffect()
-		if clickEffectGui then return end
+		-- Отключаем и удаляем всё старое
+		if inputConnection then
+			inputConnection:Disconnect()
+			inputConnection = nil
+		end
+		if clickEffectGui then
+			clickEffectGui:Destroy()
+			clickEffectGui = nil
+		end
 
 		clickEffectGui = Instance.new('ScreenGui')
 		clickEffectGui.Name = 'ClickEffectGUI'
@@ -38,13 +46,8 @@ local ThemeManager = {} do
 		clickEffectGui.DisplayOrder = 100
 		clickEffectGui.Parent = CoreGui
 
-		-- Отключаем старое соединение, если было
-		if inputConnection then
-			inputConnection:Disconnect()
-			inputConnection = nil
-		end
+		lastClickTime = 0
 
-		-- Единственное соединение
 		inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			if not clickEffectEnabled then return end
 			if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
@@ -104,11 +107,9 @@ local ThemeManager = {} do
 		end)
 	end
 
-	-- Остальные функции без изменений...
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = self:GetCustomTheme(theme)
 		local data = customThemeData or self.BuiltInThemes[theme]
-
 		if not data then return end
 
 		local scheme = data[2]
@@ -155,7 +156,7 @@ local ThemeManager = {} do
 				theme = content
 			elseif self:GetCustomTheme(content) then
 				theme = content
-				isDefault = false;
+				isDefault = false
 			end
 		elseif self.BuiltInThemes[self.DefaultTheme] then
 		 	theme = self.DefaultTheme
