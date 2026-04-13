@@ -19,9 +19,9 @@ local ThemeManager = {} do
 	}
 
 	-- Конфигурация эффекта клика (изменяется только в коде)
-	local CLICK_EFFECT_MAX_SIZE = 50      -- максимальный радиус круга
-	local CLICK_EFFECT_GROW_TIME = 0.5    -- время расширения до максимального размера (сек)
-	local CLICK_EFFECT_FADE_TIME = 0.5    -- время затухания после роста (сек)
+	local CLICK_EFFECT_MAX_SIZE = 50                   -- максимальный радиус круга
+	local CLICK_EFFECT_GROW_TIME = 0.4                 -- время расширения до максимального размера (сек)
+	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.5      -- начальная прозрачность (0 = непрозрачный, 1 = полностью прозрачный)
 
 	local clickEffectGui = nil
 	local clickEffectEnabled = true -- всегда true, нельзя отключить
@@ -59,7 +59,7 @@ local ThemeManager = {} do
 		circle.Name = 'ClickCircle'
 		circle.AnchorPoint = Vector2.new(0.5, 0.5)
 		circle.BackgroundColor3 = self.Library.ClickEffectColor or Color3.fromRGB(255, 255, 255)
-		circle.BackgroundTransparency = 0
+		circle.BackgroundTransparency = CLICK_EFFECT_INITIAL_TRANSPARENCY  -- сразу полупрозрачный
 		circle.BorderSizePixel = 0
 		circle.Position = UDim2.new(0, x, 0, y)
 		circle.Size = UDim2.new(0, 0, 0, 0)
@@ -72,18 +72,13 @@ local ThemeManager = {} do
 
 		-- Анимация размера
 		local targetSize = UDim2.new(0, CLICK_EFFECT_MAX_SIZE * 2, 0, CLICK_EFFECT_MAX_SIZE * 2)
-		local growTweenInfo = TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local sizeTween = TweenService:Create(circle, growTweenInfo, { Size = targetSize })
+		local tweenInfo = TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local sizeTween = TweenService:Create(circle, tweenInfo, { Size = targetSize })
 		sizeTween:Play()
 
-		-- После завершения роста – затухание
+		-- Удаляем круг сразу после завершения роста (без затухания)
 		sizeTween.Completed:Connect(function()
-			local fadeTweenInfo = TweenInfo.new(CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Linear)
-			local fadeTween = TweenService:Create(circle, fadeTweenInfo, { BackgroundTransparency = 1 })
-			fadeTween:Play()
-			fadeTween.Completed:Connect(function()
-				circle:Destroy()
-			end)
+			circle:Destroy()
 		end)
 	end
 
