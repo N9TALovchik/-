@@ -14,7 +14,7 @@ local ThemeManager = {} do
 		['Dark'] 		= { 3, httpService:JSONDecode('{"MainColor":"181818","AccentColor":"34363a","OutlineColor":"1b1b1b","BackgroundColor":"141414","FontColor":"cbcbcb","ClickEffectColor":"ffffff"}') },
 	}
 
-	-- Конфигурация эффекта клика (изменяется только в коде)
+	-- Настройки эффекта клика
 	local CLICK_EFFECT_MAX_SIZE = 25
 	local CLICK_EFFECT_GROW_TIME = 0.4
 	local CLICK_EFFECT_FADE_TIME = 0.2
@@ -23,8 +23,11 @@ local ThemeManager = {} do
 	local clickEffectGui = nil
 	local clickSoundId = ""
 	local clickEffectEnabled = true
+	local inputConnection = nil
+	local lastClickTime = 0
+	local DEBOUNCE_TIME = 0.1 -- минимальный интервал между кликами (сек)
 
-	-- Инициализация GUI для эффекта клика
+	-- Инициализация GUI (CoreGui)
 	function ThemeManager:InitClickEffect()
 		if clickEffectGui then return end
 
@@ -35,10 +38,21 @@ local ThemeManager = {} do
 		clickEffectGui.DisplayOrder = 100
 		clickEffectGui.Parent = CoreGui
 
-		UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		-- Отключаем старое соединение, если было
+		if inputConnection then
+			inputConnection:Disconnect()
+			inputConnection = nil
+		end
+
+		-- Единственное соединение
+		inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			if not clickEffectEnabled then return end
 			if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 			if gameProcessed then return end
+
+			local now = tick()
+			if now - lastClickTime < DEBOUNCE_TIME then return end
+			lastClickTime = now
 
 			local mousePos = UserInputService:GetMouseLocation()
 			self:CreateClickEffect(mousePos.X, mousePos.Y)
@@ -56,6 +70,7 @@ local ThemeManager = {} do
 		end)
 	end
 
+	-- Создание одного круга
 	function ThemeManager:CreateClickEffect(x, y)
 		if not self.Library then return end
 
@@ -75,11 +90,13 @@ local ThemeManager = {} do
 		corner.Parent = circle
 
 		local targetSize = UDim2.new(0, CLICK_EFFECT_MAX_SIZE * 2, 0, CLICK_EFFECT_MAX_SIZE * 2)
-		local growTween = TweenService:Create(circle, TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = targetSize })
-		growTween:Play()
+		local growTweenInfo = TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local sizeTween = TweenService:Create(circle, growTweenInfo, { Size = targetSize })
+		sizeTween:Play()
 
-		growTween.Completed:Connect(function()
-			local fadeTween = TweenService:Create(circle, TweenInfo.new(CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Linear), { BackgroundTransparency = 1 })
+		sizeTween.Completed:Connect(function()
+			local fadeTweenInfo = TweenInfo.new(CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Linear)
+			local fadeTween = TweenService:Create(circle, fadeTweenInfo, { BackgroundTransparency = 1 })
 			fadeTween:Play()
 			fadeTween.Completed:Connect(function()
 				circle:Destroy()
@@ -87,48 +104,63 @@ local ThemeManager = {} do
 		end)
 	end
 
+	-- Остальные функции без изменений...
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = self:GetCustomTheme(theme)
 		local data = customThemeData or self.BuiltInThemes[theme]
+
 		if not data then return end
 
-		local themeData = customThemeData or data[2]
+		local scheme = data[2]
+		local themeData = customThemeData or scheme
+
 		for idx, col in next, themeData do
 			if idx ~= 'ClickEffectColor' then
 				self.Library[idx] = Color3.fromHex(col)
-				if Options[idx] then Options[idx]:SetValueRGB(Color3.fromHex(col)) end
+				if Options[idx] then
+					Options[idx]:SetValueRGB(Color3.fromHex(col))
+				end
 			end
 		end
+
 		if themeData.ClickEffectColor then
 			self.Library.ClickEffectColor = Color3.fromHex(themeData.ClickEffectColor)
-			if Options.ClickEffectColor then Options.ClickEffectColor:SetValueRGB(Color3.fromHex(themeData.ClickEffectColor)) end
+			if Options.ClickEffectColor then
+				Options.ClickEffectColor:SetValueRGB(Color3.fromHex(themeData.ClickEffectColor))
+			end
 		end
+
 		self:ThemeUpdate()
 	end
 
 	function ThemeManager:ThemeUpdate()
 		local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
-		for _, field in next, options do
-			if Options and Options[field] then self.Library[field] = Options[field].Value end
+		for i, field in next, options do
+			if Options and Options[field] then
+				self.Library[field] = Options[field].Value
+			end
 		end
+
 		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor)
 		self.Library:UpdateColorsUsingRegistry()
 	end
 
-	function ThemeManager:LoadDefault()
+	function ThemeManager:LoadDefault()		
 		local theme = 'Default'
 		local content = isfile(self.Folder .. '/themes/default.txt') and readfile(self.Folder .. '/themes/default.txt')
+
 		local isDefault = true
 		if content then
 			if self.BuiltInThemes[content] then
 				theme = content
 			elseif self:GetCustomTheme(content) then
 				theme = content
-				isDefault = false
+				isDefault = false;
 			end
 		elseif self.BuiltInThemes[self.DefaultTheme] then
-			theme = self.DefaultTheme
+		 	theme = self.DefaultTheme
 		end
+
 		if isDefault then
 			Options.ThemeManager_ThemeList:SetValue(theme)
 		else
@@ -147,15 +179,18 @@ local ThemeManager = {} do
 		groupbox:AddLabel('Outline color'):AddColorPicker('OutlineColor', { Default = self.Library.OutlineColor })
 		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = self.Library.FontColor })
 		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = self.Library.ClickEffectColor or Color3.fromRGB(255, 255, 255) })
-		groupbox:AddInput('ClickSoundId', { Text = 'Click sound ID (rbxassetid://...)', Default = clickSoundId })
-
+		
+		groupbox:AddDivider()
+		groupbox:AddInput('ClickSoundId', { Text = 'Click Sound ID (rbxassetid://...)', Default = '' })
 		Options.ClickSoundId:OnChanged(function()
 			clickSoundId = Options.ClickSoundId.Value
 		end)
 
 		local ThemesArray = {}
-		for Name in pairs(self.BuiltInThemes) do table.insert(ThemesArray, Name) end
-		table.sort(ThemesArray, function(a,b) return self.BuiltInThemes[a][1] < self.BuiltInThemes[b][1] end)
+		for Name, Theme in next, self.BuiltInThemes do
+			table.insert(ThemesArray, Name)
+		end
+		table.sort(ThemesArray, function(a, b) return self.BuiltInThemes[a][1] < self.BuiltInThemes[b][1] end)
 
 		groupbox:AddDivider()
 		groupbox:AddDropdown('ThemeManager_ThemeList', { Text = 'Theme list', Values = ThemesArray, Default = 1 })
@@ -171,27 +206,33 @@ local ThemeManager = {} do
 		groupbox:AddInput('ThemeManager_CustomThemeName', { Text = 'Custom theme name' })
 		groupbox:AddDropdown('ThemeManager_CustomThemeList', { Text = 'Custom themes', Values = self:ReloadCustomThemes(), AllowNull = true, Default = 1 })
 		groupbox:AddDivider()
-		groupbox:AddButton('Save theme', function()
+		
+		groupbox:AddButton('Save theme', function() 
 			self:SaveCustomTheme(Options.ThemeManager_CustomThemeName.Value)
 			Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
 			Options.ThemeManager_CustomThemeList:SetValue(nil)
-		end):AddButton('Load theme', function()
-			self:ApplyTheme(Options.ThemeManager_CustomThemeList.Value)
+		end):AddButton('Load theme', function() 
+			self:ApplyTheme(Options.ThemeManager_CustomThemeList.Value) 
 		end)
+
 		groupbox:AddButton('Refresh list', function()
 			Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
 			Options.ThemeManager_CustomThemeList:SetValue(nil)
 		end)
+
 		groupbox:AddButton('Set as default', function()
-			if Options.ThemeManager_CustomThemeList.Value and Options.ThemeManager_CustomThemeList.Value ~= '' then
+			if Options.ThemeManager_CustomThemeList.Value ~= nil and Options.ThemeManager_CustomThemeList.Value ~= '' then
 				self:SaveDefault(Options.ThemeManager_CustomThemeList.Value)
 				self.Library:Notify(string.format('Set default theme to %q', Options.ThemeManager_CustomThemeList.Value))
 			end
 		end)
 
-		self:LoadDefault()
+		ThemeManager:LoadDefault()
 
-		local function UpdateTheme() self:ThemeUpdate() end
+		local function UpdateTheme()
+			self:ThemeUpdate()
+		end
+
 		Options.BackgroundColor:OnChanged(UpdateTheme)
 		Options.MainColor:OnChanged(UpdateTheme)
 		Options.AccentColor:OnChanged(UpdateTheme)
@@ -205,14 +246,19 @@ local ThemeManager = {} do
 		if not isfile(path) then return nil end
 		local data = readfile(path)
 		local success, decoded = pcall(httpService.JSONDecode, httpService, data)
-		return success and decoded or nil
+		if not success then return nil end
+		return decoded
 	end
 
 	function ThemeManager:SaveCustomTheme(file)
-		if file:gsub(' ', '') == '' then return self.Library:Notify('Invalid file name for theme (empty)', 3) end
+		if file:gsub(' ', '') == '' then
+			return self.Library:Notify('Invalid file name for theme (empty)', 3)
+		end
 		local theme = {}
 		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
-		for _, field in ipairs(fields) do theme[field] = Options[field].Value:ToHex() end
+		for _, field in next, fields do
+			theme[field] = Options[field].Value:ToHex()
+		end
 		writefile(self.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
 		self.Library:Notify(string.format('Theme "%s" saved', file))
 	end
@@ -243,17 +289,26 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:BuildFolderTree()
-		local parts = {}
-		for part in self.Folder:gmatch('[^/]+') do table.insert(parts, part) end
 		local paths = {}
-		for idx = 1, #parts do
-			local path = table.concat(parts, '/', 1, idx)
-			paths[#paths+1] = path
+		local parts = {}
+		for part in self.Folder:gmatch('[^/]+') do
+			table.insert(parts, part)
 		end
-		paths[#paths+1] = self.Folder .. '/themes'
-		paths[#paths+1] = self.Folder .. '/settings'
-		for _, p in ipairs(paths) do
-			if not isfolder(p) then makefolder(p) end
+		for idx = 1, #parts do
+			local path = ''
+			for i = 1, idx do
+				if i > 1 then path = path .. '/' end
+				path = path .. parts[i]
+			end
+			paths[#paths + 1] = path
+		end
+		table.insert(paths, self.Folder .. '/themes')
+		table.insert(paths, self.Folder .. '/settings')
+		for i = 1, #paths do
+			local str = paths[i]
+			if not isfolder(str) then
+				makefolder(str)
+			end
 		end
 	end
 
