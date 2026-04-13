@@ -3,6 +3,7 @@ local UserInputService = game:GetService('UserInputService')
 local TweenService = game:GetService('TweenService')
 local Players = game:GetService('Players')
 local CoreGui = game:GetService('CoreGui')
+local Workspace = game:GetService('Workspace')
 
 local ThemeManager = {} do
 	ThemeManager.Folder = 'LinoriaLibSettings'
@@ -29,7 +30,6 @@ local ThemeManager = {} do
 
 	-- Инициализация GUI (CoreGui)
 	function ThemeManager:InitClickEffect()
-		-- Отключаем и удаляем всё старое
 		if inputConnection then
 			inputConnection:Disconnect()
 			inputConnection = nil
@@ -60,11 +60,12 @@ local ThemeManager = {} do
 			local mousePos = UserInputService:GetMouseLocation()
 			self:CreateClickEffect(mousePos.X, mousePos.Y)
 
+			-- Воспроизведение звука в Workspace
 			if clickSoundId and clickSoundId ~= "" then
 				local sound = Instance.new('Sound')
 				sound.SoundId = clickSoundId
 				sound.Volume = 1
-				sound.Parent = clickEffectGui
+				sound.Parent = Workspace
 				sound:Play()
 				sound.Ended:Connect(function()
 					sound:Destroy()
@@ -184,7 +185,12 @@ local ThemeManager = {} do
 		groupbox:AddDivider()
 		groupbox:AddInput('ClickSoundId', { Text = 'Click Sound ID (rbxassetid://...)', Default = '' })
 		Options.ClickSoundId:OnChanged(function()
-			clickSoundId = Options.ClickSoundId.Value
+			local id = Options.ClickSoundId.Value
+			if id ~= "" and not id:find("rbxassetid://") then
+				id = "rbxassetid://" .. id
+				Options.ClickSoundId:SetValue(id)
+			end
+			clickSoundId = id
 		end)
 
 		local ThemesArray = {}
