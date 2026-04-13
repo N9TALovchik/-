@@ -10,10 +10,10 @@ local ThemeManager = {} do
 
 	ThemeManager.Library = nil
 	ThemeManager.BuiltInThemes = {
-		['Default'] 	= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232","ClickEffectColor":"ffffff"}') },
-		['Dark'] 		= { 2, httpService:JSONDecode('{"MainColor":"181818","AccentColor":"34363a","OutlineColor":"1b1b1b","BackgroundColor":"141414","FontColor":"cbcbcb","ClickEffectColor":"ffffff"}') },
-		['Fatality']	= { 3, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d","ClickEffectColor":"ffffff"}') },
-		['Neverlose'] 	= { 4, httpService:JSONDecode('{"MainColor":"080e21","AccentColor":"120d64","OutlineColor":"100c31","BackgroundColor":"0c0a1c","FontColor":"ffffff","ClickEffectColor":"ffffff"}') },
+		['Default'] 	= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232"}') },
+		['Dark'] 		= { 2, httpService:JSONDecode('{"MainColor":"181818","AccentColor":"34363a","OutlineColor":"1b1b1b","BackgroundColor":"141414","FontColor":"cbcbcb"}') },
+		['Fatality']	= { 3, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d"}') },
+		['Neverlose'] 	= { 4, httpService:JSONDecode('{"MainColor":"080e21","AccentColor":"120d64","OutlineColor":"100c31","BackgroundColor":"0c0a1c","FontColor":"ffffff"}') },
 	}
 
 	-- Настройки эффекта клика
@@ -86,7 +86,7 @@ local ThemeManager = {} do
 		local circle = Instance.new('Frame')
 		circle.Name = 'ClickCircle'
 		circle.AnchorPoint = Vector2.new(0.5, 0.5)
-		circle.BackgroundColor3 = self.Library.ClickEffectColor or Color3.fromRGB(255, 255, 255)
+		circle.BackgroundColor3 = self.Library.ClickEffectColor or self.Library.BackgroundColor or Color3.fromRGB(255, 255, 255)
 		circle.BackgroundTransparency = CLICK_EFFECT_INITIAL_TRANSPARENCY
 		circle.BorderSizePixel = 0
 		circle.Position = UDim2.new(0, x, 0, y)
@@ -130,11 +130,16 @@ local ThemeManager = {} do
 			end
 		end
 
+		-- Устанавливаем цвет клика: если задан явно — используем его, иначе берём цвет фона
 		if themeData.ClickEffectColor then
 			self.Library.ClickEffectColor = Color3.fromHex(themeData.ClickEffectColor)
-			if Options.ClickEffectColor then
-				Options.ClickEffectColor:SetValueRGB(Color3.fromHex(themeData.ClickEffectColor))
-			end
+		elseif themeData.BackgroundColor then
+			self.Library.ClickEffectColor = Color3.fromHex(themeData.BackgroundColor)
+		else
+			self.Library.ClickEffectColor = Color3.fromRGB(255, 255, 255)
+		end
+		if Options.ClickEffectColor then
+			Options.ClickEffectColor:SetValueRGB(self.Library.ClickEffectColor)
 		end
 
 		self:ThemeUpdate()
@@ -185,7 +190,7 @@ local ThemeManager = {} do
 		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = self.Library.AccentColor })
 		groupbox:AddLabel('Outline color'):AddColorPicker('OutlineColor', { Default = self.Library.OutlineColor })
 		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = self.Library.FontColor })
-		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = self.Library.ClickEffectColor or Color3.fromRGB(255, 255, 255) })
+		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = self.Library.ClickEffectColor or self.Library.BackgroundColor or Color3.fromRGB(255, 255, 255) })
 		
 		groupbox:AddDivider()
 		groupbox:AddInput('ClickSoundId', { Text = 'Click Sound ID (rbxassetid://...)', Default = '' })
@@ -267,10 +272,12 @@ local ThemeManager = {} do
 			return self.Library:Notify('Invalid file name for theme (empty)', 3)
 		end
 		local theme = {}
-		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
+		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
 		for _, field in next, fields do
 			theme[field] = Options[field].Value:ToHex()
 		end
+		-- Сохраняем текущий цвет эффекта клика
+		theme.ClickEffectColor = Options.ClickEffectColor.Value:ToHex()
 		writefile(self.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
 		self.Library:Notify(string.format('Theme "%s" saved', file))
 	end
