@@ -1,18 +1,94 @@
 local httpService = game:GetService('HttpService')
+local UserInputService = game:GetService('UserInputService')
+local TweenService = game:GetService('TweenService')
+local Players = game:GetService('Players')
+
 local ThemeManager = {} do
 	ThemeManager.Folder = 'LinoriaLibSettings'
 
 	ThemeManager.Library = nil
 	ThemeManager.BuiltInThemes = {
-		['Default'] 		= { 1, httpService:JSONDecode('{"FontColor":"ffffff","FontTransparency":0,"MainColor":"1c1c1c","MainTransparency":0,"AccentColor":"0055ff","AccentTransparency":0,"BackgroundColor":"141414","BackgroundTransparency":0,"OutlineColor":"323232","OutlineTransparency":0}') },
-		['BBot'] 			= { 2, httpService:JSONDecode('{"FontColor":"ffffff","FontTransparency":0,"MainColor":"1e1e1e","MainTransparency":0,"AccentColor":"7e48a3","AccentTransparency":0,"BackgroundColor":"232323","BackgroundTransparency":0,"OutlineColor":"141414","OutlineTransparency":0}') },
-		['Fatality']		= { 3, httpService:JSONDecode('{"FontColor":"ffffff","FontTransparency":0,"MainColor":"1e1842","MainTransparency":0,"AccentColor":"c50754","AccentTransparency":0,"BackgroundColor":"191335","BackgroundTransparency":0,"OutlineColor":"3c355d","OutlineTransparency":0}') },
-		['Jester'] 			= { 4, httpService:JSONDecode('{"FontColor":"ffffff","FontTransparency":0,"MainColor":"242424","MainTransparency":0,"AccentColor":"db4467","AccentTransparency":0,"BackgroundColor":"1c1c1c","BackgroundTransparency":0,"OutlineColor":"373737","OutlineTransparency":0}') },
-		['Mint'] 			= { 5, httpService:JSONDecode('{"FontColor":"ffffff","FontTransparency":0,"MainColor":"242424","MainTransparency":0,"AccentColor":"3db488","AccentTransparency":0,"BackgroundColor":"1c1c1c","BackgroundTransparency":0,"OutlineColor":"373737","OutlineTransparency":0}') },
-		['Tokyo Night'] 	= { 6, httpService:JSONDecode('{"FontColor":"ffffff","FontTransparency":0,"MainColor":"191925","MainTransparency":0,"AccentColor":"6759b3","AccentTransparency":0,"BackgroundColor":"16161f","BackgroundTransparency":0,"OutlineColor":"323232","OutlineTransparency":0}') },
-		['Ubuntu'] 			= { 7, httpService:JSONDecode('{"FontColor":"ffffff","FontTransparency":0,"MainColor":"3e3e3e","MainTransparency":0,"AccentColor":"e2581e","AccentTransparency":0,"BackgroundColor":"323232","BackgroundTransparency":0,"OutlineColor":"191919","OutlineTransparency":0}') },
-		['Quartz'] 			= { 8, httpService:JSONDecode('{"FontColor":"ffffff","FontTransparency":0,"MainColor":"232330","MainTransparency":0,"AccentColor":"426e87","AccentTransparency":0,"BackgroundColor":"1d1b26","BackgroundTransparency":0,"OutlineColor":"27232f","OutlineTransparency":0}') },
+		['Default'] 		= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232","ClickEffectColor":"ffffff"}') },
+		['BBot'] 			= { 2, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1e1e","AccentColor":"7e48a3","BackgroundColor":"232323","OutlineColor":"141414","ClickEffectColor":"ffffff"}') },
+		['Fatality']		= { 3, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d","ClickEffectColor":"ffffff"}') },
+		['Jester'] 			= { 4, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"242424","AccentColor":"db4467","BackgroundColor":"1c1c1c","OutlineColor":"373737","ClickEffectColor":"ffffff"}') },
+		['Mint'] 			= { 5, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"242424","AccentColor":"3db488","BackgroundColor":"1c1c1c","OutlineColor":"373737","ClickEffectColor":"ffffff"}') },
+		['Tokyo Night'] 	= { 6, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"191925","AccentColor":"6759b3","BackgroundColor":"16161f","OutlineColor":"323232","ClickEffectColor":"ffffff"}') },
+		['Ubuntu'] 			= { 7, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"3e3e3e","AccentColor":"e2581e","BackgroundColor":"323232","OutlineColor":"191919","ClickEffectColor":"ffffff"}') },
+		['Quartz'] 			= { 8, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"232330","AccentColor":"426e87","BackgroundColor":"1d1b26","OutlineColor":"27232f","ClickEffectColor":"ffffff"}') },
 	}
+
+	-- Конфигурация эффекта клика (изменяется только в коде)
+	local CLICK_EFFECT_MAX_SIZE = 80 		-- максимальный радиус/размер круга
+	local CLICK_EFFECT_TWEEN_TIME = 0.25 	-- длительность анимации в секундах
+
+	local clickEffectGui = nil
+	local clickEffectEnabled = true -- всегда true, нельзя отключить
+
+	-- Инициализация GUI для эффекта клика
+	function ThemeManager:InitClickEffect()
+		if clickEffectGui then return end
+
+		local player = Players.LocalPlayer
+		if not player then return end
+
+		local playerGui = player:WaitForChild('PlayerGui')
+		clickEffectGui = Instance.new('ScreenGui')
+		clickEffectGui.Name = 'ClickEffectGUI'
+		clickEffectGui.IgnoreGuiInset = true
+		clickEffectGui.ResetOnSpawn = false
+		clickEffectGui.Parent = playerGui
+
+		-- Подключаем обработчик клика
+		UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			if not clickEffectEnabled then return end
+			if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+			if gameProcessed then return end -- опционально: не показывать при клике по GUI
+
+			local mousePos = UserInputService:GetMouseLocation()
+			self:CreateClickEffect(mousePos.X, mousePos.Y)
+		end)
+	end
+
+	-- Создание анимированного круга в указанной позиции
+	function ThemeManager:CreateClickEffect(x, y)
+		if not self.Library then return end
+
+		local circle = Instance.new('Frame')
+		circle.Name = 'ClickCircle'
+		circle.AnchorPoint = Vector2.new(0.5, 0.5)
+		circle.BackgroundColor3 = self.Library.ClickEffectColor or Color3.fromRGB(255, 255, 255)
+		circle.BackgroundTransparency = 0
+		circle.BorderSizePixel = 0
+		circle.Position = UDim2.new(0, x, 0, y)
+		circle.Size = UDim2.new(0, 0, 0, 0)
+		circle.ZIndex = 10
+		circle.Parent = clickEffectGui
+
+		local corner = Instance.new('UICorner')
+		corner.CornerRadius = UDim.new(1, 0)
+		corner.Parent = circle
+
+		-- Анимация размера и исчезания
+		local targetSize = UDim2.new(0, CLICK_EFFECT_MAX_SIZE * 2, 0, CLICK_EFFECT_MAX_SIZE * 2)
+		local tweenInfo = TweenInfo.new(CLICK_EFFECT_TWEEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local sizeTween = TweenService:Create(circle, tweenInfo, { Size = targetSize })
+		local fadeTween = TweenService:Create(circle, TweenInfo.new(CLICK_EFFECT_TWEEN_TIME * 0.7, Enum.EasingStyle.Linear), { BackgroundTransparency = 1 })
+
+		sizeTween:Play()
+		fadeTween:Play()
+
+		-- Удаление после завершения
+		sizeTween.Completed:Connect(function()
+			fadeTween.Completed:Wait()
+			circle:Destroy()
+		end)
+	end
+
+	-- Обновление цвета эффекта при смене темы/настроек
+	function ThemeManager:UpdateClickEffectColor()
+		-- ничего не делаем, цвет берётся из Library при создании круга
+	end
 
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = self:GetCustomTheme(theme)
@@ -22,33 +98,22 @@ local ThemeManager = {} do
 
 		local scheme = data[2]
 		local themeData = customThemeData or scheme
-		
-		-- Применяем цвета и прозрачности
+
+		-- Применяем цвета
 		for idx, col in next, themeData do
-			if idx:find('Transparency') then
-				-- Это настройка прозрачности
-				local colorName = idx:gsub('Transparency', '')
-				if self.Library[colorName] and Options[colorName] then
-					local transparency = tonumber(col) or 0
-					Options[colorName].Transparency = transparency
-					if Options[colorName].Display then
-						Options[colorName]:Display()
-					end
-				end
-			else
-				-- Это цвет
+			if idx ~= 'ClickEffectColor' then
 				self.Library[idx] = Color3.fromHex(col)
 				if Options[idx] then
 					Options[idx]:SetValueRGB(Color3.fromHex(col))
-					-- Восстанавливаем прозрачность для этого цвета
-					local transKey = idx .. 'Transparency'
-					if themeData[transKey] then
-						Options[idx].Transparency = tonumber(themeData[transKey]) or 0
-						if Options[idx].Display then
-							Options[idx]:Display()
-						end
-					end
 				end
+			end
+		end
+
+		-- Отдельно для цвета клика
+		if themeData.ClickEffectColor then
+			self.Library.ClickEffectColor = Color3.fromHex(themeData.ClickEffectColor)
+			if Options.ClickEffectColor then
+				Options.ClickEffectColor:SetValueRGB(Color3.fromHex(themeData.ClickEffectColor))
 			end
 		end
 
@@ -56,16 +121,14 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:ThemeUpdate()
-		local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
+		local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
 		for i, field in next, options do
 			if Options and Options[field] then
 				self.Library[field] = Options[field].Value
-				-- Обновляем прозрачность в библиотеке
-				self.Library[field .. 'Transparency'] = Options[field].Transparency or 0
 			end
 		end
 
-		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor);
+		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor)
 		self.Library:UpdateColorsUsingRegistry()
 	end
 
@@ -97,21 +160,13 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:CreateThemeManager(groupbox)
-		-- Цвета со слайдерами прозрачности
-		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = self.Library.BackgroundColor, Transparency = self.Library.BackgroundTransparency or 0 })
-		groupbox:AddSlider('BackgroundTransparency', { Text = 'Background transparency', Default = self.Library.BackgroundTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
-		
-		groupbox:AddLabel('Main color'):AddColorPicker('MainColor', { Default = self.Library.MainColor, Transparency = self.Library.MainTransparency or 0 })
-		groupbox:AddSlider('MainTransparency', { Text = 'Main transparency', Default = self.Library.MainTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
-		
-		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = self.Library.AccentColor, Transparency = self.Library.AccentTransparency or 0 })
-		groupbox:AddSlider('AccentTransparency', { Text = 'Accent transparency', Default = self.Library.AccentTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
-		
-		groupbox:AddLabel('Outline color'):AddColorPicker('OutlineColor', { Default = self.Library.OutlineColor, Transparency = self.Library.OutlineTransparency or 0 })
-		groupbox:AddSlider('OutlineTransparency', { Text = 'Outline transparency', Default = self.Library.OutlineTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
-		
-		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = self.Library.FontColor, Transparency = self.Library.FontTransparency or 0 })
-		groupbox:AddSlider('FontTransparency', { Text = 'Font transparency', Default = self.Library.FontTransparency or 0, Min = 0, Max = 1, Rounding = 2 })
+		-- Цвета без слайдеров прозрачности
+		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = self.Library.BackgroundColor })
+		groupbox:AddLabel('Main color'):AddColorPicker('MainColor', { Default = self.Library.MainColor })
+		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = self.Library.AccentColor })
+		groupbox:AddLabel('Outline color'):AddColorPicker('OutlineColor', { Default = self.Library.OutlineColor })
+		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = self.Library.FontColor })
+		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = self.Library.ClickEffectColor or Color3.fromRGB(255, 255, 255) })
 
 		local ThemesArray = {}
 		for Name, Theme in next, self.BuiltInThemes do
@@ -170,31 +225,7 @@ local ThemeManager = {} do
 		Options.AccentColor:OnChanged(UpdateTheme)
 		Options.OutlineColor:OnChanged(UpdateTheme)
 		Options.FontColor:OnChanged(UpdateTheme)
-		
-		-- Обновление при изменении прозрачности
-		Options.BackgroundTransparency:OnChanged(UpdateTheme)
-		Options.MainTransparency:OnChanged(UpdateTheme)
-		Options.AccentTransparency:OnChanged(UpdateTheme)
-		Options.OutlineTransparency:OnChanged(UpdateTheme)
-		Options.FontTransparency:OnChanged(UpdateTheme)
-		
-		-- Синхронизация прозрачности с ColorPicker
-		local function syncTransparency(colorOption, transOption)
-			if colorOption and transOption then
-				colorOption.OnChanged = colorOption.OnChanged or function() end
-				local oldCallback = colorOption.Callback
-				colorOption.Callback = function(color)
-					if oldCallback then oldCallback(color) end
-					transOption:SetValue(colorOption.Transparency or 0)
-				end
-			end
-		end
-		
-		syncTransparency(Options.BackgroundColor, Options.BackgroundTransparency)
-		syncTransparency(Options.MainColor, Options.MainTransparency)
-		syncTransparency(Options.AccentColor, Options.AccentTransparency)
-		syncTransparency(Options.OutlineColor, Options.OutlineTransparency)
-		syncTransparency(Options.FontColor, Options.FontTransparency)
+		Options.ClickEffectColor:OnChanged(UpdateTheme)
 	end
 
 	function ThemeManager:GetCustomTheme(file)
@@ -219,11 +250,10 @@ local ThemeManager = {} do
 		end
 
 		local theme = {}
-		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
+		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
 
 		for _, field in next, fields do
 			theme[field] = Options[field].Value:ToHex()
-			theme[field .. 'Transparency'] = Options[field].Transparency or 0
 		end
 
 		writefile(self.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
@@ -256,6 +286,7 @@ local ThemeManager = {} do
 
 	function ThemeManager:SetLibrary(lib)
 		self.Library = lib
+		self:InitClickEffect() -- запускаем эффект после привязки библиотеки
 	end
 
 	function ThemeManager:BuildFolderTree()
