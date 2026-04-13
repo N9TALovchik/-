@@ -24,7 +24,8 @@ local ThemeManager = {} do
 	local DEBOUNCE_TIME = 0.1
 
 	local clickEffectGui = nil
-	local clickSoundId = ""
+	local clickSoundId = ""        -- текущий ID звука (может меняться через GUI)
+	local savedClickSound = ""     -- загруженный из файла ID
 	local clickEffectEnabled = true
 	local inputConnection = nil
 	local lastClickTime = 0
@@ -184,6 +185,23 @@ local ThemeManager = {} do
 		writefile(self.Folder .. '/themes/default.txt', theme)
 	end
 
+	-- Загрузка сохранённого ID звука
+	function ThemeManager:LoadClickSound()
+		local path = self.Folder .. '/click_sound.txt'
+		if isfile(path) then
+			savedClickSound = readfile(path)
+		else
+			savedClickSound = ""
+		end
+		clickSoundId = savedClickSound
+	end
+
+	-- Сохранение ID звука
+	function ThemeManager:SaveClickSound(id)
+		local path = self.Folder .. '/click_sound.txt'
+		writefile(path, id)
+	end
+
 	function ThemeManager:CreateThemeManager(groupbox)
 		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = self.Library.BackgroundColor })
 		groupbox:AddLabel('Main color'):AddColorPicker('MainColor', { Default = self.Library.MainColor })
@@ -193,7 +211,7 @@ local ThemeManager = {} do
 		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = self.Library.ClickEffectColor or self.Library.BackgroundColor or Color3.fromRGB(255, 255, 255) })
 		
 		groupbox:AddDivider()
-		groupbox:AddInput('ClickSoundId', { Text = 'Click Sound ID (rbxassetid://...)', Default = '' })
+		groupbox:AddInput('ClickSoundId', { Text = 'Click Sound ID (rbxassetid://...)', Default = savedClickSound })
 		Options.ClickSoundId:OnChanged(function()
 			local id = Options.ClickSoundId.Value
 			if id ~= "" and not id:find("rbxassetid://") then
@@ -201,6 +219,7 @@ local ThemeManager = {} do
 				Options.ClickSoundId:SetValue(id)
 			end
 			clickSoundId = id
+			self:SaveClickSound(id)   -- Сохраняем при каждом изменении
 		end)
 
 		local ThemesArray = {}
@@ -304,6 +323,7 @@ local ThemeManager = {} do
 
 	function ThemeManager:SetLibrary(lib)
 		self.Library = lib
+		self:LoadClickSound()   -- Загружаем сохранённый звук
 		self:InitClickEffect()
 	end
 
