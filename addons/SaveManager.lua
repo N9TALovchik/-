@@ -316,7 +316,7 @@ local SaveManager = {} do
 				Options.SaveManager_ImportString:SetValue('')
 			end
 		end)
-		section:AddButton('Export config ', function()
+		section:AddButton('Export config', function()
 			local name = Options.SaveManager_ConfigList.Value
 			if not name then
 				return self.Library:Notify('Select a config first', 2)
