@@ -128,7 +128,7 @@ local SaveManager = {} do
 		return true
 	end
 
-	-- НОВАЯ ФУНКЦИЯ: Экспорт выбранного конфига в буфер обмена
+	-- Экспорт выбранного конфига в буфер обмена
 	function SaveManager:ExportConfig(name)
 		if not name then
 			return false, 'no config selected'
@@ -141,7 +141,6 @@ local SaveManager = {} do
 		if not content then
 			return false, 'failed to read file'
 		end
-		-- Копируем в буфер обмена (если поддерживается)
 		local success = pcall(function()
 			setclipboard(content)
 		end)
@@ -153,7 +152,7 @@ local SaveManager = {} do
 		end
 	end
 
-	-- НОВАЯ ФУНКЦИЯ: Импорт конфига из JSON-строки
+	-- Импорт конфига из JSON-строки
 	function SaveManager:ImportFromString(jsonString)
 		if not jsonString or jsonString:gsub(' ', '') == '' then
 			return false, 'empty string'
@@ -239,6 +238,12 @@ local SaveManager = {} do
 		section:AddInput('SaveManager_ConfigName',    { Text = 'Config name' })
 		section:AddDropdown('SaveManager_ConfigList', { Text = 'Config list', Values = self:RefreshConfigList(), AllowNull = true })
 
+		-- Автозаполнение поля имени при выборе конфига
+		Options.SaveManager_ConfigList:OnChanged(function()
+			local selected = Options.SaveManager_ConfigList.Value
+			Options.SaveManager_ConfigName:SetValue(selected or '')
+		end)
+
 		section:AddDivider()
 
 		-- Кнопка создания конфига
@@ -254,6 +259,7 @@ local SaveManager = {} do
 			self.Library:Notify(string.format('Created config %q', name))
 			Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
 			Options.SaveManager_ConfigList:SetValue(nil)
+			Options.SaveManager_ConfigName:SetValue('')
 		end)
 
 		-- Кнопка загрузки конфига
@@ -280,9 +286,10 @@ local SaveManager = {} do
 		section:AddButton('Refresh list', function()
 			Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
 			Options.SaveManager_ConfigList:SetValue(nil)
+			Options.SaveManager_ConfigName:SetValue('')
 		end)
 
-		-- Кнопка экспорта (копирует содержимое выбранного конфига в буфер)
+		-- Кнопка экспорта
 		section:AddButton('Export config ', function()
 			local name = Options.SaveManager_ConfigList.Value
 			if not name then
@@ -295,7 +302,27 @@ local SaveManager = {} do
 		end)
 
 		-- Поле для импорта JSON строки
-		section:AddInput('SaveManager_ImportString', { Text = ' ', Placeholder = 'Paste config  here' })
+		
+
+		section:AddButton('Set as autoload', function()
+			local name = Options.SaveManager_ConfigList.Value
+			writefile(self.Folder .. '/settings/autoload.txt', name)
+			SaveManager.AutoloadLabel:SetText('Current autoload config: ' .. name)
+			self.Library:Notify(string.format('Set %q to auto load', name))
+		end)
+
+		section:AddButton('Clear autoload', function()
+			local path = self.Folder .. '/settings/autoload.txt'
+			if isfile(path) then
+				delfile(path)
+				self.Library:Notify('Autoload config cleared')
+			else
+				self.Library:Notify('No autoload config to clear', 2)
+			end
+			SaveManager.AutoloadLabel:SetText('Current autoload config: none')
+		end)
+
+		section:AddInput('SaveManager_ImportString', { Text = ' ', Placeholder = 'Paste config here' })
 		section:AddButton('Import config ', function()
 			local json = Options.SaveManager_ImportString.Value
 			if not json or json:gsub(' ', '') == '' then
@@ -305,15 +332,8 @@ local SaveManager = {} do
 			if not success then
 				self.Library:Notify('Import failed: ' .. err, 3)
 			else
-				Options.SaveManager_ImportString:SetValue('')  -- очистить поле после успешного импорта
+				Options.SaveManager_ImportString:SetValue('')
 			end
-		end)
-
-		section:AddButton('Set as autoload', function()
-			local name = Options.SaveManager_ConfigList.Value
-			writefile(self.Folder .. '/settings/autoload.txt', name)
-			SaveManager.AutoloadLabel:SetText('Current autoload config: ' .. name)
-			self.Library:Notify(string.format('Set %q to auto load', name))
 		end)
 
 		SaveManager.AutoloadLabel = section:AddLabel('Current autoload config: none', true)
