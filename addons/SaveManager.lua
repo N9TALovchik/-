@@ -247,7 +247,7 @@ local SaveManager = {} do
 		section:AddDivider()
 
 		-- Кнопка создания конфига
-		section:AddButton('Create config', function()
+		section:AddButton('Save/Create config', function()
 			local name = Options.SaveManager_ConfigName.Value
 			if name:gsub(' ', '') == '' then 
 				return self.Library:Notify('Invalid config name (empty)', 2)
@@ -273,14 +273,7 @@ local SaveManager = {} do
 		end)
 
 		-- Кнопка перезаписи конфига
-		section:AddButton('Overwrite config', function()
-			local name = Options.SaveManager_ConfigList.Value
-			local success, err = self:Save(name)
-			if not success then
-				return self.Library:Notify('Failed to overwrite config: ' .. err)
-			end
-			self.Library:Notify(string.format('Overwrote config %q', name))
-		end)
+		
 
 		-- Кнопка обновления списка
 		section:AddButton('Refresh list', function()
@@ -289,19 +282,7 @@ local SaveManager = {} do
 			Options.SaveManager_ConfigName:SetValue('')
 		end)
 
-		-- Кнопка экспорта
-		section:AddButton('Export config ', function()
-			local name = Options.SaveManager_ConfigList.Value
-			if not name then
-				return self.Library:Notify('Select a config first', 2)
-			end
-			local success, err = self:ExportConfig(name)
-			if not success then
-				self.Library:Notify('Export failed: ' .. err, 3)
-			end
-		end)
 
-		-- Поле для импорта JSON строки
 		
 
 		section:AddButton('Set as autoload', function()
@@ -333,6 +314,16 @@ local SaveManager = {} do
 				self.Library:Notify('Import failed: ' .. err, 3)
 			else
 				Options.SaveManager_ImportString:SetValue('')
+			end
+		end)
+		section:AddButton('Export config ', function()
+			local name = Options.SaveManager_ConfigList.Value
+			if not name then
+				return self.Library:Notify('Select a config first', 2)
+			end
+			local success, err = self:ExportConfig(name)
+			if not success then
+				self.Library:Notify('Export failed: ' .. err, 3)
 			end
 		end)
 
