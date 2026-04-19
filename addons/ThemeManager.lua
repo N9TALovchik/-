@@ -203,6 +203,11 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:CreateThemeManager(groupbox)
+		-- Загружаем звук перед созданием интерфейса, если ещё не загружен
+		if not savedClickSound or savedClickSound == "" then
+			self:LoadClickSound()
+		end
+
 		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = self.Library.BackgroundColor })
 		groupbox:AddLabel('Main color'):AddColorPicker('MainColor', { Default = self.Library.MainColor })
 		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = self.Library.AccentColor })
@@ -212,8 +217,12 @@ local ThemeManager = {} do
 		
 		groupbox:AddDivider()
 		groupbox:AddInput('ClickSoundId', { Text = 'Click Sound ID (rbxassetid://...)', Default = savedClickSound })
-		-- Принудительно устанавливаем загруженное значение, чтобы синхронизировать clickSoundId и поле
-		Options.ClickSoundId:SetValue(savedClickSound)
+		
+		-- Если Options уже есть, сразу устанавливаем загруженное значение
+		if Options.ClickSoundId then
+			Options.ClickSoundId:SetValue(savedClickSound)
+		end
+
 		Options.ClickSoundId:OnChanged(function()
 			local id = Options.ClickSoundId.Value
 			if id ~= "" and not id:find("rbxassetid://") then
