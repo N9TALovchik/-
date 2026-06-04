@@ -1,5 +1,5 @@
 -- ShopManager.lua
--- Добавляет вкладку удалённого магазина в существующее меню LinoriaLib
+-- Добавляет вкладку удалённого магазина в существующее меню LinoriaLib (ID NPC фиксирован: Smugglers)
 
 local ShopManager = {}
 
@@ -15,14 +15,14 @@ function ShopManager:Init(Window, Tabs)
     local configGroup = shopTab:AddLeftGroupbox('NPC Configuration')
     local shopGroup = shopTab:AddRightGroupbox('Items')
     
-    -- Переменные
-    local currentNPCId = "Smugglers"   -- ID по умолчанию (можно изменить)
+    -- Фиксированный ID NPC
+    local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
     local remoteEvent = nil
-    local buttons = {}   -- для хранения созданных кнопок
+    local buttons = {}
     
-    -- Поиск удалённого события (путь из оригинального скрипта)
+    -- Поиск удалённого события
     local function getRemoteEvent()
         if remoteEvent then return remoteEvent end
         local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -36,12 +36,20 @@ function ShopManager:Init(Window, Tabs)
         return remoteEvent
     end
     
-    -- Загрузка конфига NPC
+    -- Загрузка конфига NPC (с отладкой)
     local function loadConfig(npcId)
         local replicatedStorage = game:GetService("ReplicatedStorage")
-        local npcFolder = replicatedStorage:FindFirstChild("Data") 
-            and replicatedStorage.Data:FindFirstChild("Gameplay") 
-            and replicatedStorage.Data.Gameplay:FindFirstChild("NPC")
+        local data = replicatedStorage:FindFirstChild("Data")
+        if not data then
+            Library:Notify("Data folder not found", 3)
+            return false
+        end
+        local gameplay = data:FindFirstChild("Gameplay")
+        if not gameplay then
+            Library:Notify("Gameplay folder not found", 3)
+            return false
+        end
+        local npcFolder = gameplay:FindFirstChild("NPC")
         if not npcFolder then
             Library:Notify("NPC folder not found", 3)
             return false
@@ -53,9 +61,19 @@ function ShopManager:Init(Window, Tabs)
             return false
         end
         
+        -- Поиск модуля конфигурации (может называться "Config" или "ShopConfig")
         local configScript = npcModule:FindFirstChild("Config")
         if not configScript then
-            Library:Notify("Config not found in NPC module", 3)
+            configScript = npcModule:FindFirstChild("ShopConfig")
+        end
+        if not configScript then
+            Library:Notify("Config/ShopConfig not found in NPC module", 3)
+            -- Выводим список детей для отладки
+            local children = {}
+            for _, ch in ipairs(npcModule:GetChildren()) do
+                table.insert(children, ch.Name)
+            end
+            Library:Notify("Available children: " .. table.concat(children, ", "), 2)
             return false
         end
         
@@ -66,8 +84,30 @@ function ShopManager:Init(Window, Tabs)
         end
         
         currentConfig = config
-        products = config.Products or {}
-        Library:Notify("Loaded NPC: " .. (config.Visuals and config.Visuals.DisplayName or npcId) .. " | Items: " .. table.getn(products), 2)
+        
+        -- Определяем, где лежат товары
+        if config.Products then
+            products = config.Products
+        elseif config.Data and config.Data.Products then
+            products = config.Data.Products
+        else
+            products = {}
+            Library:Notify("Products table not found in config", 3)
+            -- Выводим ключи конфига для отладки
+            local keys = {}
+            for k, _ in pairs(config) do
+                table.insert(keys, k)
+            end
+            Library:Notify("Config keys: " .. table.concat(keys, ", "), 2)
+            return false
+        end
+        
+        -- Подсчёт количества товаров (так как products – словарь)
+        local productCount = 0
+        for _ in pairs(products) do productCount = productCount + 1 end
+        
+        local displayName = (config.Visuals and config.Visuals.DisplayName) or npcId
+        Library:Notify("Loaded NPC: " .. displayName .. " | Items: " .. productCount, 2)
         return true
     end
     
@@ -77,7 +117,6 @@ function ShopManager:Init(Window, Tabs)
             pcall(function() btn:Destroy() end)
         end
         buttons = {}
-        -- Также удаляем все дочерние элементы группы (например, разделители, метки)
         for _, child in ipairs(shopGroup:GetChildren()) do
             if child:IsA("GuiObject") and child ~= shopGroup then
                 pcall(function() child:Destroy() end)
@@ -85,17 +124,17 @@ function ShopManager:Init(Window, Tabs)
         end
     end
     
-    -- Создание элементов для каждого товара
+    -- Создание элементов UI для каждого товара
     local function rebuildItemsUI()
         clearItemsGroup()
         
-        if not currentConfig or table.getn(products) == 0 then
-            shopGroup:AddLabel("No items loaded. Load NPC config first.")
+        if not currentConfig or next(products) == nil then
+            shopGroup:AddLabel("No items loaded. Check console for errors.")
             return
         end
         
-        -- Информационная метка
-        shopGroup:AddLabel("NPC: " .. (currentConfig.Visuals and currentConfig.Visuals.DisplayName or currentNPCId))
+        local displayName = (currentConfig.Visuals and currentConfig.Visuals.DisplayName) or currentNPCId
+        shopGroup:AddLabel("NPC: " .. displayName)
         shopGroup:AddDivider()
         
         local MarketplaceService = game:GetService("MarketplaceService")
@@ -113,7 +152,8 @@ function ShopManager:Init(Window, Tabs)
             end
             
             local desc = data.Desc or "No description"
-            local buttonText = string.format("%s\n%s\n%s", name, desc, priceText)
+            -- Краткое описание для кнопки
+            local buttonText = name .. "\n" .. desc .. "\n" .. priceText
             
             local buyButton = shopGroup:AddButton(buttonText, function()
                 if not currentConfig then
@@ -149,23 +189,12 @@ function ShopManager:Init(Window, Tabs)
         end
     end
     
-    -- Элементы управления в левой группе
-    local npcIdInput = configGroup:AddInput('ShopNPC_ID', {
-        Text = 'NPC ID',
-        Default = currentNPCId,
-        Placeholder = 'e.g., Smugglers'
-    })
-    
+    -- UI: только информация, без редактирования ID
+    configGroup:AddLabel("NPC ID: " .. currentNPCId)
     configGroup:AddButton('Load NPC Config', function()
-        local newId = npcIdInput.Value
-        if newId and newId ~= "" then
-            currentNPCId = newId
-            local success = loadConfig(currentNPCId)
-            if success then
-                rebuildItemsUI()
-            end
-        else
-            Library:Notify("Please enter NPC ID", 3)
+        local success = loadConfig(currentNPCId)
+        if success then
+            rebuildItemsUI()
         end
     end)
     
@@ -178,14 +207,13 @@ function ShopManager:Init(Window, Tabs)
     end)
     
     configGroup:AddDivider()
-    configGroup:AddLabel("After changing NPC ID, click 'Load NPC Config'.")
+    configGroup:AddLabel("Click 'Load NPC Config' to fetch items from Smugglers.")
     
-    -- Автоматическая загрузка конфига по умолчанию
+    -- Автоматическая загрузка при старте
     task.spawn(function()
-        if currentNPCId and currentNPCId ~= "" then
-            if loadConfig(currentNPCId) then
-                rebuildItemsUI()
-            end
+        task.wait(1) -- небольшая задержка для уверенности
+        if loadConfig(currentNPCId) then
+            rebuildItemsUI()
         end
     end)
     
