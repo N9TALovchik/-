@@ -1,6 +1,5 @@
 -- ShopManager.lua
--- Добавляет вкладку удалённого магазина (фиксированный NPC: Smugglers)
--- Выводит отладку в консоль для диагностики структуры конфига
+-- Добавляет вкладку удалённого магазина (ID NPC: Smugglers)
 
 local ShopManager = {}
 
@@ -8,11 +7,9 @@ function ShopManager:Init(Window, Tabs)
     assert(Window, "ShopManager: Window is required")
     assert(Library, "Library must be loaded before ShopManager")
     
-    -- Создаём новую вкладку
     local shopTab = Window:AddTab('Remote Shop')
     Tabs.Shop = shopTab
     
-    -- Группы
     local configGroup = shopTab:AddLeftGroupbox('NPC Configuration')
     local shopGroup = shopTab:AddRightGroupbox('Items')
     
@@ -35,112 +32,61 @@ function ShopManager:Init(Window, Tabs)
         return remoteEvent
     end
     
-    -- Функция для безопасного вывода в консоль (для отладки)
-    local function debugPrint(...)
-        print("[ShopManager Debug]", ...)
-    end
-    
     local function loadConfig(npcId)
         local replicatedStorage = game:GetService("ReplicatedStorage")
-        debugPrint("Looking for ReplicatedStorage.Data.Gameplay.NPC...")
-        
-        local data = replicatedStorage:FindFirstChild("Data")
-        if not then
-            Library:Notify("Data folder not found", 3)
-            return false
-        end
-        local gameplay = data:FindFirstChild("Gameplay")
-        if not then
-            Library:Notify("Gameplay folder not found", 3)
-            return false
-        end
-        local npcFolder = gameplay:FindFirstChild("NPC")
-        if not then
+        local npcFolder = replicatedStorage:FindFirstChild("Data")
+            and replicatedStorage.Data:FindFirstChild("Gameplay")
+            and replicatedStorage.Data.Gameplay:FindFirstChild("NPC")
+        if not npcFolder then
             Library:Notify("NPC folder not found", 3)
             return false
         end
         
-        debugPrint("NPC folder found. Children:")
-        for _, ch in ipairs(npcFolder:GetChildren()) do
-            debugPrint(" -", ch.Name, ch.ClassName)
-        end
-        
         local npcModule = npcFolder:FindFirstChild(npcId)
-        if not then
+        if not npcModule then
             Library:Notify("NPC not found: " .. tostring(npcId), 3)
             return false
         end
-        debugPrint("NPC module found:", npcModule.Name)
         
-        -- Ищем ModuleScript с конфигом
         local configScript = npcModule:FindFirstChild("Config")
-        if not then
-            configScript = npcModule:FindFirstChild("ShopConfig")
-        end
-        if not then
-            Library:Notify("Config/ShopConfig not found in NPC module", 3)
-            debugPrint("Children of NPC module:")
-            for _, ch in ipairs(npcModule:GetChildren()) do
-                debugPrint(" -", ch.Name, ch.ClassName)
-            end
+        if not configScript then
+            Library:Notify("Config not found in NPC module", 3)
             return false
         end
-        debugPrint("Config script found:", configScript.Name)
         
         local success, config = pcall(require, configScript)
         if not success then
             Library:Notify("Failed to load config: " .. tostring(config), 3)
             return false
         end
-        debugPrint("Config loaded successfully. Type:", type(config))
         
         currentConfig = config
-        
-        -- Ищем Products: может быть в config.Products, config.Data.Products, или config.Shop.Products и т.д.
-        local foundProducts = nil
+        -- Поиск продуктов: может быть в config.Products или config.Data.Products
         if config.Products then
-            foundProducts = config.Products
-            debugPrint("Found config.Products")
+            products = config.Products
         elseif config.Data and config.Data.Products then
-            foundProducts = config.Data.Products
-            debugPrint("Found config.Data.Products")
-        elseif config.Shop and config.Shop.Products then
-            foundProducts = config.Shop.Products
-            debugPrint("Found config.Shop.Products")
+            products = config.Data.Products
         else
-            -- Выводим все ключи верхнего уровня
-            debugPrint("Products not found in standard locations. Top-level keys:")
-            for k, v in pairs(config) do
-                debugPrint(" -", k, type(v))
-                -- Если значение — таблица, посмотрим и её ключи
-                if type(v) == "table" then
-                    for k2, v2 in pairs(v) do
-                        debugPrint("    *", k2, type(v2))
-                    end
-                end
-            end
             products = {}
-            Library:Notify("Products table not found in config. Check console for details.", 3)
+            Library:Notify("Products not found in config", 3)
             return false
         end
         
-        products = foundProducts
-        local productCount = 0
-        for _ in pairs(products) do productCount = productCount + 1 end
-        debugPrint("Product count:", productCount)
-        
-        local displayName = (config.Visuals and config.Visuals.DisplayName) or npcId
-        Library:Notify("Loaded NPC: " .. displayName .. " | Items: " .. productCount, 2)
+        local count = 0
+        for _ in pairs(products) do count = count + 1 end
+        Library:Notify("Loaded NPC: " .. (config.Visuals and config.Visuals.DisplayName or npcId) .. " | Items: " .. count, 2)
         return true
     end
     
+    -- Очистка группы товаров (работает корректно)
     local function clearItemsGroup()
         for _, btn in ipairs(buttons) do
             pcall(function() btn:Destroy() end)
         end
         buttons = {}
+        -- Удаляем все дочерние элементы shopGroup, кроме самой группы
         for _, child in ipairs(shopGroup:GetChildren()) do
-            if child:IsA("GuiObject") and child ~= shopGroup then
+            if child:IsA("GuiObject") then
                 pcall(function() child:Destroy() end)
             end
         end
@@ -150,7 +96,7 @@ function ShopManager:Init(Window, Tabs)
         clearItemsGroup()
         
         if not currentConfig or next(products) == nil then
-            shopGroup:AddLabel("No items found. Check console for errors.")
+            shopGroup:AddLabel("No items available.")
             return
         end
         
@@ -209,15 +155,16 @@ function ShopManager:Init(Window, Tabs)
         end
     end
     
-    -- UI: только кнопка загрузки (без лишнего текста)
-    configGroup:AddButton('Load NPC Shop', function()
+    -- UI: только информация и одна кнопка загрузки
+    configGroup:AddLabel("NPC ID: " .. currentNPCId)
+    configGroup:AddButton('Load Shop', function()
         local success = loadConfig(currentNPCId)
         if success then
             rebuildItemsUI()
         end
     end)
     
-    -- Автоматическая загрузка
+    -- Автоматическая загрузка при старте
     task.spawn(function()
         task.wait(1)
         if loadConfig(currentNPCId) then
@@ -225,7 +172,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-    Library:Notify("ShopManager loaded. Use 'Remote Shop' tab.", 2)
+    Library:Notify("ShopManager loaded. Use Remote Shop tab.", 2)
 end
 
 return ShopManager
