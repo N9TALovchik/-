@@ -1,4 +1,4 @@
--- ShopManager.lua (исправленная версия, без GetChildren)
+-- ShopManager.lua (исправленная версия, без GetChildren, все элементы удаляются через массив)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -17,7 +17,7 @@ function ShopManager:Init(Window, Tabs)
     local currentConfig = nil
     local products = {}
     local remoteEvent = nil
-    local uiElements = {}   -- храним ВСЕ созданные элементы (кнопки, лейблы)
+    local uiElements = {}   -- храним ВСЕ созданные динамические элементы (кнопки, лейблы)
     
     -- Поиск удалённого события
     local function getRemoteEvent()
@@ -100,7 +100,7 @@ function ShopManager:Init(Window, Tabs)
         return true
     end
     
-    -- Отрисовка товаров (удаляем старые элементы и создаём новые)
+    -- Отрисовка товаров (удаляем старые элементы через uiElements и создаём новые)
     local function rebuildItemsUI()
         -- Удаляем все ранее созданные элементы (кнопки, лейблы)
         for _, element in ipairs(uiElements) do
