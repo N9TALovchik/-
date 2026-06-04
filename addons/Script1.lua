@@ -1,25 +1,23 @@
--- ShopManager.lua
--- Добавляет вкладку удалённого магазина (фиксированный NPC "Smugglers")
-
+-- ShopManager.lua (исправленная версия, без clearItemsGroup, без лишних вызовов)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
     assert(Window, "ShopManager: Window is required")
     assert(Library, "Library must be loaded before ShopManager")
     
-    -- Создаём новую вкладку
+    -- Создаём вкладку
     local shopTab = Window:AddTab('Remote Shop')
     Tabs.Shop = shopTab
     
     -- Группы
-    local configGroup = shopTab:AddLeftGroupbox('NPC Configuration')
-    local shopGroup = shopTab:AddRightGroupbox('Items')
+    local configGroup = shopTab:AddLeftGroupbox('Configuration')
+    local itemsGroup = shopTab:AddRightGroupbox('Items')
     
-    -- Фиксированный ID NPC
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
     local remoteEvent = nil
+    local buttons = {} -- храним кнопки для возможного удаления
     
     -- Поиск удалённого события
     local function getRemoteEvent()
@@ -35,19 +33,8 @@ function ShopManager:Init(Window, Tabs)
         return remoteEvent
     end
     
-    -- Функция для очистки всех элементов группы (через методы библиотеки)
-    local function clearGroup(group)
-        -- В LinoriaLib нет прямого метода удаления всех элементов, поэтому пересоздаём группу
-        local parent = group.Parent
-        local index = group:GetIndex()
-        local newGroup = parent:AddRightGroupbox('Items')
-        -- Копируем настройки? Просто удаляем старую и создаём новую
-        group:Destroy()
-        return newGroup
-    end
-    
-    -- Загрузка конфига NPC (с отладкой)
-    local function loadConfig(npcId)
+    -- Загрузка конфига
+    local function loadConfig()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local data = replicatedStorage:FindFirstChild("Data")
         if not data then
@@ -65,25 +52,23 @@ function ShopManager:Init(Window, Tabs)
             return false
         end
         
-        local npcModule = npcFolder:FindFirstChild(npcId)
+        local npcModule = npcFolder:FindFirstChild(currentNPCId)
         if not npcModule then
-            Library:Notify("NPC not found: " .. tostring(npcId), 3)
+            Library:Notify("NPC not found: " .. currentNPCId, 3)
             return false
         end
         
-        -- Поиск модуля конфигурации
         local configScript = npcModule:FindFirstChild("Config")
         if not configScript then
             configScript = npcModule:FindFirstChild("ShopConfig")
         end
         if not configScript then
-            Library:Notify("Config not found in NPC module", 3)
-            -- Выводим список детей для отладки
+            Library:Notify("Config not found in NPC", 3)
             local children = {}
             for _, ch in ipairs(npcModule:GetChildren()) do
                 table.insert(children, ch.Name)
             end
-            Library:Notify("Children: " .. table.concat(children, ", "), 2)
+            Library:Notify("Available: " .. table.concat(children, ", "), 2)
             return false
         end
         
@@ -94,67 +79,47 @@ function ShopManager:Init(Window, Tabs)
         end
         
         currentConfig = config
-        
-        -- Отладка: выводим все ключи конфига
-        print("[ShopManager] Config loaded. Keys:")
-        for k, v in pairs(config) do
-            print("  " .. tostring(k) .. " = " .. type(v))
-        end
-        
-        -- Определяем, где лежат товары
         if config.Products then
             products = config.Products
-            print("[ShopManager] Products found at config.Products")
         elseif config.Data and config.Data.Products then
             products = config.Data.Products
-            print("[ShopManager] Products found at config.Data.Products")
         else
-            -- Ищем любое поле, которое является таблицей и может содержать товары
             products = {}
-            for k, v in pairs(config) do
-                if type(v) == "table" and next(v) then
-                    local hasPrice = false
-                    for _, item in pairs(v) do
-                        if type(item) == "table" and (item.Price or item.Pass) then
-                            hasPrice = true
-                            break
-                        end
-                    end
-                    if hasPrice then
-                        products = v
-                        print("[ShopManager] Found products at config." .. tostring(k))
-                        break
-                    end
-                end
+            Library:Notify("Products not found in config", 3)
+            local keys = {}
+            for k in pairs(config) do
+                table.insert(keys, k)
             end
+            Library:Notify("Config keys: " .. table.concat(keys, ", "), 2)
+            return false
         end
         
-        local productCount = 0
-        for _ in pairs(products) do productCount = productCount + 1 end
-        print("[ShopManager] Products count: " .. productCount)
-        
-        local displayName = (config.Visuals and config.Visuals.DisplayName) or npcId
-        Library:Notify("Loaded NPC: " .. displayName .. " | Items: " .. productCount, 2)
+        local count = 0
+        for _ in pairs(products) do count = count + 1 end
+        Library:Notify("Loaded NPC: " .. (config.Visuals and config.Visuals.DisplayName or currentNPCId) .. " | Items: " .. count, 2)
         return true
     end
     
-    -- Создание элементов UI для каждого товара (пересоздаём группу)
+    -- Отрисовка товаров (удаляем старые кнопки и создаём новые)
     local function rebuildItemsUI()
-        -- Удаляем старую группу и создаём новую
-        local oldGroup = shopGroup
-        local parent = oldGroup.Parent
-        local newGroup = parent:AddRightGroupbox('Items')
-        oldGroup:Destroy()
-        shopGroup = newGroup
+        -- Удаляем ранее созданные кнопки
+        for _, btn in ipairs(buttons) do
+            pcall(function() btn:Destroy() end)
+        end
+        buttons = {}
         
-        if not currentConfig or next(products) == nil then
-            shopGroup:AddLabel("No items loaded. Check console for errors.")
-            return
+        -- Очищаем группу от всех элементов (можно использовать Clear, если есть, но мы просто удалим кнопки)
+        -- Дополнительно удаляем возможные метки, которые могли быть добавлены
+        for _, child in ipairs(itemsGroup:GetChildren()) do
+            if child:IsA("GuiObject") and child ~= itemsGroup then
+                pcall(function() child:Destroy() end)
+            end
         end
         
-        local displayName = (currentConfig.Visuals and currentConfig.Visuals.DisplayName) or currentNPCId
-        shopGroup:AddLabel("Shop: " .. displayName)
-        shopGroup:AddDivider()
+        if not currentConfig or next(products) == nil then
+            itemsGroup:AddLabel("No items found. Check console.")
+            return
+        end
         
         local MarketplaceService = game:GetService("MarketplaceService")
         local Players = game:GetService("Players")
@@ -173,7 +138,7 @@ function ShopManager:Init(Window, Tabs)
             local desc = data.Desc or "No description"
             local buttonText = name .. "\n" .. desc .. "\n" .. priceText
             
-            local buyButton = shopGroup:AddButton(buttonText, function()
+            local btn = itemsGroup:AddButton(buttonText, function()
                 if not currentConfig then
                     Library:Notify("No NPC loaded", 3)
                     return
@@ -202,14 +167,14 @@ function ShopManager:Init(Window, Tabs)
                     end
                 end
             end)
+            table.insert(buttons, btn)
         end
     end
     
-    -- UI: только кнопка загрузки
-    configGroup:AddLabel("NPC: Smugglers")
-    configGroup:AddButton('Load NPC', function()
-        local success = loadConfig(currentNPCId)
-        if success then
+    -- UI элементы
+    configGroup:AddLabel("NPC: " .. currentNPCId)
+    configGroup:AddButton('Load Shop', function()
+        if loadConfig() then
             rebuildItemsUI()
         end
     end)
@@ -217,7 +182,7 @@ function ShopManager:Init(Window, Tabs)
     -- Автоматическая загрузка при старте
     task.spawn(function()
         task.wait(1)
-        if loadConfig(currentNPCId) then
+        if loadConfig() then
             rebuildItemsUI()
         end
     end)
