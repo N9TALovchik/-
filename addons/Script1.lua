@@ -1,4 +1,4 @@
--- ShopManager.lua (исправленная версия, без GetChildren, все элементы удаляются через массив)
+-- ShopManager.lua (финальная версия: лейбл цены + кнопка названия)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -17,7 +17,7 @@ function ShopManager:Init(Window, Tabs)
     local currentConfig = nil
     local products = {}
     local remoteEvent = nil
-    local uiElements = {}   -- храним ВСЕ созданные динамические элементы (кнопки, лейблы)
+    local uiElements = {}   -- храним все созданные элементы (лейблы и кнопки)
     
     -- Поиск удалённого события
     local function getRemoteEvent()
@@ -100,9 +100,9 @@ function ShopManager:Init(Window, Tabs)
         return true
     end
     
-    -- Отрисовка товаров (удаляем старые элементы через uiElements и создаём новые)
+    -- Отрисовка товаров (сначала лейбл цены, затем кнопка названия)
     local function rebuildItemsUI()
-        -- Удаляем все ранее созданные элементы (кнопки, лейблы)
+        -- Удаляем все ранее созданные элементы
         for _, element in ipairs(uiElements) do
             pcall(function() element:Destroy() end)
         end
@@ -119,19 +119,22 @@ function ShopManager:Init(Window, Tabs)
         local LocalPlayer = Players.LocalPlayer
         
         for name, data in pairs(products) do
+            -- Текст цены
             local priceText = ""
             if data.Pass then
-                priceText = "Robux (GamePass)"
+                priceText = "Price: Robux (GamePass ID: " .. data.Pass .. ")"
             elseif data.CurrencyType == "Event" then
-                priceText = tostring(data.Price) .. " Event currency"
+                priceText = "Price: " .. tostring(data.Price) .. " Event currency"
             else
-                priceText = tostring(data.Price) .. " Cash"
+                priceText = "Price: " .. tostring(data.Price) .. " Cash"
             end
             
-            local desc = data.Desc or "No description"
-            local buttonText = name .. "\n" .. desc .. "\n" .. priceText
+            -- Лейбл с ценой (сверху)
+            local priceLabel = itemsGroup:AddLabel(priceText)
+            table.insert(uiElements, priceLabel)
             
-            local btn = itemsGroup:AddButton(buttonText, function()
+            -- Кнопка с названием товара
+            local btn = itemsGroup:AddButton(name, function()
                 if not currentConfig then
                     Library:Notify("No NPC loaded", 3)
                     return
