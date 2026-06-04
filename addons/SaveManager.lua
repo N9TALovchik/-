@@ -248,19 +248,20 @@ local SaveManager = {} do
 
 		-- Кнопка создания конфига
 		section:AddButton('Save/Create config', function()
-			local name = Options.SaveManager_ConfigName.Value
-			if name:gsub(' ', '') == '' then 
-				return self.Library:Notify('Invalid config name (empty)', 2)
-			end
-			local success, err = self:Save(name)
-			if not success then
-				return self.Library:Notify('Failed to save config: ' .. err)
-			end
-			self.Library:Notify(string.format('Created config %q', name))
-			Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
-			Options.SaveManager_ConfigList:SetValue(nil)
-			Options.SaveManager_ConfigName:SetValue('')
-		end)
+    local name = Options.SaveManager_ConfigName.Value
+    if name:gsub(' ', '') == '' then 
+        return self.Library:Notify('Invalid config name (empty)', 2)
+    end
+    local success, err = self:Save(name)
+    if not success then
+        return self.Library:Notify('Failed to save config: ' .. err)
+    end
+    self.Library:Notify(string.format('Saved/created config %q', name))
+    local newList = self:RefreshConfigList()
+    Options.SaveManager_ConfigList:SetValues(newList)
+    Options.SaveManager_ConfigList:SetValue(name)
+    -- поле ввода НЕ очищаем — оно автоматически заполнится выбранным конфигом
+end)
 
 		-- Кнопка загрузки конфига
 		section:AddButton('Load config', function()
