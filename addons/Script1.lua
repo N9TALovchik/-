@@ -1,4 +1,4 @@
--- ShopManager.lua (финальная: без GamePass, с маппингом по существующим предметам)
+-- ShopManager.lua (все предметы за деньги, GamePass игнорируются)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -13,8 +13,7 @@ function ShopManager:Init(Window, Tabs)
     
     local currentNPCId = "Smugglers"
     local currentConfig = nil
-    local products = {}              -- [shopName] = data (только НЕ GamePass)
-    local allProducts = {}           -- все продукты (включая GamePass, но не показываем)
+    local products = {}              -- [shopName] = data (все предметы, GamePass тоже)
     local remoteEvent = nil
     local uiElements = {}
     
@@ -51,7 +50,6 @@ function ShopManager:Init(Window, Tabs)
                 for _, tool in ipairs(container:GetChildren()) do
                     if tool:IsA("Tool") then
                         local toolLower = string.lower(tool.Name)
-                        -- Проверяем, содержит ли название Tool'а магазинное имя (без учёта регистра)
                         if string.find(toolLower, shopLower, 1, true) then
                             return tool.Name
                         end
@@ -96,7 +94,6 @@ function ShopManager:Init(Window, Tabs)
             return true
         end
         
-        -- Если маппинга ещё нет, пробуем найти по частичному совпадению
         if not itemMappings[shopName] then
             local found = findRealToolName(shopName)
             if found then
@@ -114,7 +111,6 @@ function ShopManager:Init(Window, Tabs)
         local player = game.Players.LocalPlayer
         local startTime = tick()
         
-        -- Собираем текущие имена Tool'ов
         local existingTools = {}
         local function collectTools(container)
             if not container then return end
@@ -151,10 +147,8 @@ function ShopManager:Init(Window, Tabs)
         return nil
     end
     
-    -- Покупка предмета (только Cash)
+    -- Покупка предмета (всегда за внутриигровую валюту, даже если есть Pass)
     local function purchaseItem(shopName, data)
-        if data.Pass then return false end  -- не покупаем GamePass
-        
         local player = game.Players.LocalPlayer
         local leaderstats = player:FindFirstChild("leaderstats")
         local cashStat = leaderstats and leaderstats:FindFirstChild("Cash")
@@ -163,16 +157,14 @@ function ShopManager:Init(Window, Tabs)
             return false
         end
         
-        if cashStat.Value >= data.Price then
+        local price = data.Price or 0
+        if cashStat.Value >= price then
             local remote = getRemoteEvent()
             if remote then
                 remote:FireServer(currentNPCId, shopName)
                 Library:Notify("Purchase request sent for " .. shopName, 2)
-                -- После покупки пытаемся выучить реальное имя (если ещё не знаем)
                 if not itemMappings[shopName] then
-                    task.spawn(function()
-                        waitForNewItem(shopName, 3)
-                    end)
+                    task.spawn(function() waitForNewItem(shopName, 3) end)
                 end
                 return true
             else
@@ -180,7 +172,7 @@ function ShopManager:Init(Window, Tabs)
                 return false
             end
         else
-            Library:Notify("Not enough Cash! Required: " .. data.Price, 3)
+            Library:Notify("Not enough Cash! Required: " .. price, 3)
             return false
         end
     end
@@ -197,9 +189,8 @@ function ShopManager:Init(Window, Tabs)
             if not autoBuyEnabled then return end
             for shopName, isSelected in pairs(selectedItems) do
                 if isSelected and products[shopName] then
-                    local data = products[shopName]
-                    if not data.Pass and not hasItem(shopName) then
-                        purchaseItem(shopName, data)
+                    if not hasItem(shopName) then
+                        purchaseItem(shopName, products[shopName])
                         task.wait(0.1)
                     end
                 end
@@ -207,7 +198,7 @@ function ShopManager:Init(Window, Tabs)
         end)
     end
     
-    -- Загрузка конфига (фильтруем GamePass)
+    -- Загрузка конфига (все предметы, включая GamePass)
     local function loadConfig()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local data = replicatedStorage:FindFirstChild("Data")
@@ -247,20 +238,20 @@ function ShopManager:Init(Window, Tabs)
         currentConfig = config
         local sourceProducts = config.Products or (config.Data and config.Data.Products) or {}
         
-        -- Отфильтровываем GamePass предметы
+        -- Берём все предметы, игнорируем поле Pass (все за деньги)
         products = {}
-        allProducts = sourceProducts
         for name, data in pairs(sourceProducts) do
-            if not data.Pass then
+            -- Если нет Price, пропускаем (или ставим 0)
+            if data.Price then
                 products[name] = data
             end
         end
         
         local count = 0
         for _ in pairs(products) do count = count + 1 end
-        Library:Notify("Loaded NPC: " .. (config.Visuals and config.Visuals.DisplayName or currentNPCId) .. " | Cash items: " .. count, 2)
+        Library:Notify("Loaded NPC: " .. (config.Visuals and config.Visuals.DisplayName or currentNPCId) .. " | Items: " .. count, 2)
         
-        -- Обновляем дропдаун (только Cash предметы)
+        -- Обновляем дропдаун
         local itemNames = {}
         for name in pairs(products) do
             table.insert(itemNames, name)
@@ -272,7 +263,7 @@ function ShopManager:Init(Window, Tabs)
         return true
     end
     
-    -- Отрисовка правой панели (только Cash предметы)
+    -- Отрисовка правой панели (все предметы)
     local function rebuildItemsUI()
         for _, element in ipairs(uiElements) do
             pcall(function() element:Destroy() end)
@@ -280,12 +271,11 @@ function ShopManager:Init(Window, Tabs)
         uiElements = {}
         
         if not currentConfig or next(products) == nil then
-            local noItemsLabel = itemsGroup:AddLabel("No cash items found.")
+            local noItemsLabel = itemsGroup:AddLabel("No items found.")
             table.insert(uiElements, noItemsLabel)
             return
         end
         
-        local MarketplaceService = game:GetService("MarketplaceService")
         local Players = game:GetService("Players")
         local LocalPlayer = Players.LocalPlayer
         
@@ -336,13 +326,13 @@ function ShopManager:Init(Window, Tabs)
         Values = {},
         Multi = true,
         Default = {},
-        Tooltip = 'Select items (cash only)'
+        Tooltip = 'Select items to auto-buy'
     })
     
     autoBuyToggle:OnChanged(function()
         autoBuyEnabled = autoBuyToggle.Value
         if autoBuyEnabled then
-            updateMappingsFromInventory()  -- при включении авто-бая проверяем уже имеющиеся предметы
+            updateMappingsFromInventory()
             startAutoBuy()
         else
             if autoBuyConnection then
@@ -368,7 +358,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-    Library:Notify("ShopManager loaded. GamePass items are hidden.", 3)
+    Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
 end
 
 return ShopManager
