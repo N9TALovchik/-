@@ -1,4 +1,4 @@
--- ShopManager.lua (исправленная версия, без clearItemsGroup, без лишних вызовов)
+-- ShopManager.lua (исправленная версия, без GetChildren)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -17,7 +17,7 @@ function ShopManager:Init(Window, Tabs)
     local currentConfig = nil
     local products = {}
     local remoteEvent = nil
-    local buttons = {} -- храним кнопки для возможного удаления
+    local uiElements = {}   -- храним ВСЕ созданные элементы (кнопки, лейблы)
     
     -- Поиск удалённого события
     local function getRemoteEvent()
@@ -100,24 +100,17 @@ function ShopManager:Init(Window, Tabs)
         return true
     end
     
-    -- Отрисовка товаров (удаляем старые кнопки и создаём новые)
+    -- Отрисовка товаров (удаляем старые элементы и создаём новые)
     local function rebuildItemsUI()
-        -- Удаляем ранее созданные кнопки
-        for _, btn in ipairs(buttons) do
-            pcall(function() btn:Destroy() end)
+        -- Удаляем все ранее созданные элементы (кнопки, лейблы)
+        for _, element in ipairs(uiElements) do
+            pcall(function() element:Destroy() end)
         end
-        buttons = {}
-        
-        -- Очищаем группу от всех элементов (можно использовать Clear, если есть, но мы просто удалим кнопки)
-        -- Дополнительно удаляем возможные метки, которые могли быть добавлены
-        for _, child in ipairs(itemsGroup:GetChildren()) do
-            if child:IsA("GuiObject") and child ~= itemsGroup then
-                pcall(function() child:Destroy() end)
-            end
-        end
+        uiElements = {}
         
         if not currentConfig or next(products) == nil then
-            itemsGroup:AddLabel("No items found. Check console.")
+            local noItemsLabel = itemsGroup:AddLabel("No items found. Check console.")
+            table.insert(uiElements, noItemsLabel)
             return
         end
         
@@ -167,7 +160,7 @@ function ShopManager:Init(Window, Tabs)
                     end
                 end
             end)
-            table.insert(buttons, btn)
+            table.insert(uiElements, btn)
         end
     end
     
