@@ -332,6 +332,24 @@ local ThemeManager = {} do
 		return out
 	end
 
+	-- ===== ФУНКЦИЯ ОЧИСТКИ ЭФФЕКТА КЛИКА =====
+	function ThemeManager:CleanupClickEffect()
+		if inputConnection then
+			inputConnection:Disconnect()
+			inputConnection = nil
+		end
+		if clickEffectGui then
+			pcall(function() clickEffectGui:Destroy() end)
+			clickEffectGui = nil
+		end
+		-- Сбрасываем флаги и переменные
+		clickEffectEnabled = false
+		clickSoundId = ""
+		savedClickSound = ""
+		lastClickTime = 0
+	end
+	-- =========================================
+
 	function ThemeManager:SetLibrary(lib)
 		self.Library = lib
 		self:LoadClickSound()   -- Загружаем сохранённый звук
