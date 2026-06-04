@@ -1,4 +1,4 @@
--- ShopManager.lua для LinoriaLib (авто-бай с мультивыбором)
+-- ShopManager.lua для LinoriaLib (с авто-баем и маппингом названий)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -15,14 +15,17 @@ function ShopManager:Init(Window, Tabs)
     
     local currentNPCId = "Smugglers"
     local currentConfig = nil
-    local products = {}          -- { [itemName] = data }
+    local products = {}          -- [shopName] = data
     local remoteEvent = nil
-    local uiElements = {}        -- для ручных кнопок/лейблов (правая панель)
+    local uiElements = {}        -- для ручных кнопок/лейблов
     
-    -- Переменные для авто-бая
+    -- Авто-бай переменные
     local autoBuyEnabled = false
-    local selectedItems = {}     -- { [itemName] = true/false }
+    local selectedItems = {}     -- [shopName] = true/false
     local autoBuyConnection = nil
+    
+    -- Маппинг: магазинное имя -> реальное имя Tool'а (если отличается)
+    local itemMappings = {}      -- ["аптечка"] = "Аптечка [+]"
     
     -- Поиск удалённого события
     local function getRemoteEvent()
@@ -38,37 +41,113 @@ function ShopManager:Init(Window, Tabs)
         return remoteEvent
     end
     
-    -- Проверка наличия предмета у игрока (в руках или рюкзаке)
-    local function hasItem(itemName)
+    -- Получить реальное имя предмета по магазинному
+    local function getRealItemName(shopName)
+        return itemMappings[shopName] or shopName
+    end
+    
+    -- Проверка наличия предмета у игрока (по реальному имени)
+    local function hasItem(shopName)
+        local realName = getRealItemName(shopName)
         local player = game.Players.LocalPlayer
         if not player then return false end
         
         -- Проверка в руках
         local character = player.Character
-        if character then
-            local tool = character:FindFirstChild(itemName)
-            if tool and tool:IsA("Tool") then
-                return true
-            end
+        if character and character:FindFirstChild(realName) then
+            return true
         end
         
         -- Проверка в рюкзаке
         local backpack = player:FindFirstChild("Backpack")
-        if backpack then
-            local tool = backpack:FindFirstChild(itemName)
-            if tool and tool:IsA("Tool") then
-                return true
-            end
+        if backpack and backpack:FindFirstChild(realName) then
+            return true
         end
         
         return false
     end
     
-    -- Покупка предмета
-    local function purchaseItem(itemName, data)
+    -- Отслеживание появления нового Tool после покупки
+    local function waitForNewItem(shopName, timeout)
+        local player = game.Players.LocalPlayer
+        local startTime = tick()
+        local found = nil
+        
+        -- Функция проверки новых объектов в контейнере
+        local function checkContainer(container)
+            if not container then return nil end
+            for _, child in ipairs(container:GetChildren()) do
+                if child:IsA("Tool") then
+                    -- Если это не старый предмет (ещё не маппился)
+                    local alreadyMapped = false
+                    for _, mappedName in pairs(itemMappings) do
+                        if mappedName == child.Name then
+                            alreadyMapped = true
+                            break
+                        end
+                    end
+                    if not alreadyMapped then
+                        return child.Name
+                    end
+                end
+            end
+            return nil
+        end
+        
+        -- Сохраняем текущие имена Tool'ов до покупки
+        local existingTools = {}
+        local char = player.Character
+        local bp = player:FindFirstChild("Backpack")
+        
+        if char then
+            for _, tool in ipairs(char:GetChildren()) do
+                if tool:IsA("Tool") then existingTools[tool.Name] = true end
+            end
+        end
+        if bp then
+            for _, tool in ipairs(bp:GetChildren()) do
+                if tool:IsA("Tool") then existingTools[tool.Name] = true end
+            end
+        end
+        
+        -- Ждём появления нового Tool
+        while tick() - startTime < timeout do
+            -- Проверяем персонажа
+            local charNow = player.Character
+            if charNow then
+                for _, tool in ipairs(charNow:GetChildren()) do
+                    if tool:IsA("Tool") and not existingTools[tool.Name] then
+                        found = tool.Name
+                        break
+                    end
+                end
+            end
+            -- Проверяем рюкзак
+            local bpNow = player:FindFirstChild("Backpack")
+            if bpNow and not found then
+                for _, tool in ipairs(bpNow:GetChildren()) do
+                    if tool:IsA("Tool") and not existingTools[tool.Name] then
+                        found = tool.Name
+                        break
+                    end
+                end
+            end
+            
+            if found then break end
+            task.wait(0.05)
+        end
+        
+        if found and found ~= shopName then
+            itemMappings[shopName] = found
+            Library:Notify(string.format("Mapped: '%s' -> '%s'", shopName, found), 2)
+        end
+        return found
+    end
+    
+    -- Покупка предмета (с отслеживанием реального имени)
+    local function purchaseItem(shopName, data)
         if data.Pass then
-            -- Для GamePass покупка через Robux (не автоматизируем)
-            return false
+            return false  -- GamePass не автоматизируем
         end
         
         local player = game.Players.LocalPlayer
@@ -82,15 +161,24 @@ function ShopManager:Init(Window, Tabs)
         if cashStat.Value >= data.Price then
             local remote = getRemoteEvent()
             if remote then
-                remote:FireServer(currentNPCId, itemName)
-                Library:Notify("Auto-bought: " .. itemName, 2)
+                remote:FireServer(currentNPCId, shopName)
+                Library:Notify("Purchase request sent for " .. shopName, 2)
+                -- После отправки запроса ждём появления предмета (если ещё не запомнен)
+                if not itemMappings[shopName] then
+                    task.spawn(function()
+                        local realName = waitForNewItem(shopName, 3)
+                        if realName then
+                            Library:Notify("Learned real name: " .. realName, 2)
+                        end
+                    end)
+                end
                 return true
             else
                 Library:Notify("Remote event not found", 3)
                 return false
             end
         else
-            -- Недостаточно денег – ничего не делаем
+            Library:Notify("Not enough Cash! Required: " .. data.Price, 3)
             return false
         end
     end
@@ -107,15 +195,13 @@ function ShopManager:Init(Window, Tabs)
         autoBuyConnection = game:GetService("RunService").Stepped:Connect(function()
             if not autoBuyEnabled then return end
             
-            -- Перебираем выбранные предметы
-            for itemName, isSelected in pairs(selectedItems) do
-                if isSelected and products[itemName] then
-                    local data = products[itemName]
-                    -- Пропускаем GamePass
+            for shopName, isSelected in pairs(selectedItems) do
+                if isSelected and products[shopName] then
+                    local data = products[shopName]
                     if not data.Pass then
-                        if not hasItem(itemName) then
-                            purchaseItem(itemName, data)
-                            task.wait(0.1) -- небольшая задержка между покупками
+                        if not hasItem(shopName) then
+                            purchaseItem(shopName, data)
+                            task.wait(0.1) -- задержка между покупками
                         end
                     end
                 end
@@ -178,7 +264,7 @@ function ShopManager:Init(Window, Tabs)
         -- Обновляем Dropdown значениями из товаров (только не GamePass)
         local itemNames = {}
         for name, data in pairs(products) do
-            if not data.Pass then  -- только покупаемые за внутриигровую валюту
+            if not data.Pass then
                 table.insert(itemNames, name)
             end
         end
@@ -189,9 +275,8 @@ function ShopManager:Init(Window, Tabs)
         return true
     end
     
-    -- Отрисовка товаров в правой группе (ручная покупка)
+    -- Отрисовка товаров в правой панели (ручная покупка)
     local function rebuildItemsUI()
-        -- Удаляем старые элементы
         for _, element in ipairs(uiElements) do
             pcall(function() element:Destroy() end)
         end
@@ -207,8 +292,7 @@ function ShopManager:Init(Window, Tabs)
         local Players = game:GetService("Players")
         local LocalPlayer = Players.LocalPlayer
         
-        for name, data in pairs(products) do
-            -- Лейбл с ценой
+        for shopName, data in pairs(products) do
             local priceText = ""
             if data.Pass then
                 priceText = "Price: Robux (GamePass ID: " .. data.Pass .. ")"
@@ -217,12 +301,12 @@ function ShopManager:Init(Window, Tabs)
             else
                 priceText = "Price: " .. tostring(data.Price) .. " Cash"
             end
+            
             local priceLabel = itemsGroup:AddLabel(priceText)
             table.insert(uiElements, priceLabel)
             
-            -- Кнопка с названием (ручная покупка)
             local btn = itemsGroup:AddButton({
-                Text = name,
+                Text = shopName,
                 Func = function()
                     if data.Pass then
                         MarketplaceService:PromptProductPurchase(LocalPlayer, data.Pass)
@@ -232,8 +316,17 @@ function ShopManager:Init(Window, Tabs)
                         if cashStat and cashStat.Value >= data.Price then
                             local remote = getRemoteEvent()
                             if remote then
-                                remote:FireServer(currentNPCId, name)
-                                Library:Notify("Purchase request sent for " .. name, 2)
+                                remote:FireServer(currentNPCId, shopName)
+                                Library:Notify("Purchase request sent for " .. shopName, 2)
+                                -- Отслеживаем реальное имя при ручной покупке
+                                if not itemMappings[shopName] then
+                                    task.spawn(function()
+                                        local realName = waitForNewItem(shopName, 3)
+                                        if realName then
+                                            Library:Notify("Learned real name: " .. realName, 2)
+                                        end
+                                    end)
+                                end
                             else
                                 Library:Notify("Remote event not found", 3)
                             end
@@ -250,23 +343,20 @@ function ShopManager:Init(Window, Tabs)
     
     -- ============ UI ЭЛЕМЕНТЫ (LinoriaLib) ============
     
-    -- Toggle для включения авто-бая
     local autoBuyToggle = configGroup:AddToggle('AutoBuyToggle', {
         Text = 'Auto Buy',
         Default = false,
-        Tooltip = 'Automatically buy selected items every 0.1 sec if not owned'
+        Tooltip = 'Automatically buy selected items if not owned'
     })
     
-    -- Dropdown с мультивыбором для предметов
     local itemsDropdown = configGroup:AddDropdown('ItemsDropdown', {
         Text = 'Items to Auto Buy',
-        Values = {},  -- заполнится после загрузки конфига
+        Values = {},
         Multi = true,
         Default = {},
-        Tooltip = 'Select items to auto-buy (only cash items)'
+        Tooltip = 'Select items to auto-buy (cash items only)'
     })
     
-    -- Обработчики событий UI
     autoBuyToggle:OnChanged(function()
         autoBuyEnabled = autoBuyToggle.Value
         if autoBuyEnabled then
@@ -280,7 +370,6 @@ function ShopManager:Init(Window, Tabs)
     end)
     
     itemsDropdown:OnChanged(function()
-        -- selectedItems = таблица { [itemName] = true/false }
         selectedItems = itemsDropdown.Value
     end)
     
@@ -289,12 +378,11 @@ function ShopManager:Init(Window, Tabs)
         task.wait(1)
         if loadConfig() then
             rebuildItemsUI()
-            -- Инициализируем selectedItems пустой таблицей
             selectedItems = {}
         end
     end)
     
-    Library:Notify("ShopManager loaded. Use Remote Shop tab. Auto-buy is ready.", 2)
+    Library:Notify("ShopManager loaded. Auto-buy will learn item names after first purchase.", 4)
 end
 
 return ShopManager
