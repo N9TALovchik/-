@@ -5,7 +5,7 @@ function ShopManager:Init(Window, Tabs)
     assert(Window, "ShopManager: Window is required")
     assert(Library, "Library must be loaded before ShopManager")
     
-    local shopTab = Window:AddTab('Remote Shop')
+    local shopTab = Window:AddTab('Arrp')
     Tabs.Shop = shopTab
     
     local configGroup = shopTab:AddLeftGroupbox('Auto Buy Settings')
