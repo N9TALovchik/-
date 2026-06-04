@@ -1,4 +1,4 @@
--- LinoriaLib модифицированная (уведомления с автошириной, курсор-изображение, звук)
+-- LinoriaLib модифицированная (курсор и звук вынесены в переменные, ESC -> None для KeyPicker)
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -9,6 +9,11 @@ local TweenService = game:GetService('TweenService');
 local RenderStepped = RunService.RenderStepped;
 local LocalPlayer = Players.LocalPlayer;
 local Mouse = LocalPlayer:GetMouse();
+
+-- ========== НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ==========
+local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для кастомного курсора
+local NOTIFY_SOUND_ID = "8679627751"    -- ID звука уведомлений
+-- ==========================================
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
@@ -1236,7 +1241,10 @@ do
                 Event = InputService.InputBegan:Connect(function(Input)
                     local Key;
 
-                    if Input.UserInputType == Enum.UserInputType.Keyboard then
+                    -- Обработка ESC -> None
+                    if Input.KeyCode == Enum.KeyCode.Escape then
+                        Key = 'None'
+                    elseif Input.UserInputType == Enum.UserInputType.Keyboard then
                         Key = Input.KeyCode.Name;
                     elseif Input.UserInputType == Enum.UserInputType.MouseButton1 then
                         Key = 'MB1';
@@ -1247,11 +1255,12 @@ do
                     Break = true;
                     Picking = false;
 
-                    DisplayLabel.Text = Key;
-                    KeyPicker.Value = Key;
-
-                    Library:SafeCallback(KeyPicker.ChangedCallback, Input.KeyCode or Input.UserInputType)
-                    Library:SafeCallback(KeyPicker.Changed, Input.KeyCode or Input.UserInputType)
+                    if Key then
+                        DisplayLabel.Text = Key;
+                        KeyPicker.Value = Key;
+                        Library:SafeCallback(KeyPicker.ChangedCallback, Input.KeyCode or Input.UserInputType)
+                        Library:SafeCallback(KeyPicker.Changed, Input.KeyCode or Input.UserInputType)
+                    end
 
                     Library:AttemptSave();
 
@@ -1273,7 +1282,7 @@ do
                             KeyPicker.Toggled = not KeyPicker.Toggled
                             KeyPicker:DoClick()
                         end;
-                    elseif Input.UserInputType == Enum.UserInputType.Keyboard then
+                    elseif Input.UserInputType == Enum.UserInputType.Keyboard and Key ~= 'None' then
                         if Input.KeyCode.Name == Key then
                             KeyPicker.Toggled = not KeyPicker.Toggled;
                             KeyPicker:DoClick()
@@ -2654,7 +2663,7 @@ end;
 Library.NotificationArea = Library:Create('Frame', {
     BackgroundTransparency = 1;
     AnchorPoint = Vector2.new(0.5, 1);
-    Position = UDim2.new(0.5, 0, 1, -40); -- отступ от низа 40 пикселей (не %)
+    Position = UDim2.new(0.5, 0, 1, -40);
     Size = UDim2.new(0, 0, 0, 0);
     AutomaticSize = Enum.AutomaticSize.Y;
     ClipsDescendants = false;
@@ -2674,7 +2683,7 @@ Library:Create('UIListLayout', {
 -- Функция для проигрывания звука уведомления
 local function PlayNotifySound()
     local sound = Instance.new("Sound")
-    sound.SoundId = "rbxassetid://8679627751"
+    sound.SoundId = "rbxassetid://" .. NOTIFY_SOUND_ID
     sound.Volume = 0.5
     sound.Parent = ScreenGui
     sound:Play()
@@ -2773,7 +2782,7 @@ function Library:Notify(Text, Time)
     end);
 end;
 
--- ========== ПОСТОЯННЫЙ КУРСОР (ИЗОБРАЖЕНИЕ 18392993708) ==========
+-- ========== ПОСТОЯННЫЙ КУРСОР (ИЗОБРАЖЕНИЕ) ==========
 local CustomCursor = nil
 local CursorEnabled = false
 
@@ -2783,7 +2792,6 @@ local function CreateCustomCursor()
         CustomCursor = nil
     end
     
-    -- Проверяем поддержку Drawing.Image
     local success, img = pcall(function()
         return Drawing.new("Image")
     end)
@@ -2793,7 +2801,7 @@ local function CreateCustomCursor()
     end
     
     CustomCursor = img
-    CustomCursor.Image = "rbxassetid://18392993708"
+    CustomCursor.Image = "rbxassetid://" .. CURSOR_IMAGE_ID
     CustomCursor.Size = Vector2.new(32, 32)
     CustomCursor.Visible = true
     CustomCursor.Transparency = 0
@@ -2810,22 +2818,15 @@ local function StartCustomCursor()
     if CursorEnabled then return end
     if not CreateCustomCursor() then return end
     
-    -- Скрываем стандартный курсор через InputService
     pcall(function()
         InputService.MouseIconEnabled = false
     end)
     
-    -- Обновляем позицию каждый кадр
-    local conn
-    conn = RunService.RenderStepped:Connect(function()
-        UpdateCursorPosition()
-    end)
+    local conn = RunService.RenderStepped:Connect(UpdateCursorPosition)
     table.insert(Library.Signals, conn)
-    
     CursorEnabled = true
 end
 
--- Запускаем кастомный курсор сразу
 StartCustomCursor()
 
 -- ========== ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ (Watermark, KeybindFrame и т.д.) ==========
@@ -2975,7 +2976,7 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 
--- Функция создания окна (полная, но без изменений по сравнению с оригиналом)
+-- Функция создания окна
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
