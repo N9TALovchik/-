@@ -1,4 +1,4 @@
--- LinoriaLib модифицированная (уведомления по центру внизу с прогресс-полоской)
+-- LinoriaLib модифицированная (уведомления с автошириной, курсор-изображение, звук)
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -2650,13 +2650,14 @@ do
     end;
 end;
 
--- ========== НОВАЯ ОБЛАСТЬ УВЕДОМЛЕНИЙ (центр вниз, прогресс-полоска) ==========
+-- ========== НОВАЯ ОБЛАСТЬ УВЕДОМЛЕНИЙ (центр вниз, автоширина, звук) ==========
 Library.NotificationArea = Library:Create('Frame', {
     BackgroundTransparency = 1;
     AnchorPoint = Vector2.new(0.5, 1);
-    Position = UDim2.new(0.5, 0, 1, -20);
-    Size = UDim2.new(0.8, 0, 0, 0);
+    Position = UDim2.new(0.5, 0, 1, -40); -- отступ от низа 40 пикселей (не %)
+    Size = UDim2.new(0, 0, 0, 0);
     AutomaticSize = Enum.AutomaticSize.Y;
+    ClipsDescendants = false;
     ZIndex = 100;
     Parent = ScreenGui;
 });
@@ -2670,14 +2671,28 @@ Library:Create('UIListLayout', {
     Parent = Library.NotificationArea;
 });
 
-function Library:Notify(Text, Time)
-    Time = Time or 5;
-    local XSize, YSize = Library:GetTextBounds(Text, Library.Font, 14);
-    YSize = YSize + 4;
+-- Функция для проигрывания звука уведомления
+local function PlayNotifySound()
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://8679627751"
+    sound.Volume = 0.5
+    sound.Parent = ScreenGui
+    sound:Play()
+    task.delay(sound.TimeLength, function()
+        sound:Destroy()
+    end)
+end
 
+function Library:Notify(Text, Time)
+    Time = Time or 5
+    PlayNotifySound()
+    
+    local XSize = Library:GetTextBounds(Text, Library.Font, 14)
+    local YSize = 20
+    
     local NotifyOuter = Library:Create('Frame', {
         BorderColor3 = Color3.new(0, 0, 0);
-        Size = UDim2.new(1, -10, 0, YSize + 4);
+        Size = UDim2.new(0, XSize + 20, 0, YSize);
         ClipsDescendants = false;
         ZIndex = 100;
         Parent = Library.NotificationArea;
@@ -2701,7 +2716,7 @@ function Library:Notify(Text, Time)
         BackgroundColor3 = Color3.new(1, 1, 1);
         BorderSizePixel = 0;
         Position = UDim2.new(0, 1, 0, 1);
-        Size = UDim2.new(1, -2, 1, -4);
+        Size = UDim2.new(1, -2, 1, -3);
         ZIndex = 102;
         Parent = NotifyInner;
     });
@@ -2726,7 +2741,7 @@ function Library:Notify(Text, Time)
 
     local NotifyLabel = Library:CreateLabel({
         Position = UDim2.new(0, 5, 0, 2);
-        Size = UDim2.new(1, -10, 0, YSize);
+        Size = UDim2.new(1, -10, 1, -4);
         Text = Text;
         TextXAlignment = Enum.TextXAlignment.Center;
         TextSize = 14;
@@ -2756,11 +2771,62 @@ function Library:Notify(Text, Time)
     FadeOutTween.Completed:Connect(function()
         NotifyOuter:Destroy();
     end);
-
-    NotifyOuter:GetPropertyChangedSignal('Size'):Connect(function()
-        ProgressBar.Position = UDim2.new(0, 0, 1, -2);
-    end);
 end;
+
+-- ========== ПОСТОЯННЫЙ КУРСОР (ИЗОБРАЖЕНИЕ 18392993708) ==========
+local CustomCursor = nil
+local CursorEnabled = false
+
+local function CreateCustomCursor()
+    if CustomCursor then
+        CustomCursor:Remove()
+        CustomCursor = nil
+    end
+    
+    -- Проверяем поддержку Drawing.Image
+    local success, img = pcall(function()
+        return Drawing.new("Image")
+    end)
+    if not success or not img then
+        warn("Drawing.Image не поддерживается, курсор не будет изменён")
+        return false
+    end
+    
+    CustomCursor = img
+    CustomCursor.Image = "rbxassetid://18392993708"
+    CustomCursor.Size = Vector2.new(32, 32)
+    CustomCursor.Visible = true
+    CustomCursor.Transparency = 0
+    return true
+end
+
+local function UpdateCursorPosition()
+    if not CustomCursor then return end
+    local mousePos = InputService:GetMouseLocation()
+    CustomCursor.Position = Vector2.new(mousePos.X, mousePos.Y)
+end
+
+local function StartCustomCursor()
+    if CursorEnabled then return end
+    if not CreateCustomCursor() then return end
+    
+    -- Скрываем стандартный курсор через InputService
+    pcall(function()
+        InputService.MouseIconEnabled = false
+    end)
+    
+    -- Обновляем позицию каждый кадр
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        UpdateCursorPosition()
+    end)
+    table.insert(Library.Signals, conn)
+    
+    CursorEnabled = true
+end
+
+-- Запускаем кастомный курсор сразу
+StartCustomCursor()
 
 -- ========== ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ (Watermark, KeybindFrame и т.д.) ==========
 -- Watermark
@@ -2909,7 +2975,7 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 
--- Функция создания окна (не изменялась)
+-- Функция создания окна (полная, но без изменений по сравнению с оригиналом)
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
@@ -3025,6 +3091,7 @@ function Library:CreateWindow(...)
         ZIndex = 2;
         Parent = MainSectionInner;
     });
+    
 
     Library:AddToRegistry(TabContainer, {
         BackgroundColor3 = 'MainColor';
@@ -3499,44 +3566,6 @@ function Library:CreateWindow(...)
 
         if Toggled then
             Outer.Visible = true;
-
-            task.spawn(function()
-                local State = InputService.MouseIconEnabled;
-
-                local Cursor = Drawing.new('Triangle');
-                Cursor.Thickness = 1;
-                Cursor.Filled = true;
-                Cursor.Visible = true;
-
-                local CursorOutline = Drawing.new('Triangle');
-                CursorOutline.Thickness = 1;
-                CursorOutline.Filled = false;
-                CursorOutline.Color = Color3.new(0, 0, 0);
-                CursorOutline.Visible = true;
-
-                while Toggled and ScreenGui.Parent do
-                    InputService.MouseIconEnabled = false;
-
-                    local mPos = InputService:GetMouseLocation();
-
-                    Cursor.Color = Library.AccentColor;
-
-                    Cursor.PointA = Vector2.new(mPos.X, mPos.Y);
-                    Cursor.PointB = Vector2.new(mPos.X + 16, mPos.Y + 6);
-                    Cursor.PointC = Vector2.new(mPos.X + 6, mPos.Y + 16);
-
-                    CursorOutline.PointA = Cursor.PointA;
-                    CursorOutline.PointB = Cursor.PointB;
-                    CursorOutline.PointC = Cursor.PointC;
-
-                    RenderStepped:Wait();
-                end;
-
-                InputService.MouseIconEnabled = State;
-
-                Cursor:Remove();
-                CursorOutline:Remove();
-            end);
         end;
 
         for _, Desc in next, Outer:GetDescendants() do
