@@ -11,7 +11,7 @@ local LocalPlayer = Players.LocalPlayer;
 local Mouse = LocalPlayer:GetMouse();
 
 -- ========== НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ==========
-local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для кастомного курсора
+local CURSOR_IMAGE_ID = "13404367220"   -- ID изображения для кастомного курсора
 local NOTIFY_SOUND_ID = "3023237993"    -- ID звука уведомлений
 local NOTIFY_ANIMATION_SPEED = 0.3      -- скорость анимации уведомлений (секунды)
 -- ==========================================
