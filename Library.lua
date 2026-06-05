@@ -13,7 +13,7 @@ local Mouse = LocalPlayer:GetMouse();
 -- ========== НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ==========
 local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для кастомного курсора
 local NOTIFY_SOUND_ID = "8679627751"    -- ID звука уведомлений
-local NOTIFY_ANIMATION_SPEED = 0.2      -- скорость анимации уведомлений (секунды)
+local NOTIFY_ANIMATION_SPEED = 0.3      -- скорость анимации уведомлений (секунды)
 -- ==========================================
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
@@ -2664,7 +2664,7 @@ end;
 local NotificationArea = Library:Create('Frame', {
     BackgroundTransparency = 1;
     AnchorPoint = Vector2.new(0.5, 1);
-    Position = UDim2.new(0.5, 0, 1, -20);
+    Position = UDim2.new(0.5, 0, 1, -40);
     Size = UDim2.new(0, 0, 0, 0);
     AutomaticSize = Enum.AutomaticSize.Y;
     ClipsDescendants = false;
@@ -2702,17 +2702,16 @@ function Library:Notify(Text, Time)
     local Outer = Library:Create('Frame', {
         BorderColor3 = Color3.new(0, 0, 0);
         Size = UDim2.new(0, XSize, 0, YSize);
-        Position = UDim2.new(0.5, -XSize/2, 1, 20);  -- начинается за экраном снизу
+        Position = UDim2.new(0.5, -XSize/2, 1, YSize + 10);  -- за экраном снизу
         ClipsDescendants = false;
         ZIndex = 100;
         Parent = NotificationArea;
     });
     
     -- Анимация выезда
-    Outer.Position = UDim2.new(0.5, -XSize/2, 1, 20)
-    local startPos = UDim2.new(0.5, -XSize/2, 1, YSize + 10)  -- ниже экрана
+    local startPos = UDim2.new(0.5, -XSize/2, 1, YSize + 10)
+    local targetPos = UDim2.new(0.5, -XSize/2, 1, -YSize - 10) -- финальная позиция
     Outer.Position = startPos
-    local targetPos = UDim2.new(0.5, -XSize/2, 1, -YSize - 10) -- финальная позиция (над кнопкой)
     
     local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = targetPos })
     tweenIn:Play()
@@ -2786,7 +2785,7 @@ function Library:Notify(Text, Time)
     
     task.wait(Time)
     
-    local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.new(0.5, -XSize/2, 1, YSize + 10) })
+    local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = startPos })
     tweenOut:Play()
     tweenOut.Completed:Connect(function()
         Outer:Destroy()
