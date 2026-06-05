@@ -13,7 +13,7 @@ local Mouse = LocalPlayer:GetMouse();
 -- ========== НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ==========
 local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для кастомного курсора
 local NOTIFY_SOUND_ID = "8679627751"    -- ID звука уведомлений
-local NOTIFY_ANIMATION_SPEED = 0.3      -- скорость анимации уведомлений (секунды)
+local NOTIFY_ANIMATION_SPEED = 0.2      -- скорость анимации уведомлений (секунды)
 -- ==========================================
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
