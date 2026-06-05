@@ -1,4 +1,4 @@
--- LinoriaLib модифицированная (курсор, звук, анимированные уведомления, выезжающие снизу)
+-- LinoriaLib модифицированная (кастомный курсор, анимированные уведомления, защита от дубликатов табов)
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -11,8 +11,8 @@ local LocalPlayer = Players.LocalPlayer;
 local Mouse = LocalPlayer:GetMouse();
 
 -- ========== НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ==========
-local CURSOR_IMAGE_ID = "13404367220"   -- ID изображения для кастомного курсора
-local NOTIFY_SOUND_ID = "3023237993"    -- ID звука уведомлений
+local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для кастомного курсора
+local NOTIFY_SOUND_ID = "8679627751"    -- ID звука уведомлений
 local NOTIFY_ANIMATION_SPEED = 0.3      -- скорость анимации уведомлений (секунды)
 -- ==========================================
 
@@ -2710,7 +2710,7 @@ function Library:Notify(Text, Time)
     
     -- Анимация выезда
     local startPos = UDim2.new(0.5, -XSize/2, 1, YSize + 10)
-    local targetPos = UDim2.new(0.5, -XSize/2, 1, -YSize - 10) -- финальная позиция
+    local targetPos = UDim2.new(0.5, -XSize/2, 1, -YSize - 10) -- финальная позиция (над кнопками)
     Outer.Position = startPos
     
     local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = targetPos })
@@ -2792,55 +2792,30 @@ function Library:Notify(Text, Time)
     end)
 end;
 
--- ========== ПОСТОЯННЫЙ КУРСОР (ИЗОБРАЖЕНИЕ) ==========
-local CustomCursor = nil
-local CursorEnabled = false
-
-local function CreateCustomCursor()
-    if CustomCursor then
-        CustomCursor:Remove()
-        CustomCursor = nil
-    end
-    
-    local success, img = pcall(function()
-        return Drawing.new("Image")
-    end)
-    if not success or not img then
-        warn("Drawing.Image не поддерживается, курсор не будет изменён")
-        return false
-    end
-    
-    CustomCursor = img
-    CustomCursor.Image = "rbxassetid://" .. CURSOR_IMAGE_ID
-    CustomCursor.Size = Vector2.new(32, 32)
-    CustomCursor.Visible = true
-    CustomCursor.Transparency = 0
-    return true
-end
-
-local function UpdateCursorPosition()
-    if not CustomCursor then return end
-    local mousePos = InputService:GetMouseLocation()
-    CustomCursor.Position = Vector2.new(mousePos.X, mousePos.Y)
-end
-
-local function StartCustomCursor()
-    if CursorEnabled then return end
-    if not CreateCustomCursor() then return end
-    
+-- ========== КАСТОМНЫЙ КУРСОР (через mouse.Icon, автообновление) ==========
+local cursorUpdateConnection = nil
+local function UpdateCursor()
     pcall(function()
-        InputService.MouseIconEnabled = false
+        local mouse = LocalPlayer:GetMouse()
+        if mouse then
+            mouse.Icon = "rbxassetid://" .. CURSOR_IMAGE_ID
+        end
     end)
-    
-    local conn = RunService.RenderStepped:Connect(UpdateCursorPosition)
-    table.insert(Library.Signals, conn)
-    CursorEnabled = true
 end
 
-StartCustomCursor()
+local function StartCursorUpdater()
+    if cursorUpdateConnection then
+        cursorUpdateConnection:Disconnect()
+        cursorUpdateConnection = nil
+    end
+    UpdateCursor()
+    cursorUpdateConnection = RunService.Heartbeat:Connect(UpdateCursor)
+    LocalPlayer.CharacterAdded:Connect(UpdateCursor)
+end
+
+task.spawn(StartCursorUpdater)
 
 -- ========== WATERMARK, KEYBINDFRAME И ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ ==========
--- Watermark (оставлен без изменений)
 local WatermarkOuter = Library:Create('Frame', {
     BorderColor3 = Color3.new(0, 0, 0);
     Position = UDim2.new(0, 100, 0, -25);
@@ -2903,7 +2878,7 @@ Library.Watermark = WatermarkOuter;
 Library.WatermarkText = WatermarkLabel;
 Library:MakeDraggable(Library.Watermark);
 
--- KeybindFrame (оставлен без изменений)
+-- KeybindFrame
 local KeybindOuter = Library:Create('Frame', {
     AnchorPoint = Vector2.new(0, 0.5);
     BorderColor3 = Color3.new(0, 0, 0);
@@ -2986,7 +2961,7 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 
--- Создание окна
+-- Создание окна с защитой от дубликатов табов
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
@@ -3114,6 +3089,12 @@ function Library:CreateWindow(...)
     end;
 
     function Window:AddTab(Name)
+        -- Защита от дубликатов
+        if Window.Tabs[Name] then
+            warn("[LinoriaLib] Tab with name '" .. Name .. "' already exists. Returning existing tab.")
+            return Window.Tabs[Name]
+        end
+
         local Tab = {
             Groupboxes = {};
             Tabboxes = {};
