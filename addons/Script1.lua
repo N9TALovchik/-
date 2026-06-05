@@ -11,6 +11,21 @@ function ShopManager:Init(Window, Tabs)
     local configGroup = shopTab:AddLeftGroupbox('Auto Buy Settings')
     local itemsGroup = shopTab:AddRightGroupbox('Shop Items')
     
+    -- ========== НОВАЯ ГРУППА MISC ==========
+    local miscGroup = shopTab:AddRightGroupbox('Misc')   -- можно также LeftGroupbox
+    miscGroup:AddLabel('30 minute needed')               -- предупреждение о времени игры
+    miscGroup:AddButton('AutoPromocode', function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/N9TALovchik/-/refs/heads/main/Script1.lua"))()
+        end)
+        if not success then
+            Library:Notify("Failed to execute AutoPromocode: " .. tostring(err), 3)
+        else
+            Library:Notify("AutoPromocode script executed!", 2)
+        end
+    end)
+    -- ======================================
+    
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}              -- [shopName] = data (все предметы, GamePass тоже)
