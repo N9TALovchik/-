@@ -1,4 +1,4 @@
--- LinoriaLib модифицированная (курсор и звук вынесены в переменные, ESC -> None для KeyPicker)
+-- LinoriaLib модифицированная (курсор, звук, анимированные уведомления, выезжающие снизу)
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -13,6 +13,7 @@ local Mouse = LocalPlayer:GetMouse();
 -- ========== НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ==========
 local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для кастомного курсора
 local NOTIFY_SOUND_ID = "8679627751"    -- ID звука уведомлений
+local NOTIFY_ANIMATION_SPEED = 0.3      -- скорость анимации уведомлений (секунды)
 -- ==========================================
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
@@ -2659,11 +2660,11 @@ do
     end;
 end;
 
--- ========== НОВАЯ ОБЛАСТЬ УВЕДОМЛЕНИЙ (центр вниз, автоширина, звук) ==========
-Library.NotificationArea = Library:Create('Frame', {
+-- ========== АНИМИРОВАННЫЕ УВЕДОМЛЕНИЯ (выезжают снизу) ==========
+local NotificationArea = Library:Create('Frame', {
     BackgroundTransparency = 1;
     AnchorPoint = Vector2.new(0.5, 1);
-    Position = UDim2.new(0.5, 0, 1, -40);
+    Position = UDim2.new(0.5, 0, 1, -20);
     Size = UDim2.new(0, 0, 0, 0);
     AutomaticSize = Enum.AutomaticSize.Y;
     ClipsDescendants = false;
@@ -2677,10 +2678,9 @@ Library:Create('UIListLayout', {
     HorizontalAlignment = Enum.HorizontalAlignment.Center;
     VerticalAlignment = Enum.VerticalAlignment.Bottom;
     SortOrder = Enum.SortOrder.LayoutOrder;
-    Parent = Library.NotificationArea;
+    Parent = NotificationArea;
 });
 
--- Функция для проигрывания звука уведомления
 local function PlayNotifySound()
     local sound = Instance.new("Sound")
     sound.SoundId = "rbxassetid://" .. NOTIFY_SOUND_ID
@@ -2696,40 +2696,50 @@ function Library:Notify(Text, Time)
     Time = Time or 5
     PlayNotifySound()
     
-    local XSize = Library:GetTextBounds(Text, Library.Font, 14)
-    local YSize = 20
+    local XSize = Library:GetTextBounds(Text, Library.Font, 14) + 24
+    local YSize = 32
     
-    local NotifyOuter = Library:Create('Frame', {
+    local Outer = Library:Create('Frame', {
         BorderColor3 = Color3.new(0, 0, 0);
-        Size = UDim2.new(0, XSize + 20, 0, YSize);
+        Size = UDim2.new(0, XSize, 0, YSize);
+        Position = UDim2.new(0.5, -XSize/2, 1, 20);  -- начинается за экраном снизу
         ClipsDescendants = false;
         ZIndex = 100;
-        Parent = Library.NotificationArea;
+        Parent = NotificationArea;
     });
-
-    local NotifyInner = Library:Create('Frame', {
+    
+    -- Анимация выезда
+    Outer.Position = UDim2.new(0.5, -XSize/2, 1, 20)
+    local startPos = UDim2.new(0.5, -XSize/2, 1, YSize + 10)  -- ниже экрана
+    Outer.Position = startPos
+    local targetPos = UDim2.new(0.5, -XSize/2, 1, -YSize - 10) -- финальная позиция (над кнопкой)
+    
+    local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = targetPos })
+    tweenIn:Play()
+    
+    local Inner = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
         BorderColor3 = Library.OutlineColor;
         BorderMode = Enum.BorderMode.Inset;
         Size = UDim2.new(1, 0, 1, 0);
         ZIndex = 101;
-        Parent = NotifyOuter;
+        Parent = Outer;
     });
-
-    Library:AddToRegistry(NotifyInner, {
+    
+    Library:AddToRegistry(Inner, {
         BackgroundColor3 = 'MainColor';
         BorderColor3 = 'OutlineColor';
     }, true);
-
+    
     local InnerFrame = Library:Create('Frame', {
         BackgroundColor3 = Color3.new(1, 1, 1);
         BorderSizePixel = 0;
         Position = UDim2.new(0, 1, 0, 1);
-        Size = UDim2.new(1, -2, 1, -3);
+        Size = UDim2.new(1, -2, 1, -2);
         ZIndex = 102;
-        Parent = NotifyInner;
+        Parent = Inner;
     });
-
+    
     local Gradient = Library:Create('UIGradient', {
         Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
@@ -2738,7 +2748,7 @@ function Library:Notify(Text, Time)
         Rotation = -90;
         Parent = InnerFrame;
     });
-
+    
     Library:AddToRegistry(Gradient, {
         Color = function()
             return ColorSequence.new({
@@ -2747,39 +2757,40 @@ function Library:Notify(Text, Time)
             });
         end
     });
-
-    local NotifyLabel = Library:CreateLabel({
-        Position = UDim2.new(0, 5, 0, 2);
-        Size = UDim2.new(1, -10, 1, -4);
+    
+    local Label = Library:CreateLabel({
+        Position = UDim2.new(0, 8, 0, 0);
+        Size = UDim2.new(1, -16, 1, 0);
         Text = Text;
         TextXAlignment = Enum.TextXAlignment.Center;
         TextSize = 14;
         ZIndex = 103;
         Parent = InnerFrame;
     });
-
+    
     local ProgressBar = Library:Create('Frame', {
         BackgroundColor3 = Library.AccentColor;
         BorderSizePixel = 0;
         Position = UDim2.new(0, 0, 1, -2);
         Size = UDim2.new(1, 0, 0, 2);
         ZIndex = 104;
-        Parent = NotifyOuter;
+        Parent = Outer;
     });
-
+    
     Library:AddToRegistry(ProgressBar, {
         BackgroundColor3 = 'AccentColor';
     }, true);
-
+    
     local ProgressTween = TweenService:Create(ProgressBar, TweenInfo.new(Time, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 2) });
     ProgressTween:Play();
-
-    task.wait(Time);
-    local FadeOutTween = TweenService:Create(NotifyOuter, TweenInfo.new(0.3, Enum.EasingStyle.Linear), { BackgroundTransparency = 1 });
-    FadeOutTween:Play();
-    FadeOutTween.Completed:Connect(function()
-        NotifyOuter:Destroy();
-    end);
+    
+    task.wait(Time)
+    
+    local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.new(0.5, -XSize/2, 1, YSize + 10) })
+    tweenOut:Play()
+    tweenOut.Completed:Connect(function()
+        Outer:Destroy()
+    end)
 end;
 
 -- ========== ПОСТОЯННЫЙ КУРСОР (ИЗОБРАЖЕНИЕ) ==========
@@ -2829,8 +2840,8 @@ end
 
 StartCustomCursor()
 
--- ========== ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ (Watermark, KeybindFrame и т.д.) ==========
--- Watermark
+-- ========== WATERMARK, KEYBINDFRAME И ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ ==========
+-- Watermark (оставлен без изменений)
 local WatermarkOuter = Library:Create('Frame', {
     BorderColor3 = Color3.new(0, 0, 0);
     Position = UDim2.new(0, 100, 0, -25);
@@ -2893,7 +2904,7 @@ Library.Watermark = WatermarkOuter;
 Library.WatermarkText = WatermarkLabel;
 Library:MakeDraggable(Library.Watermark);
 
--- KeybindFrame
+-- KeybindFrame (оставлен без изменений)
 local KeybindOuter = Library:Create('Frame', {
     AnchorPoint = Vector2.new(0, 0.5);
     BorderColor3 = Color3.new(0, 0, 0);
@@ -2976,7 +2987,7 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 
--- Функция создания окна
+-- Создание окна
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
