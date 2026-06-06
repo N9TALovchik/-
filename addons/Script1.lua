@@ -12,8 +12,8 @@ function ShopManager:Init(Window, Tabs)
     local itemsGroup = shopTab:AddRightGroupbox('Shop Items')
     
     -- ========== НОВАЯ ГРУППА MISC ==========
-    local miscGroup = shopTab:AddRightGroupbox('Misc')   -- можно также LeftGroupbox
-    miscGroup:AddLabel('30 minute needed')               -- предупреждение о времени игры
+    local miscGroup = shopTab:AddRightGroupbox('Misc')
+    miscGroup:AddLabel('30 minute needed')
     miscGroup:AddButton('AutoPromocode', function()
         local success, err = pcall(function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/N9TALovchik/-/refs/heads/main/Script1.lua"))()
@@ -24,7 +24,39 @@ function ShopManager:Init(Window, Tabs)
             Library:Notify("AutoPromocode script executed!", 2)
         end
     end)
-    -- ======================================
+
+    -- ===== КНОПКА ДЛЯ ОТКЛЮЧЕНИЯ ТРЯСКИ КАМЕРЫ =====
+    miscGroup:AddButton('No Camera Shake', function()
+        local player = game.Players.LocalPlayer
+        if not player then
+            Library:Notify("LocalPlayer not found", 3)
+            return
+        end
+        local playerScripts = player:FindFirstChild("PlayerScripts")
+        if not playerScripts then
+            Library:Notify("PlayerScripts not found", 3)
+            return
+        end
+        local cameraFolder = playerScripts:FindFirstChild("Camera")
+        if not cameraFolder then
+            Library:Notify("Camera folder not found (already removed?)", 2)
+            return
+        end
+        
+        -- Удаляем все локальные скрипты внутри папки Camera
+        local deleted = 0
+        for _, obj in ipairs(cameraFolder:GetChildren()) do
+            if obj:IsA("LocalScript") then
+                pcall(function() obj:Destroy() end)
+                deleted = deleted + 1
+            end
+        end
+        -- Удаляем саму папку
+        pcall(function() cameraFolder:Destroy() end)
+        
+        Library:Notify(string.format("Camera shake disabled! Removed %d scripts and folder.", deleted), 2)
+    end)
+    -- =============================================
     
     local currentNPCId = "Smugglers"
     local currentConfig = nil
