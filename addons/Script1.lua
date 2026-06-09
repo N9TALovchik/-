@@ -56,6 +56,52 @@ function ShopManager:Init(Window, Tabs)
         
         Library:Notify(string.format("Camera shake disabled! Removed %d scripts and folder.", deleted), 2)
     end)
+
+    -- ===== Car Texture Changer =====
+    local carTextureToggle = miscGroup:AddToggle('CarTextureToggle', {
+        Text = 'Car Texture Changer',
+        Default = false,
+        Tooltip = 'Automatically paints your car body with a decal'
+    })
+    local carTextureDecalInput = miscGroup:AddTextbox('CarTextureDecalID', {
+        Text = 'Decal ID',
+        Default = '',
+        Placeholder = '123456789',
+        Tooltip = 'Enter the decal ID (numeric or full URL)'
+    })
+
+    carTextureToggle:OnChanged(function()
+        if carTextureToggle.Value then
+            task.spawn(function()
+                while carTextureToggle.Value do
+                    local player = game.Players.LocalPlayer
+                    if player then
+                        local carModelName = player.Name .. "'s Car"
+                        local car = workspace:FindFirstChild(carModelName)
+                        if car then
+                            local body = car:FindFirstChild("Body")
+                            if body then
+                                local decalID = carTextureDecalInput.Value
+                                -- если введено просто число, делаем rbxassetid://
+                                local textureID = decalID
+                                if decalID ~= "" and not string.find(decalID, "rbxassetid://") then
+                                    textureID = "rbxassetid://" .. decalID
+                                end
+                                if textureID ~= "" then
+                                    for _, part in ipairs(body:GetChildren()) do
+                                        if part:IsA("MeshPart") and part.Name == "Paint" then
+                                            part.TextureID = textureID
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    task.wait(0.5)
+                end
+            end)
+        end
+    end)
     -- =============================================
     
     local currentNPCId = "Smugglers"
