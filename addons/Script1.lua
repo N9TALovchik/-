@@ -12,7 +12,7 @@ function ShopManager:Init(Window, Tabs)
     local itemsGroup = shopTab:AddRightGroupbox('Shop Items')
     
     -- ========== НОВАЯ ГРУППА MISC ==========
-    local miscGroup = shopTab:AddRightGroupbox('Misc')
+    local miscGroup = shopTab:AddLeftGroupbox('Misc')
     miscGroup:AddLabel('30 minute needed')
     miscGroup:AddButton('AutoPromocode', function()
         local success, err = pcall(function()
