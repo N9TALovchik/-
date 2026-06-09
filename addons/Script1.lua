@@ -76,7 +76,7 @@ function ShopManager:Init(Window, Tabs)
                 while carTextureToggle.Value do
                     local player = game.Players.LocalPlayer
                     if player then
-                        local carModelName = player.Name .. "'s Car"
+                        local carModelName = player.Name .. "sCar"
                         local car = workspace:FindFirstChild(carModelName)
                         if car then
                             local body = car:FindFirstChild("Body")
