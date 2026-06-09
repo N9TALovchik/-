@@ -63,12 +63,12 @@ function ShopManager:Init(Window, Tabs)
         Default = false,
         Tooltip = 'Automatically paints your car body with a decal'
     })
-   local carTextureDecalInput = miscGroup:AddInput('CarTextureDecalID', {
-    Text = 'Decal ID',
-    Default = '',
-    Placeholder = '123456789',
-    -- (Tooltip не поддерживается в AddInput, поэтому просто Text)
-})
+
+    local carTextureDecalInput = miscGroup:AddInput('CarTextureDecalID', {
+        Text = 'Decal ID',
+        Default = '',
+        Placeholder = '123456789',
+    })
 
     carTextureToggle:OnChanged(function()
         if carTextureToggle.Value then
@@ -76,13 +76,12 @@ function ShopManager:Init(Window, Tabs)
                 while carTextureToggle.Value do
                     local player = game.Players.LocalPlayer
                     if player then
-                        local carModelName = player.Name .. "sCar"
+                        local carModelName = player.Name .. "sCar"   -- <-- Правильное название!
                         local car = workspace:FindFirstChild(carModelName)
                         if car then
                             local body = car:FindFirstChild("Body")
                             if body then
                                 local decalID = carTextureDecalInput.Value
-                                -- если введено просто число, делаем rbxassetid://
                                 local textureID = decalID
                                 if decalID ~= "" and not string.find(decalID, "rbxassetid://") then
                                     textureID = "rbxassetid://" .. decalID
