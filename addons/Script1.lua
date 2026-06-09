@@ -63,12 +63,12 @@ function ShopManager:Init(Window, Tabs)
         Default = false,
         Tooltip = 'Automatically paints your car body with a decal'
     })
-    local carTextureDecalInput = miscGroup:AddTextbox('CarTextureDecalID', {
-        Text = 'Decal ID',
-        Default = '',
-        Placeholder = '123456789',
-        Tooltip = 'Enter the decal ID (numeric or full URL)'
-    })
+   local carTextureDecalInput = miscGroup:AddInput('CarTextureDecalID', {
+    Text = 'Decal ID',
+    Default = '',
+    Placeholder = '123456789',
+    -- (Tooltip не поддерживается в AddInput, поэтому просто Text)
+})
 
     carTextureToggle:OnChanged(function()
         if carTextureToggle.Value then
