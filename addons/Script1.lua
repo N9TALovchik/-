@@ -1,4 +1,4 @@
--- ShopManager.lua (все предметы за деньги, GamePass игнорируются)
+-- ShopManager.lua (предметы за деньги, GamePass игнорируются; добавлен Infinite Ammo)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -11,7 +11,7 @@ function ShopManager:Init(Window, Tabs)
     local configGroup = shopTab:AddLeftGroupbox('Auto Buy Settings')
     local itemsGroup = shopTab:AddRightGroupbox('Shop Items')
     
-    -- ========== НОВАЯ ГРУППА MISC ==========
+    -- ========== ГРУППА MISC ==========
     local miscGroup = shopTab:AddLeftGroupbox('Misc')
     miscGroup:AddLabel('30 minute needed')
     miscGroup:AddButton('AutoPromocode', function()
@@ -25,83 +25,65 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== КНОПКА ДЛЯ ОТКЛЮЧЕНИЯ ТРЯСКИ КАМЕРЫ =====
-    miscGroup:AddButton('No Camera Shake', function()
-        local player = game.Players.LocalPlayer
-        if not player then
-            Library:Notify("LocalPlayer not found", 3)
-            return
+    -- ===== БЕСКОНЕЧНЫЕ ПАТРОНЫ (TOGGLE) =====
+    local infiniteAmmoToggle = miscGroup:AddToggle('InfiniteAmmoToggle', {
+        Text = 'Infinite Ammo',
+        Default = false,
+        Tooltip = 'Автоматически восполняет патроны у всех оружий'
+    })
+
+    local infiniteAmmoConnection = nil
+    local function startInfiniteAmmo()
+        if infiniteAmmoConnection then
+            infiniteAmmoConnection:Disconnect()
+            infiniteAmmoConnection = nil
         end
-        local playerScripts = player:FindFirstChild("PlayerScripts")
-        if not playerScripts then
-            Library:Notify("PlayerScripts not found", 3)
-            return
-        end
-        local cameraFolder = playerScripts:FindFirstChild("Camera")
-        if not cameraFolder then
-            Library:Notify("Camera folder not found (already removed?)", 2)
-            return
-        end
-        
-        -- Удаляем все локальные скрипты внутри папки Camera
-        local deleted = 0
-        for _, obj in ipairs(cameraFolder:GetChildren()) do
-            if obj:IsA("LocalScript") then
-                pcall(function() obj:Destroy() end)
-                deleted = deleted + 1
+        if not infiniteAmmoToggle.Value then return end
+
+        infiniteAmmoConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            local player = game.Players.LocalPlayer
+            if not player then return end
+            local character = player.Character
+            if not character then return end
+
+            -- Перебираем все инструменты в руках и рюкзаке
+            local tools = {}
+            for _, tool in ipairs(character:GetChildren()) do
+                if tool:IsA("Tool") then table.insert(tools, tool) end
+            end
+            local backpack = player:FindFirstChild("Backpack")
+            if backpack then
+                for _, tool in ipairs(backpack:GetChildren()) do
+                    if tool:IsA("Tool") then table.insert(tools, tool) end
+                end
+            end
+
+            for _, tool in ipairs(tools) do
+                local gunServer = tool:FindFirstChild("GunScript_Server")
+                if gunServer then
+                    local changeAmmo = gunServer:FindFirstChild("ChangeMagAndAmmo")
+                    if changeAmmo then
+                        pcall(function()
+                            changeAmmo:FireServer(999, 9999)
+                        end)
+                    end
+                end
+            end
+        end)
+    end
+
+    infiniteAmmoToggle:OnChanged(function()
+        if infiniteAmmoToggle.Value then
+            startInfiniteAmmo()
+        else
+            if infiniteAmmoConnection then
+                infiniteAmmoConnection:Disconnect()
+                infiniteAmmoConnection = nil
             end
         end
-        -- Удаляем саму папку
-        pcall(function() cameraFolder:Destroy() end)
-        
-        Library:Notify(string.format("Camera shake disabled! Removed %d scripts and folder.", deleted), 2)
     end)
 
-    -- ===== Car Texture Changer =====
-    local carTextureToggle = miscGroup:AddToggle('CarTextureToggle', {
-        Text = 'Car Texture Changer',
-        Default = false,
-        Tooltip = 'Automatically paints your car body with a decal'
-    })
-
-    local carTextureDecalInput = miscGroup:AddInput('CarTextureDecalID', {
-        Text = 'Decal ID',
-        Default = '',
-        Placeholder = '123456789',
-    })
-
-    carTextureToggle:OnChanged(function()
-        if carTextureToggle.Value then
-            task.spawn(function()
-                while carTextureToggle.Value do
-                    local player = game.Players.LocalPlayer
-                    if player then
-                        local carModelName = player.Name .. "sCar"   -- <-- Правильное название!
-                        local car = workspace:FindFirstChild(carModelName)
-                        if car then
-                            local body = car:FindFirstChild("Body")
-                            if body then
-                                local decalID = carTextureDecalInput.Value
-                                local textureID = decalID
-                                if decalID ~= "" and not string.find(decalID, "rbxassetid://") then
-                                    textureID = "rbxassetid://" .. decalID
-                                end
-                                if textureID ~= "" then
-                                    for _, part in ipairs(body:GetChildren()) do
-                                        if part:IsA("MeshPart") and part.Name == "Paint" then
-                                            part.TextureID = textureID
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    task.wait(0.5)
-                end
-            end)
-        end
-    end)
-    -- =============================================
+    -- ===== Остальные элементы (без Camera Shake и Car Texture) =====
     
     local currentNPCId = "Smugglers"
     local currentConfig = nil
