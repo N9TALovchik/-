@@ -1,4 +1,4 @@
--- ShopManager.lua (полный, исправлен баг с маппингом предметов)
+-- ShopManager.lua (полный, исправлены слайдеры и тоггл Viewmodel Changer)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -217,7 +217,7 @@ function ShopManager:Init(Window, Tabs)
         toggleUncuff(uncuffToggle.Value)
     end)
 
-    -- ===== VIEWMODEL CHANGER =====
+    -- ===== VIEWMODEL CHANGER (исправлено: используется OnChanged) =====
     local vmToggle = miscGroup:AddToggle('ViewmodelChanger', {
         Text = 'Viewmodel Offset',
         Default = false,
@@ -274,24 +274,27 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    local updateConnection = nil
+    -- Дебаунс: вызываем applyViewmodelOffset не чаще одного раза в 0.1 сек
+    local lastApply = 0
     local function scheduleUpdate()
-        if updateConnection then
-            updateConnection:Disconnect()
-        end
-        updateConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            updateConnection:Disconnect()
-            updateConnection = nil
-            applyViewmodelOffset()
-        end)
+        local now = tick()
+        if now - lastApply < 0.1 then return end
+        lastApply = now
+        applyViewmodelOffset()
     end
 
-    sliderX.OnValueChanged:Connect(scheduleUpdate)
-    sliderY.OnValueChanged:Connect(scheduleUpdate)
-    sliderZ.OnValueChanged:Connect(scheduleUpdate)
+    sliderX:OnChanged(function(value)
+        scheduleUpdate()
+    end)
+    sliderY:OnChanged(function(value)
+        scheduleUpdate()
+    end)
+    sliderZ:OnChanged(function(value)
+        scheduleUpdate()
+    end)
 
-    vmToggle.OnChanged:Connect(function()
-        if vmToggle.Value then
+    vmToggle:OnChanged(function(enabled)
+        if enabled then
             scheduleUpdate()
         else
             local player = game.Players.LocalPlayer
@@ -311,7 +314,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== АВТО-БАЙ (полный код с исправлением маппинга) =====
+    -- ===== АВТО-БАЙ (исправлен маппинг) =====
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
@@ -399,14 +402,11 @@ function ShopManager:Init(Window, Tabs)
         return false
     end
     
-    -- ИСПРАВЛЕННАЯ функция ожидания нового предмета
-    -- Теперь ищет ТОЛЬКО предмет, подходящий под имя shopName
     local function waitForNewItem(shopName, timeout)
         local player = game.Players.LocalPlayer
         local startTime = tick()
         local shopLower = string.lower(shopName)
         
-        -- Собираем все текущие инструменты, чтобы потом искать новые
         local existingTools = {}
         local function collectTools(container)
             if not container then return end
@@ -420,14 +420,12 @@ function ShopManager:Init(Window, Tabs)
         collectTools(player:FindFirstChild("Backpack"))
         
         while tick() - startTime < timeout do
-            -- Проверяем персонажа и рюкзак на наличие новых инструментов
             local function findNewMatchingTool()
                 for _, container in ipairs({ player.Character, player:FindFirstChild("Backpack") }) do
                     if container then
                         for _, tool in ipairs(container:GetChildren()) do
                             if tool:IsA("Tool") and not existingTools[tool] then
                                 local toolLower = string.lower(tool.Name)
-                                -- Принимаем только если имя инструмента содержит shopName (без учёта регистра)
                                 if string.find(toolLower, shopLower, 1, true) then
                                     return tool.Name
                                 end
@@ -448,7 +446,6 @@ function ShopManager:Init(Window, Tabs)
             end
             task.wait(0.05)
         end
-        -- Если не нашли подходящий предмет, оставляем shopName как есть (маппинг не нужен)
         return nil
     end
     
