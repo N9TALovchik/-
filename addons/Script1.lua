@@ -1,4 +1,4 @@
--- ShopManager.lua (добавлен Inf Stamina)
+-- ShopManager.lua (добавлен Viewmodel Changer)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -100,7 +100,6 @@ function ShopManager:Init(Window, Tabs)
         local player = game.Players.LocalPlayer
         infStaminaConnection = game:GetService("RunService").Heartbeat:Connect(function()
             if not player then return end
-            -- Устанавливаем currentStamina в 450 каждый кадр
             player:SetAttribute("currentStamina", 450)
         end)
     end
@@ -116,7 +115,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== AC BYPASS (удаление только трёх регуляторов) =====
+    -- ===== AC BYPASS =====
     miscGroup:AddButton('AC Bypass', function()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local remotes = replicatedStorage:FindFirstChild("Remotes")
@@ -142,43 +141,19 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify(string.format("Deleted %d anti-cheat remote(s).", deleted), 2)
     end)
 
-    -- ===== AUTO UNCUFF (моментальное снятие наручников) =====
-    -- ===== AUTO UNCUFF (исправлено) =====
-local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
-    Text = 'Auto UnCuff',
-    Default = false,
-    Tooltip = 'Моментально снимает наручники без мини‑игры (работает даже если включён заранее)'
-})
+    -- ===== AUTO UNCUFF =====
+    local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
+        Text = 'Auto UnCuff',
+        Default = false,
+        Tooltip = 'Моментально снимает наручники без мини‑игры (работает даже если включён заранее)'
+    })
 
-local cuffedByConnection = nil
-local function monitorCharacter(char)
-    -- Если уже есть cuffedBy – сразу пробуем снять
-    if char:FindFirstChild("cuffedBy") then
-        task.spawn(function()
-            local cuffedBy = char.cuffedBy
-            local cuffer = cuffedBy.Value
-            if cuffer then
-                local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
-                local tool = cufferChar:FindFirstChildWhichIsA("Tool")
-                if tool and tool:HasTag("Cuffs") then
-                    local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
-                    if remote then
-                        local player = game.Players.LocalPlayer
-                        remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
-                        Library:Notify("Uncuffed!", 2)
-                    end
-                end
-            end
-        end)
-        return -- если уже есть, второе срабатывание не нужно
-    end
-
-    -- Ждём добавления cuffedBy
-    cuffedByConnection = char.ChildAdded:Connect(function(child)
-        if child.Name == "cuffedBy" then
+    local cuffedByConnection = nil
+    local function monitorCharacter(char)
+        if char:FindFirstChild("cuffedBy") then
             task.spawn(function()
-                task.wait(0.1) -- небольшая задержка, чтобы Value установился
-                local cuffer = child.Value
+                local cuffedBy = char.cuffedBy
+                local cuffer = cuffedBy.Value
                 if cuffer then
                     local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
                     local tool = cufferChar:FindFirstChildWhichIsA("Tool")
@@ -192,39 +167,152 @@ local function monitorCharacter(char)
                     end
                 end
             end)
+            return
         end
-    end)
-end
 
-local function toggleUncuff(enabled)
-    -- Отключаем предыдущий мониторинг
-    if cuffedByConnection then
-        cuffedByConnection:Disconnect()
-        cuffedByConnection = nil
-    end
-
-    if enabled then
-        local player = game.Players.LocalPlayer
-        local char = player.Character
-        if char then
-            monitorCharacter(char)
-        end
-        -- На случай новых персонажей
-        player.CharacterAdded:Connect(function(newChar)
-            if not uncuffToggle.Value then return end
-            if cuffedByConnection then
-                cuffedByConnection:Disconnect()
+        cuffedByConnection = char.ChildAdded:Connect(function(child)
+            if child.Name == "cuffedBy" then
+                task.spawn(function()
+                    task.wait(0.1)
+                    local cuffer = child.Value
+                    if cuffer then
+                        local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
+                        local tool = cufferChar:FindFirstChildWhichIsA("Tool")
+                        if tool and tool:HasTag("Cuffs") then
+                            local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
+                            if remote then
+                                local player = game.Players.LocalPlayer
+                                remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
+                                Library:Notify("Uncuffed!", 2)
+                            end
+                        end
+                    end
+                end)
             end
-            monitorCharacter(newChar)
         end)
     end
-end
 
-uncuffToggle:OnChanged(function()
-    toggleUncuff(uncuffToggle.Value)
-end)
+    local function toggleUncuff(enabled)
+        if cuffedByConnection then
+            cuffedByConnection:Disconnect()
+            cuffedByConnection = nil
+        end
+        if enabled then
+            local player = game.Players.LocalPlayer
+            local char = player.Character
+            if char then
+                monitorCharacter(char)
+            end
+            player.CharacterAdded:Connect(function(newChar)
+                if not uncuffToggle.Value then return end
+                if cuffedByConnection then
+                    cuffedByConnection:Disconnect()
+                end
+                monitorCharacter(newChar)
+            end)
+        end
+    end
 
-    -- ===== Остальные элементы ShopManager (авто-бай) =====
+    uncuffToggle:OnChanged(function()
+        toggleUncuff(uncuffToggle.Value)
+    end)
+
+    -- ===== НОВЫЙ VIEWMODEL CHANGER =====
+    local vmToggle = miscGroup:AddToggle('ViewmodelChanger', {
+        Text = 'Viewmodel Offset',
+        Default = false,
+        Tooltip = 'Включает кастомное смещение модели оружия'
+    })
+
+    local sliderX = miscGroup:AddSlider('ViewmodelX', {
+        Text = 'X Offset',
+        Min = -5,
+        Max = 5,
+        Default = 0,
+        Suffix = ' studs',
+        Decimals = 3
+    })
+    local sliderY = miscGroup:AddSlider('ViewmodelY', {
+        Text = 'Y Offset',
+        Min = -5,
+        Max = 5,
+        Default = -0.3,
+        Suffix = ' studs',
+        Decimals = 3
+    })
+    local sliderZ = miscGroup:AddSlider('ViewmodelZ', {
+        Text = 'Z Offset',
+        Min = -5,
+        Max = 5,
+        Default = 0,
+        Suffix = ' studs',
+        Decimals = 3
+    })
+
+    -- Функция немедленного применения смещения (переэкипирует текущее оружие)
+    local function applyViewmodelOffset()
+        if not vmToggle.Value then return end
+        local player = game.Players.LocalPlayer
+        local char = player.Character
+        if not char then return end
+        local tool = char:FindFirstChildWhichIsA("Tool")
+        if not tool then return end
+
+        local x = sliderX.Value
+        local y = sliderY.Value
+        local z = sliderZ.Value
+        local offset = Vector3.new(x, y, z)
+
+        -- Устанавливаем атрибут и перезагружаем инструмент
+        tool:SetAttribute("CustomViewmodelOffset", offset)
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            tool.Parent = backpack
+            task.wait(0.1)
+            tool.Parent = char
+        end
+    end
+
+    -- При изменении любого слайдера или тоггла – применяем с задержкой (дебаунс)
+    local updateConnection = nil
+    local function scheduleUpdate()
+        if updateConnection then
+            updateConnection:Disconnect()
+        end
+        updateConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            -- ждём один кадр, чтобы значение слайдера обновилось
+            updateConnection:Disconnect()
+            updateConnection = nil
+            applyViewmodelOffset()
+        end)
+    end
+
+    sliderX.OnValueChanged:Connect(scheduleUpdate)
+    sliderY.OnValueChanged:Connect(scheduleUpdate)
+    sliderZ.OnValueChanged:Connect(scheduleUpdate)
+    vmToggle.OnChanged:Connect(function()
+        if vmToggle.Value then
+            scheduleUpdate()
+        else
+            -- При отключении сбрасываем на стандартное
+            local player = game.Players.LocalPlayer
+            local char = player.Character
+            if char then
+                local tool = char:FindFirstChildWhichIsA("Tool")
+                if tool then
+                    tool:SetAttribute("CustomViewmodelOffset", nil) -- убираем кастом
+                    local backpack = player:FindFirstChild("Backpack")
+                    if backpack then
+                        tool.Parent = backpack
+                        task.wait(0.1)
+                        tool.Parent = char
+                    end
+                end
+            end
+        end
+    end)
+
+    -- ===== ОСТАЛЬНОЙ КОД SHOPMANAGER (АВТО-БАЙ) =====
     
     local currentNPCId = "Smugglers"
     local currentConfig = nil
