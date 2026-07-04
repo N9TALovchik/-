@@ -1,4 +1,4 @@
--- ShopManager.lua (предметы за деньги, GamePass игнорируются; добавлен Infinite Ammo)
+-- ShopManager.lua (AC Bypass и Auto UnCuff в Misc)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -46,7 +46,6 @@ function ShopManager:Init(Window, Tabs)
             local character = player.Character
             if not character then return end
 
-            -- Перебираем все инструменты в руках и рюкзаке
             local tools = {}
             for _, tool in ipairs(character:GetChildren()) do
                 if tool:IsA("Tool") then table.insert(tools, tool) end
@@ -83,7 +82,71 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== Остальные элементы (без Camera Shake и Car Texture) =====
+    -- ===== AC BYPASS (удаление всех регуляторов античита) =====
+    miscGroup:AddButton('AC Bypass', function()
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local remotes = replicatedStorage:FindFirstChild("Remotes")
+        if remotes then
+            local deleted = 0
+            for _, remote in ipairs(remotes:GetChildren()) do
+                if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                    remote:Destroy()
+                    deleted = deleted + 1
+                end
+            end
+            Library:Notify(string.format("Deleted %d remote(s) from Remotes folder.", deleted), 2)
+        else
+            Library:Notify("Remotes folder not found.", 3)
+        end
+    end)
+
+    -- ===== AUTO UNCUFF (моментальное снятие наручников) =====
+    local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
+        Text = 'Auto UnCuff',
+        Default = false,
+        Tooltip = 'Моментально снимает наручники без мини‑игры'
+    })
+
+    local uncuffConnection = nil
+    local function autoUncuff(char)
+        local cuffedBy = char:WaitForChild("cuffedBy", 20)
+        if not cuffedBy then return end
+        local cuffer = cuffedBy.Value
+        if not cuffer then return end
+        local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
+        local tool = cufferChar:FindFirstChildWhichIsA("Tool")
+        if tool and tool:HasTag("Cuffs") then
+            local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
+            if remote then
+                local player = game.Players.LocalPlayer
+                remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
+                Library:Notify("Uncuffed!", 2)
+            end
+        end
+    end
+
+    local function toggleUncuff(enabled)
+        if enabled then
+            local player = game.Players.LocalPlayer
+            if player.Character then
+                task.spawn(autoUncuff, player.Character)
+            end
+            uncuffConnection = player.CharacterAdded:Connect(function(char)
+                task.spawn(autoUncuff, char)
+            end)
+        else
+            if uncuffConnection then
+                uncuffConnection:Disconnect()
+                uncuffConnection = nil
+            end
+        end
+    end
+
+    uncuffToggle:OnChanged(function()
+        toggleUncuff(uncuffToggle.Value)
+    end)
+
+    -- ===== Остальные элементы ShopManager (без изменений) =====
     
     local currentNPCId = "Smugglers"
     local currentConfig = nil
