@@ -1,4 +1,4 @@
--- ShopManager.lua (добавлен Viewmodel Changer)
+-- ShopManager.lua (полный, исправлен баг с маппингом предметов)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -217,7 +217,7 @@ function ShopManager:Init(Window, Tabs)
         toggleUncuff(uncuffToggle.Value)
     end)
 
-    -- ===== НОВЫЙ VIEWMODEL CHANGER =====
+    -- ===== VIEWMODEL CHANGER =====
     local vmToggle = miscGroup:AddToggle('ViewmodelChanger', {
         Text = 'Viewmodel Offset',
         Default = false,
@@ -230,7 +230,8 @@ function ShopManager:Init(Window, Tabs)
         Max = 5,
         Default = 0,
         Suffix = ' studs',
-        Decimals = 3
+        Rounding = 3,
+        Tooltip = 'Смещение вправо/влево'
     })
     local sliderY = miscGroup:AddSlider('ViewmodelY', {
         Text = 'Y Offset',
@@ -238,7 +239,8 @@ function ShopManager:Init(Window, Tabs)
         Max = 5,
         Default = -0.3,
         Suffix = ' studs',
-        Decimals = 3
+        Rounding = 3,
+        Tooltip = 'Смещение вверх/вниз'
     })
     local sliderZ = miscGroup:AddSlider('ViewmodelZ', {
         Text = 'Z Offset',
@@ -246,10 +248,10 @@ function ShopManager:Init(Window, Tabs)
         Max = 5,
         Default = 0,
         Suffix = ' studs',
-        Decimals = 3
+        Rounding = 3,
+        Tooltip = 'Смещение ближе/дальше'
     })
 
-    -- Функция немедленного применения смещения (переэкипирует текущее оружие)
     local function applyViewmodelOffset()
         if not vmToggle.Value then return end
         local player = game.Players.LocalPlayer
@@ -263,7 +265,6 @@ function ShopManager:Init(Window, Tabs)
         local z = sliderZ.Value
         local offset = Vector3.new(x, y, z)
 
-        -- Устанавливаем атрибут и перезагружаем инструмент
         tool:SetAttribute("CustomViewmodelOffset", offset)
         local backpack = player:FindFirstChild("Backpack")
         if backpack then
@@ -273,14 +274,12 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- При изменении любого слайдера или тоггла – применяем с задержкой (дебаунс)
     local updateConnection = nil
     local function scheduleUpdate()
         if updateConnection then
             updateConnection:Disconnect()
         end
         updateConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            -- ждём один кадр, чтобы значение слайдера обновилось
             updateConnection:Disconnect()
             updateConnection = nil
             applyViewmodelOffset()
@@ -290,17 +289,17 @@ function ShopManager:Init(Window, Tabs)
     sliderX.OnValueChanged:Connect(scheduleUpdate)
     sliderY.OnValueChanged:Connect(scheduleUpdate)
     sliderZ.OnValueChanged:Connect(scheduleUpdate)
+
     vmToggle.OnChanged:Connect(function()
         if vmToggle.Value then
             scheduleUpdate()
         else
-            -- При отключении сбрасываем на стандартное
             local player = game.Players.LocalPlayer
             local char = player.Character
             if char then
                 local tool = char:FindFirstChildWhichIsA("Tool")
                 if tool then
-                    tool:SetAttribute("CustomViewmodelOffset", nil) -- убираем кастом
+                    tool:SetAttribute("CustomViewmodelOffset", nil)
                     local backpack = player:FindFirstChild("Backpack")
                     if backpack then
                         tool.Parent = backpack
@@ -312,23 +311,18 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== ОСТАЛЬНОЙ КОД SHOPMANAGER (АВТО-БАЙ) =====
-    
+    -- ===== АВТО-БАЙ (полный код с исправлением маппинга) =====
     local currentNPCId = "Smugglers"
     local currentConfig = nil
-    local products = {}              -- [shopName] = data
+    local products = {}
     local remoteEvent = nil
     local uiElements = {}
     
-    -- Авто-бай
     local autoBuyEnabled = false
-    local selectedItems = {}         -- [shopName] = true/false
+    local selectedItems = {}
     local autoBuyConnection = nil
-    
-    -- Маппинг названий: магазинное имя -> реальное имя Tool'а
     local itemMappings = {}
     
-    -- Поиск удалённого события
     local function getRemoteEvent()
         if remoteEvent then return remoteEvent end
         local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -342,7 +336,6 @@ function ShopManager:Init(Window, Tabs)
         return remoteEvent
     end
     
-    -- Попытка найти реальный Tool по магазинному имени (в инвентаре)
     local function findRealToolName(shopName)
         local player = game.Players.LocalPlayer
         local containers = { player.Character, player:FindFirstChild("Backpack") }
@@ -363,7 +356,6 @@ function ShopManager:Init(Window, Tabs)
         return nil
     end
     
-    -- Обновить маппинг для всех выбранных предметов, которые уже есть в инвентаре
     local function updateMappingsFromInventory()
         for shopName, _ in pairs(selectedItems) do
             if not itemMappings[shopName] then
@@ -376,12 +368,10 @@ function ShopManager:Init(Window, Tabs)
         end
     end
     
-    -- Получить реальное имя предмета
     local function getRealItemName(shopName)
         return itemMappings[shopName] or shopName
     end
     
-    -- Проверка наличия предмета
     local function hasItem(shopName)
         local realName = getRealItemName(shopName)
         local player = game.Players.LocalPlayer
@@ -409,17 +399,20 @@ function ShopManager:Init(Window, Tabs)
         return false
     end
     
-    -- Отслеживание нового предмета после покупки
+    -- ИСПРАВЛЕННАЯ функция ожидания нового предмета
+    -- Теперь ищет ТОЛЬКО предмет, подходящий под имя shopName
     local function waitForNewItem(shopName, timeout)
         local player = game.Players.LocalPlayer
         local startTime = tick()
+        local shopLower = string.lower(shopName)
         
+        -- Собираем все текущие инструменты, чтобы потом искать новые
         local existingTools = {}
         local function collectTools(container)
             if not container then return end
             for _, tool in ipairs(container:GetChildren()) do
                 if tool:IsA("Tool") then
-                    existingTools[tool.Name] = true
+                    existingTools[tool] = true
                 end
             end
         end
@@ -427,17 +420,25 @@ function ShopManager:Init(Window, Tabs)
         collectTools(player:FindFirstChild("Backpack"))
         
         while tick() - startTime < timeout do
-            local function checkContainer(container)
-                if not container then return nil end
-                for _, tool in ipairs(container:GetChildren()) do
-                    if tool:IsA("Tool") and not existingTools[tool.Name] then
-                        return tool.Name
+            -- Проверяем персонажа и рюкзак на наличие новых инструментов
+            local function findNewMatchingTool()
+                for _, container in ipairs({ player.Character, player:FindFirstChild("Backpack") }) do
+                    if container then
+                        for _, tool in ipairs(container:GetChildren()) do
+                            if tool:IsA("Tool") and not existingTools[tool] then
+                                local toolLower = string.lower(tool.Name)
+                                -- Принимаем только если имя инструмента содержит shopName (без учёта регистра)
+                                if string.find(toolLower, shopLower, 1, true) then
+                                    return tool.Name
+                                end
+                            end
+                        end
                     end
                 end
                 return nil
             end
             
-            local newName = checkContainer(player.Character) or checkContainer(player:FindFirstChild("Backpack"))
+            local newName = findNewMatchingTool()
             if newName then
                 if newName ~= shopName then
                     itemMappings[shopName] = newName
@@ -447,10 +448,10 @@ function ShopManager:Init(Window, Tabs)
             end
             task.wait(0.05)
         end
+        -- Если не нашли подходящий предмет, оставляем shopName как есть (маппинг не нужен)
         return nil
     end
     
-    -- Покупка предмета (всегда за внутриигровую валюту, даже если есть Pass)
     local function purchaseItem(shopName, data)
         local player = game.Players.LocalPlayer
         local leaderstats = player:FindFirstChild("leaderstats")
@@ -480,7 +481,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end
     
-    -- Цикл авто-бая
     local function startAutoBuy()
         if autoBuyConnection then
             autoBuyConnection:Disconnect()
@@ -501,7 +501,6 @@ function ShopManager:Init(Window, Tabs)
         end)
     end
     
-    -- Загрузка конфига (все предметы, включая GamePass)
     local function loadConfig()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local data = replicatedStorage:FindFirstChild("Data")
@@ -541,10 +540,8 @@ function ShopManager:Init(Window, Tabs)
         currentConfig = config
         local sourceProducts = config.Products or (config.Data and config.Data.Products) or {}
         
-        -- Берём все предметы, игнорируем поле Pass (все за деньги)
         products = {}
         for name, data in pairs(sourceProducts) do
-            -- Если нет Price, пропускаем (или ставим 0)
             if data.Price then
                 products[name] = data
             end
@@ -554,7 +551,6 @@ function ShopManager:Init(Window, Tabs)
         for _ in pairs(products) do count = count + 1 end
         Library:Notify("Loaded NPC: " .. (config.Visuals and config.Visuals.DisplayName or currentNPCId) .. " | Items: " .. count, 2)
         
-        -- Обновляем дропдаун
         local itemNames = {}
         for name in pairs(products) do
             table.insert(itemNames, name)
@@ -566,7 +562,6 @@ function ShopManager:Init(Window, Tabs)
         return true
     end
     
-    -- Отрисовка правой панели (все предметы)
     local function rebuildItemsUI()
         for _, element in ipairs(uiElements) do
             pcall(function() element:Destroy() end)
@@ -579,8 +574,7 @@ function ShopManager:Init(Window, Tabs)
             return
         end
         
-        local Players = game:GetService("Players")
-        local LocalPlayer = Players.LocalPlayer
+        local LocalPlayer = game.Players.LocalPlayer
         
         for shopName, data in pairs(products) do
             local priceText = "Price: " .. tostring(data.Price) .. " Cash"
@@ -652,7 +646,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-    -- Загрузка при старте
     task.spawn(function()
         task.wait(1)
         if loadConfig() then
