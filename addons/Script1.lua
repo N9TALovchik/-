@@ -83,22 +83,30 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- ===== AC BYPASS (удаление всех регуляторов античита) =====
-    miscGroup:AddButton('AC Bypass', function()
-        local replicatedStorage = game:GetService("ReplicatedStorage")
-        local remotes = replicatedStorage:FindFirstChild("Remotes")
-        if remotes then
-            local deleted = 0
-            for _, remote in ipairs(remotes:GetChildren()) do
-                if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
-                    remote:Destroy()
-                    deleted = deleted + 1
-                end
-            end
-            Library:Notify(string.format("Deleted %d remote(s) from Remotes folder.", deleted), 2)
-        else
-            Library:Notify("Remotes folder not found.", 3)
+miscGroup:AddButton('AC Bypass', function()
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local remotes = replicatedStorage:FindFirstChild("Remotes")
+    if not remotes then
+        Library:Notify("Remotes folder not found.", 3)
+        return
+    end
+
+    local targets = {
+        ["TellRegulator"] = true,
+        ["ConfirmRegulator"] = true,
+        ["GetRegulator"] = true
+    }
+
+    local deleted = 0
+    for _, remote in ipairs(remotes:GetChildren()) do
+        if targets[remote.Name] and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
+            remote:Destroy()
+            deleted = deleted + 1
         end
-    end)
+    end
+
+    Library:Notify(string.format("Deleted %d anti-cheat remote(s).", deleted), 2)
+end)
 
     -- ===== AUTO UNCUFF (моментальное снятие наручников) =====
     local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
