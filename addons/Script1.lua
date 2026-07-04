@@ -143,50 +143,86 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- ===== AUTO UNCUFF (моментальное снятие наручников) =====
-    local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
-        Text = 'Auto UnCuff',
-        Default = false,
-        Tooltip = 'Моментально снимает наручники без мини‑игры'
-    })
+    -- ===== AUTO UNCUFF (исправлено) =====
+local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
+    Text = 'Auto UnCuff',
+    Default = false,
+    Tooltip = 'Моментально снимает наручники без мини‑игры (работает даже если включён заранее)'
+})
 
-    local uncuffConnection = nil
-    local function autoUncuff(char)
-        local cuffedBy = char:WaitForChild("cuffedBy", 20)
-        if not cuffedBy then return end
-        local cuffer = cuffedBy.Value
-        if not cuffer then return end
-        local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
-        local tool = cufferChar:FindFirstChildWhichIsA("Tool")
-        if tool and tool:HasTag("Cuffs") then
-            local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
-            if remote then
-                local player = game.Players.LocalPlayer
-                remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
-                Library:Notify("Uncuffed!", 2)
+local cuffedByConnection = nil
+local function monitorCharacter(char)
+    -- Если уже есть cuffedBy – сразу пробуем снять
+    if char:FindFirstChild("cuffedBy") then
+        task.spawn(function()
+            local cuffedBy = char.cuffedBy
+            local cuffer = cuffedBy.Value
+            if cuffer then
+                local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
+                local tool = cufferChar:FindFirstChildWhichIsA("Tool")
+                if tool and tool:HasTag("Cuffs") then
+                    local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
+                    if remote then
+                        local player = game.Players.LocalPlayer
+                        remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
+                        Library:Notify("Uncuffed!", 2)
+                    end
+                end
             end
-        end
+        end)
+        return -- если уже есть, второе срабатывание не нужно
     end
 
-    local function toggleUncuff(enabled)
-        if enabled then
-            local player = game.Players.LocalPlayer
-            if player.Character then
-                task.spawn(autoUncuff, player.Character)
-            end
-            uncuffConnection = player.CharacterAdded:Connect(function(char)
-                task.spawn(autoUncuff, char)
+    -- Ждём добавления cuffedBy
+    cuffedByConnection = char.ChildAdded:Connect(function(child)
+        if child.Name == "cuffedBy" then
+            task.spawn(function()
+                task.wait(0.1) -- небольшая задержка, чтобы Value установился
+                local cuffer = child.Value
+                if cuffer then
+                    local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
+                    local tool = cufferChar:FindFirstChildWhichIsA("Tool")
+                    if tool and tool:HasTag("Cuffs") then
+                        local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
+                        if remote then
+                            local player = game.Players.LocalPlayer
+                            remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
+                            Library:Notify("Uncuffed!", 2)
+                        end
+                    end
+                end
             end)
-        else
-            if uncuffConnection then
-                uncuffConnection:Disconnect()
-                uncuffConnection = nil
-            end
         end
+    end)
+end
+
+local function toggleUncuff(enabled)
+    -- Отключаем предыдущий мониторинг
+    if cuffedByConnection then
+        cuffedByConnection:Disconnect()
+        cuffedByConnection = nil
     end
 
-    uncuffToggle:OnChanged(function()
-        toggleUncuff(uncuffToggle.Value)
-    end)
+    if enabled then
+        local player = game.Players.LocalPlayer
+        local char = player.Character
+        if char then
+            monitorCharacter(char)
+        end
+        -- На случай новых персонажей
+        player.CharacterAdded:Connect(function(newChar)
+            if not uncuffToggle.Value then return end
+            if cuffedByConnection then
+                cuffedByConnection:Disconnect()
+            end
+            monitorCharacter(newChar)
+        end)
+    end
+end
+
+uncuffToggle:OnChanged(function()
+    toggleUncuff(uncuffToggle.Value)
+end)
 
     -- ===== Остальные элементы ShopManager (авто-бай) =====
     
