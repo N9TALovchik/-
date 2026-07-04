@@ -232,7 +232,7 @@ function ShopManager:Init(Window, Tabs)
     end
 
     local vmToggle = miscGroup:AddToggle('ViewmodelChanger', {
-        Text = 'Viewmodel Offset',
+        Text = 'Viewmodel Offset(ReEquip to Apply)',
         Default = false,
         Tooltip = 'Включает кастомное смещение модели оружия (сохраняется)'
     })
