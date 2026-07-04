@@ -1,4 +1,4 @@
--- ShopManager.lua (AC Bypass и Auto UnCuff в Misc)
+-- ShopManager.lua (добавлен Inf Stamina)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -82,31 +82,65 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== AC BYPASS (удаление всех регуляторов античита) =====
-miscGroup:AddButton('AC Bypass', function()
-    local replicatedStorage = game:GetService("ReplicatedStorage")
-    local remotes = replicatedStorage:FindFirstChild("Remotes")
-    if not remotes then
-        Library:Notify("Remotes folder not found.", 3)
-        return
-    end
+    -- ===== INF STAMINA (TOGGLE) =====
+    local infStaminaToggle = miscGroup:AddToggle('InfStaminaToggle', {
+        Text = 'Inf Stamina',
+        Default = false,
+        Tooltip = 'Стамина всегда 450 (не тратится)'
+    })
 
-    local targets = {
-        ["TellRegulator"] = true,
-        ["ConfirmRegulator"] = true,
-        ["GetRegulator"] = true
-    }
-
-    local deleted = 0
-    for _, remote in ipairs(remotes:GetChildren()) do
-        if targets[remote.Name] and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
-            remote:Destroy()
-            deleted = deleted + 1
+    local infStaminaConnection = nil
+    local function startInfStamina()
+        if infStaminaConnection then
+            infStaminaConnection:Disconnect()
+            infStaminaConnection = nil
         end
+        if not infStaminaToggle.Value then return end
+
+        local player = game.Players.LocalPlayer
+        infStaminaConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            if not player then return end
+            -- Устанавливаем currentStamina в 450 каждый кадр
+            player:SetAttribute("currentStamina", 450)
+        end)
     end
 
-    Library:Notify(string.format("Deleted %d anti-cheat remote(s).", deleted), 2)
-end)
+    infStaminaToggle:OnChanged(function()
+        if infStaminaToggle.Value then
+            startInfStamina()
+        else
+            if infStaminaConnection then
+                infStaminaConnection:Disconnect()
+                infStaminaConnection = nil
+            end
+        end
+    end)
+
+    -- ===== AC BYPASS (удаление только трёх регуляторов) =====
+    miscGroup:AddButton('AC Bypass', function()
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local remotes = replicatedStorage:FindFirstChild("Remotes")
+        if not remotes then
+            Library:Notify("Remotes folder not found.", 3)
+            return
+        end
+
+        local targets = {
+            ["TellRegulator"] = true,
+            ["ConfirmRegulator"] = true,
+            ["GetRegulator"] = true
+        }
+
+        local deleted = 0
+        for _, remote in ipairs(remotes:GetChildren()) do
+            if targets[remote.Name] and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
+                remote:Destroy()
+                deleted = deleted + 1
+            end
+        end
+
+        Library:Notify(string.format("Deleted %d anti-cheat remote(s).", deleted), 2)
+    end)
 
     -- ===== AUTO UNCUFF (моментальное снятие наручников) =====
     local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
@@ -154,11 +188,11 @@ end)
         toggleUncuff(uncuffToggle.Value)
     end)
 
-    -- ===== Остальные элементы ShopManager (без изменений) =====
+    -- ===== Остальные элементы ShopManager (авто-бай) =====
     
     local currentNPCId = "Smugglers"
     local currentConfig = nil
-    local products = {}              -- [shopName] = data (все предметы, GamePass тоже)
+    local products = {}              -- [shopName] = data
     local remoteEvent = nil
     local uiElements = {}
     
