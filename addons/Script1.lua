@@ -1,4 +1,4 @@
--- ShopManager.lua (полный, исправлены слайдеры и тоггл Viewmodel Changer)
+-- ShopManager.lua (полный, Viewmodel с сохранением и применением ко всем оружиям)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -145,7 +145,7 @@ function ShopManager:Init(Window, Tabs)
     local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
         Text = 'Auto UnCuff',
         Default = false,
-        Tooltip = 'Моментально снимает наручники без мини‑игры (работает даже если включён заранее)'
+        Tooltip = 'Моментально снимает наручники без мини‑игры'
     })
 
     local cuffedByConnection = nil
@@ -217,18 +217,31 @@ function ShopManager:Init(Window, Tabs)
         toggleUncuff(uncuffToggle.Value)
     end)
 
-    -- ===== VIEWMODEL CHANGER (исправлено: используется OnChanged) =====
+    -- ===== VIEWMODEL CHANGER (сохранение, автоприменение ко всем оружиям) =====
+    local savedOffset = nil
+    pcall(function()
+        if readfile and writefile then
+            local data = readfile("viewmodel_offset.json")
+            if data then
+                savedOffset = game:GetService("HttpService"):JSONDecode(data)
+            end
+        end
+    end)
+    if not savedOffset or type(savedOffset) ~= "table" then
+        savedOffset = { x = 0, y = -0.3, z = 0 }
+    end
+
     local vmToggle = miscGroup:AddToggle('ViewmodelChanger', {
         Text = 'Viewmodel Offset',
         Default = false,
-        Tooltip = 'Включает кастомное смещение модели оружия'
+        Tooltip = 'Включает кастомное смещение модели оружия (сохраняется)'
     })
 
     local sliderX = miscGroup:AddSlider('ViewmodelX', {
         Text = 'X Offset',
         Min = -5,
         Max = 5,
-        Default = 0,
+        Default = savedOffset.x,
         Suffix = ' studs',
         Rounding = 3,
         Tooltip = 'Смещение вправо/влево'
@@ -237,7 +250,7 @@ function ShopManager:Init(Window, Tabs)
         Text = 'Y Offset',
         Min = -5,
         Max = 5,
-        Default = -0.3,
+        Default = savedOffset.y,
         Suffix = ' studs',
         Rounding = 3,
         Tooltip = 'Смещение вверх/вниз'
@@ -246,75 +259,100 @@ function ShopManager:Init(Window, Tabs)
         Text = 'Z Offset',
         Min = -5,
         Max = 5,
-        Default = 0,
+        Default = savedOffset.z,
         Suffix = ' studs',
         Rounding = 3,
         Tooltip = 'Смещение ближе/дальше'
     })
 
-    local function applyViewmodelOffset()
-        if not vmToggle.Value then return end
+    local function saveViewmodelOffset()
+        local data = { x = sliderX.Value, y = sliderY.Value, z = sliderZ.Value }
+        pcall(function()
+            if writefile then
+                writefile("viewmodel_offset.json", game:GetService("HttpService"):JSONEncode(data))
+            end
+        end)
+    end
+
+    local vmHeartbeat = nil
+    local function applyVmOffset()
         local player = game.Players.LocalPlayer
-        local char = player.Character
-        if not char then return end
-        local tool = char:FindFirstChildWhichIsA("Tool")
-        if not tool then return end
+        if not player then return end
+        local offset = Vector3.new(sliderX.Value, sliderY.Value, sliderZ.Value)
 
-        local x = sliderX.Value
-        local y = sliderY.Value
-        local z = sliderZ.Value
-        local offset = Vector3.new(x, y, z)
-
-        tool:SetAttribute("CustomViewmodelOffset", offset)
-        local backpack = player:FindFirstChild("Backpack")
-        if backpack then
-            tool.Parent = backpack
-            task.wait(0.1)
-            tool.Parent = char
-        end
-    end
-
-    -- Дебаунс: вызываем applyViewmodelOffset не чаще одного раза в 0.1 сек
-    local lastApply = 0
-    local function scheduleUpdate()
-        local now = tick()
-        if now - lastApply < 0.1 then return end
-        lastApply = now
-        applyViewmodelOffset()
-    end
-
-    sliderX:OnChanged(function(value)
-        scheduleUpdate()
-    end)
-    sliderY:OnChanged(function(value)
-        scheduleUpdate()
-    end)
-    sliderZ:OnChanged(function(value)
-        scheduleUpdate()
-    end)
-
-    vmToggle:OnChanged(function(enabled)
-        if enabled then
-            scheduleUpdate()
-        else
-            local player = game.Players.LocalPlayer
-            local char = player.Character
-            if char then
-                local tool = char:FindFirstChildWhichIsA("Tool")
-                if tool then
-                    tool:SetAttribute("CustomViewmodelOffset", nil)
-                    local backpack = player:FindFirstChild("Backpack")
-                    if backpack then
-                        tool.Parent = backpack
-                        task.wait(0.1)
-                        tool.Parent = char
+        local function setOffsetOnTools(container)
+            if container then
+                for _, tool in ipairs(container:GetChildren()) do
+                    if tool:IsA("Tool") then
+                        tool:SetAttribute("CustomViewmodelOffset", offset)
                     end
                 end
             end
         end
+
+        local char = player.Character
+        if char then
+            setOffsetOnTools(char)
+        end
+        setOffsetOnTools(player:FindFirstChild("Backpack"))
+    end
+
+    local function updateVmHeartbeat()
+        if vmHeartbeat then
+            vmHeartbeat:Disconnect()
+            vmHeartbeat = nil
+        end
+        if vmToggle.Value then
+            vmHeartbeat = game:GetService("RunService").Heartbeat:Connect(applyVmOffset)
+        end
+    end
+
+    -- При изменении слайдеров сохраняем и сразу применяем
+    sliderX:OnChanged(function(value)
+        saveViewmodelOffset()
+        applyVmOffset()
+    end)
+    sliderY:OnChanged(function(value)
+        saveViewmodelOffset()
+        applyVmOffset()
+    end)
+    sliderZ:OnChanged(function(value)
+        saveViewmodelOffset()
+        applyVmOffset()
     end)
 
-    -- ===== АВТО-БАЙ (исправлен маппинг) =====
+    vmToggle:OnChanged(function(enabled)
+        if enabled then
+            updateVmHeartbeat()
+        else
+            if vmHeartbeat then
+                vmHeartbeat:Disconnect()
+                vmHeartbeat = nil
+            end
+            -- Сбросить атрибут у всех инструментов
+            local player = game.Players.LocalPlayer
+            if player then
+                local function resetOffset(container)
+                    if container then
+                        for _, tool in ipairs(container:GetChildren()) do
+                            if tool:IsA("Tool") then
+                                tool:SetAttribute("CustomViewmodelOffset", nil)
+                            end
+                        end
+                    end
+                end
+                resetOffset(player.Character)
+                resetOffset(player:FindFirstChild("Backpack"))
+            end
+        end
+    end)
+
+    -- Первоначальная загрузка: если тоггл включён (не должен), но на всякий случай
+    if vmToggle.Value then
+        updateVmHeartbeat()
+    end
+
+    -- ===== АВТО-БАЙ =====
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
