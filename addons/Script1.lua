@@ -115,18 +115,21 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-  -- ===== AC BYPASS (обновлённый) =====
-miscGroup:AddButton('AC Bypass', function()
-    local replicatedStorage = game:GetService("ReplicatedStorage")
+    -- ===== AC BYPASS =====
+    miscGroup:AddButton('AC Bypass', function()
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local remotes = replicatedStorage:FindFirstChild("Remotes")
+        if not remotes then
+            Library:Notify("Remotes folder not found.", 3)
+            return
+        end
 
-    -- 1. Удаляем три известных регулятора из папки Remotes
-    local remotes = replicatedStorage:FindFirstChild("Remotes")
-    if remotes then
         local targets = {
             ["TellRegulator"] = true,
             ["ConfirmRegulator"] = true,
             ["GetRegulator"] = true
         }
+
         local deleted = 0
         for _, remote in ipairs(remotes:GetChildren()) do
             if targets[remote.Name] and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
@@ -134,28 +137,10 @@ miscGroup:AddButton('AC Bypass', function()
                 deleted = deleted + 1
             end
         end
-        if deleted > 0 then
-            Library:Notify(string.format("Deleted %d anti-cheat remote(s) from Remotes.", deleted), 2)
-        end
-    else
-        Library:Notify("Remotes folder not found.", 3)
-    end
 
-    -- 2. Удаляем «длинные» RemoteEvent'ы прямо в ReplicatedStorage (GUID-имена, внутри __FUNCTION)
-    local deletedLong = 0
-    for _, child in ipairs(replicatedStorage:GetChildren()) do
-        if child:IsA("RemoteEvent") then
-            -- Проверяем: имя длинное (GUID обычно 36 символов с дефисами)
-            if #child.Name > 30 and string.match(child.Name, "-") then
-                child:Destroy()
-                deletedLong = deletedLong + 1
-            end
-        end
-    end
-    if deletedLong > 0 then
-        Library:Notify(string.format("Deleted %d  RemoteEvents from ReplicatedStorage ", deletedLong), 2)
-    end
-end)
+        Library:Notify(string.format("Deleted %d anti-cheat remote(s).", deleted), 2)
+    end)
+
     -- ===== AUTO UNCUFF =====
     local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
         Text = 'Auto UnCuff',
