@@ -1,4 +1,4 @@
--- ShopManager.lua (полный, без сокращений)
+-- ShopManager.lua (полный, добавлена кнопка Auto Pass Test)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -115,7 +115,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== AC BYPASS (только регуляторы) =====
+    -- ===== AC BYPASS =====
     miscGroup:AddButton('AC Bypass', function()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local remotes = replicatedStorage:FindFirstChild("Remotes")
@@ -163,7 +163,7 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("NoJumpDelay activated. JumpPhysic will be removed continuously.", 2)
     end)
 
-    -- ===== AUTO UNCUFF (исправленный, работает и до и после начала мини-игры) =====
+    -- ===== AUTO UNCUFF (исправленный) =====
     local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
         Text = 'Auto UnCuff',
         Default = false,
@@ -172,7 +172,6 @@ function ShopManager:Init(Window, Tabs)
 
     local cuffedByConnection = nil
     local function monitorCharacter(char)
-        -- Если наручники уже надеты – сразу снимаем
         local existing = char:FindFirstChild("cuffedBy")
         if existing then
             task.spawn(function()
@@ -192,8 +191,6 @@ function ShopManager:Init(Window, Tabs)
             end)
             return
         end
-
-        -- Иначе слушаем появление
         cuffedByConnection = char.ChildAdded:Connect(function(child)
             if child.Name == "cuffedBy" then
                 task.spawn(function()
@@ -241,7 +238,7 @@ function ShopManager:Init(Window, Tabs)
         toggleUncuff(uncuffToggle.Value)
     end)
 
-    -- ===== VIEWMODEL CHANGER (сохранение, автоприменение ко всем оружиям) =====
+    -- ===== VIEWMODEL CHANGER =====
     local savedOffset = nil
     pcall(function()
         if readfile and writefile then
@@ -372,6 +369,20 @@ function ShopManager:Init(Window, Tabs)
     if vmToggle.Value then
         updateVmHeartbeat()
     end
+
+    -- ===== AUTO PASS TEST (кнопка мгновенной сдачи теста) =====
+    miscGroup:AddButton('Auto Pass Test', function()
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local startTestRemote = replicatedStorage.Remotes.StartTest
+        
+        -- Подключаем перехватчик (один раз, повторные нажатия не создадут дубликатов)
+        startTestRemote.OnClientEvent:Connect(function(testId)
+            startTestRemote:FireServer(testId, true)  -- true = тест пройден
+            Library:Notify("Test passed automatically!", 2)
+        end)
+        
+        Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
+    end)
 
     -- ===== АВТО-БАЙ =====
     local currentNPCId = "Smugglers"
