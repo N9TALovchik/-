@@ -1,4 +1,4 @@
--- ShopManager.lua (полный, Viewmodel с сохранением и применением ко всем оружиям)
+-- ShopManager.lua (полный, без сокращений)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -115,7 +115,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== AC BYPASS =====
+    -- ===== AC BYPASS (только регуляторы) =====
     miscGroup:AddButton('AC Bypass', function()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local remotes = replicatedStorage:FindFirstChild("Remotes")
@@ -141,19 +141,42 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify(string.format("Deleted %d anti-cheat remote(s).", deleted), 2)
     end)
 
-    -- ===== AUTO UNCUFF =====
+    -- ===== NoJumpDelay (кнопка с постоянным удалением JumpPhysic) =====
+    local noJumpLoopActive = false
+    miscGroup:AddButton('NoJumpDelay', function()
+        if noJumpLoopActive then return end
+        noJumpLoopActive = true
+        local player = game.Players.LocalPlayer
+        local function removeJump()
+            local char = player.Character
+            if char then
+                local jp = char:FindFirstChild("JumpPhysic")
+                if jp and jp:IsA("LocalScript") then jp:Destroy() end
+            end
+        end
+        task.spawn(function()
+            while noJumpLoopActive do
+                removeJump()
+                task.wait(0.5)
+            end
+        end)
+        Library:Notify("NoJumpDelay activated. JumpPhysic will be removed continuously.", 2)
+    end)
+
+    -- ===== AUTO UNCUFF (исправленный, работает и до и после начала мини-игры) =====
     local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
         Text = 'Auto UnCuff',
         Default = false,
-        Tooltip = 'Моментально снимает наручники без мини‑игры'
+        Tooltip = 'Моментально снимает наручники (работает даже если включён во время игры)'
     })
 
     local cuffedByConnection = nil
     local function monitorCharacter(char)
-        if char:FindFirstChild("cuffedBy") then
+        -- Если наручники уже надеты – сразу снимаем
+        local existing = char:FindFirstChild("cuffedBy")
+        if existing then
             task.spawn(function()
-                local cuffedBy = char.cuffedBy
-                local cuffer = cuffedBy.Value
+                local cuffer = existing.Value
                 if cuffer then
                     local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
                     local tool = cufferChar:FindFirstChildWhichIsA("Tool")
@@ -170,6 +193,7 @@ function ShopManager:Init(Window, Tabs)
             return
         end
 
+        -- Иначе слушаем появление
         cuffedByConnection = char.ChildAdded:Connect(function(child)
             if child.Name == "cuffedBy" then
                 task.spawn(function()
@@ -307,7 +331,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- При изменении слайдеров сохраняем и сразу применяем
     sliderX:OnChanged(function(value)
         saveViewmodelOffset()
         applyVmOffset()
@@ -329,7 +352,6 @@ function ShopManager:Init(Window, Tabs)
                 vmHeartbeat:Disconnect()
                 vmHeartbeat = nil
             end
-            -- Сбросить атрибут у всех инструментов
             local player = game.Players.LocalPlayer
             if player then
                 local function resetOffset(container)
@@ -347,7 +369,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- Первоначальная загрузка: если тоггл включён (не должен), но на всякий случай
     if vmToggle.Value then
         updateVmHeartbeat()
     end
