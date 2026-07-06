@@ -163,19 +163,50 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("NoJumpDelay activated. JumpPhysic will be removed continuously.", 2)
     end)
 
-    -- ===== AUTO UNCUFF (исправленный) =====
-    local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
-        Text = 'Auto UnCuff',
-        Default = false,
-        Tooltip = 'Моментально снимает наручники (работает даже если включён во время игры)'
-    })
+    -- ===== AUTO UNCUFF (исправлен: корректная подписка/отписка) =====
+local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
+    Text = 'Auto UnCuff',
+    Default = false,
+    Tooltip = 'Моментально снимает наручники (работает и при включении заранее)'
+})
 
-    local cuffedByConnection = nil
-    local function monitorCharacter(char)
-        local existing = char:FindFirstChild("cuffedBy")
-        if existing then
+local cuffedByConnection = nil          -- соединение ChildAdded на текущем персонаже
+local characterAddedConnection = nil    -- соединение CharacterAdded
+
+local function monitorCharacter(char)
+    -- Сначала отключаем предыдущее слежение за ChildAdded (если было)
+    if cuffedByConnection then
+        cuffedByConnection:Disconnect()
+        cuffedByConnection = nil
+    end
+
+    -- Если уже есть cuffedBy – сразу снимаем
+    local existing = char:FindFirstChild("cuffedBy")
+    if existing then
+        task.spawn(function()
+            local cuffer = existing.Value
+            if cuffer then
+                local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
+                local tool = cufferChar:FindFirstChildWhichIsA("Tool")
+                if tool and tool:HasTag("Cuffs") then
+                    local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
+                    if remote then
+                        local player = game.Players.LocalPlayer
+                        remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
+                        Library:Notify("Uncuffed!", 2)
+                    end
+                end
+            end
+        end)
+        return
+    end
+
+    -- Иначе подписываемся на появление cuffedBy в этом персонаже
+    cuffedByConnection = char.ChildAdded:Connect(function(child)
+        if child.Name == "cuffedBy" then
             task.spawn(function()
-                local cuffer = existing.Value
+                task.wait(0.1)
+                local cuffer = child.Value
                 if cuffer then
                     local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
                     local tool = cufferChar:FindFirstChildWhichIsA("Tool")
@@ -189,54 +220,38 @@ function ShopManager:Init(Window, Tabs)
                     end
                 end
             end)
-            return
         end
-        cuffedByConnection = char.ChildAdded:Connect(function(child)
-            if child.Name == "cuffedBy" then
-                task.spawn(function()
-                    task.wait(0.1)
-                    local cuffer = child.Value
-                    if cuffer then
-                        local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
-                        local tool = cufferChar:FindFirstChildWhichIsA("Tool")
-                        if tool and tool:HasTag("Cuffs") then
-                            local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
-                            if remote then
-                                local player = game.Players.LocalPlayer
-                                remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
-                                Library:Notify("Uncuffed!", 2)
-                            end
-                        end
-                    end
-                end)
-            end
+    end)
+end
+
+local function toggleUncuff(enabled)
+    -- Сбрасываем ВСЕ предыдущие подписки
+    if cuffedByConnection then
+        cuffedByConnection:Disconnect()
+        cuffedByConnection = nil
+    end
+    if characterAddedConnection then
+        characterAddedConnection:Disconnect()
+        characterAddedConnection = nil
+    end
+
+    if enabled then
+        local player = game.Players.LocalPlayer
+        local char = player.Character
+        if char then
+            monitorCharacter(char)
+        end
+        -- На будущих персонажей
+        characterAddedConnection = player.CharacterAdded:Connect(function(newChar)
+            if not uncuffToggle.Value then return end
+            monitorCharacter(newChar)
         end)
     end
+end
 
-    local function toggleUncuff(enabled)
-        if cuffedByConnection then
-            cuffedByConnection:Disconnect()
-            cuffedByConnection = nil
-        end
-        if enabled then
-            local player = game.Players.LocalPlayer
-            local char = player.Character
-            if char then
-                monitorCharacter(char)
-            end
-            player.CharacterAdded:Connect(function(newChar)
-                if not uncuffToggle.Value then return end
-                if cuffedByConnection then
-                    cuffedByConnection:Disconnect()
-                end
-                monitorCharacter(newChar)
-            end)
-        end
-    end
-
-    uncuffToggle:OnChanged(function()
-        toggleUncuff(uncuffToggle.Value)
-    end)
+uncuffToggle:OnChanged(function()
+    toggleUncuff(uncuffToggle.Value)
+end)
 
     -- ===== VIEWMODEL CHANGER =====
     local savedOffset = nil
@@ -371,18 +386,30 @@ function ShopManager:Init(Window, Tabs)
     end
 
     -- ===== AUTO PASS TEST (кнопка мгновенной сдачи теста) =====
-    miscGroup:AddButton('Auto Pass Test', function()
-        local replicatedStorage = game:GetService("ReplicatedStorage")
-        local startTestRemote = replicatedStorage.Remotes.StartTest
-        
-        -- Подключаем перехватчик (один раз, повторные нажатия не создадут дубликатов)
-        startTestRemote.OnClientEvent:Connect(function(testId)
-            startTestRemote:FireServer(testId, true)  -- true = тест пройден
-            Library:Notify("Test passed automatically!", 2)
-        end)
-        
-        Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
+   -- ===== AUTO PASS TEST (с закрытием GUI MilTest) =====
+miscGroup:AddButton('Auto Pass Test', function()
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local startTestRemote = replicatedStorage.Remotes.StartTest
+    local player = game.Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+
+    -- Подключаем перехватчик
+    startTestRemote.OnClientEvent:Connect(function(testId)
+        startTestRemote:FireServer(testId, true)  -- true = тест пройден
+        Library:Notify("Test passed automatically!", 2)
+
+        -- Скрываем GUI теста (если есть)
+        local ui = playerGui:FindFirstChild("UI")
+        if ui then
+            local milTest = ui:FindFirstChild("MilTest")
+            if milTest and milTest:IsA("Frame") then
+                milTest.Visible = false
+            end
+        end
     end)
+
+    Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
+end)
 
     -- ===== АВТО-БАЙ =====
     local currentNPCId = "Smugglers"
