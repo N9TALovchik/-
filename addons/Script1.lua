@@ -190,7 +190,18 @@ function ShopManager:Init(Window, Tabs)
         end)
         Library:Notify("NoJumpDelay activated. JumpPhysic will be removed continuously.", 2)
     end)
-
+-- ===== SHOW INVENTORY (через Heartbeat) =====
+local invHeartbeat = nil
+miscGroup:AddButton('No Hide Inventory', function()
+    if invHeartbeat then return end
+    local StarterGui = game:GetService("StarterGui")
+    invHeartbeat = game:GetService("RunService").Heartbeat:Connect(function()
+        pcall(function()
+            StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true)
+        end)
+    end)
+    Library:Notify("Инвентарь теперь всегда виден", 2)
+end)
     -- ===== AUTO UNCUFF (исправлен: корректная подписка/отписка) =====
 local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
     Text = 'Auto UnCuff',
