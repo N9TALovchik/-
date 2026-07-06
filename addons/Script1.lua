@@ -115,21 +115,20 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== AC BYPASS =====
-    miscGroup:AddButton('AC Bypass', function()
-        local replicatedStorage = game:GetService("ReplicatedStorage")
-        local remotes = replicatedStorage:FindFirstChild("Remotes")
-        if not remotes then
-            Library:Notify("Remotes folder not found.", 3)
-            return
-        end
+   -- ===== AC BYPASS (удаление регуляторов + Trusted + безопасный респавн) =====
+miscGroup:AddButton('AC Bypass', function()
+    local player = game:GetService("Players").LocalPlayer
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local collectionService = game:GetService("CollectionService")
 
+    -- 1. Удаляем регуляторы
+    local remotes = replicatedStorage:FindFirstChild("Remotes")
+    if remotes then
         local targets = {
             ["TellRegulator"] = true,
             ["ConfirmRegulator"] = true,
             ["GetRegulator"] = true
         }
-
         local deleted = 0
         for _, remote in ipairs(remotes:GetChildren()) do
             if targets[remote.Name] and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
@@ -137,9 +136,29 @@ function ShopManager:Init(Window, Tabs)
                 deleted = deleted + 1
             end
         end
-
         Library:Notify(string.format("Deleted %d anti-cheat remote(s).", deleted), 2)
-    end)
+    else
+        Library:Notify("Remotes folder not found.", 3)
+    end
+
+    -- 2. Добавляем тег Trusted
+    if not player:HasTag("Trusted") then
+        collectionService:AddTag(player, "Trusted")
+        Library:Notify("Тег Trusted добавлен.", 2)
+    end
+
+    -- 3. Безопасно убиваем текущего персонажа (через Health = 0)
+    local char = player.Character
+    if char then
+        local humanoid = char:FindFirstChild("Humanoid")
+        if humanoid and humanoid.Health > 0 then
+            humanoid.Health = 0  -- естественная смерть, не детектится как BreakJoints
+        end
+    end
+
+    -- Оповещаем, что после респавна всё будет чисто
+    Library:Notify("Персонаж умрёт и возродится с Trusted. Проверки отключены.", 2)
+end)
 
     -- ===== NoJumpDelay (кнопка с постоянным удалением JumpPhysic) =====
     local noJumpLoopActive = false
