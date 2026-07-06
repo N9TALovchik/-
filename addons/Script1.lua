@@ -257,87 +257,46 @@ chatSpamToggle:OnChanged(function(enabled)
     end
 end)
 
-local cuffedByConnection = nil          -- соединение ChildAdded на текущем персонаже
-local characterAddedConnection = nil    -- соединение CharacterAdded
+local uncuffHeartbeat = nil
 
-local function monitorCharacter(char)
-    -- Сначала отключаем предыдущее слежение за ChildAdded (если было)
-    if cuffedByConnection then
-        cuffedByConnection:Disconnect()
-        cuffedByConnection = nil
-    end
-
-    -- Если уже есть cuffedBy – сразу снимаем
-    local existing = char:FindFirstChild("cuffedBy")
-    if existing then
-        task.spawn(function()
-            local cuffer = existing.Value
-            if cuffer then
-                local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
-                local tool = cufferChar:FindFirstChildWhichIsA("Tool")
-                if tool and tool:HasTag("Cuffs") then
-                    local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
-                    if remote then
-                        local player = game.Players.LocalPlayer
-                        remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
-                        Library:Notify("Uncuffed!", 2)
-                    end
-                end
-            end
-        end)
-        return
-    end
-
-    -- Иначе подписываемся на появление cuffedBy в этом персонаже
-    cuffedByConnection = char.ChildAdded:Connect(function(child)
-        if child.Name == "cuffedBy" then
-            task.spawn(function()
-                task.wait(0.1)
-                local cuffer = child.Value
-                if cuffer then
-                    local cufferChar = cuffer.Character or cuffer.CharacterAdded:Wait()
-                    local tool = cufferChar:FindFirstChildWhichIsA("Tool")
-                    if tool and tool:HasTag("Cuffs") then
-                        local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
-                        if remote then
-                            local player = game.Players.LocalPlayer
-                            remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
-                            Library:Notify("Uncuffed!", 2)
-                        end
-                    end
-                end
-            end)
-        end
-    end)
+local function tryUncuff()
+    local player = game.Players.LocalPlayer
+    if not player then return end
+    local char = player.Character
+    if not char then return end
+    local cuffedBy = char:FindFirstChild("cuffedBy")
+    if not cuffedBy then return end
+    local cuffer = cuffedBy.Value
+    if not cuffer then return end
+    local cufferChar = cuffer.Character
+    if not cufferChar then return end
+    local tool = cufferChar:FindFirstChildWhichIsA("Tool")
+    if not (tool and tool:HasTag("Cuffs")) then return end
+    local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
+    if not remote then return end
+    remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
 end
 
-local function toggleUncuff(enabled)
-    -- Сбрасываем ВСЕ предыдущие подписки
-    if cuffedByConnection then
-        cuffedByConnection:Disconnect()
-        cuffedByConnection = nil
-    end
-    if characterAddedConnection then
-        characterAddedConnection:Disconnect()
-        characterAddedConnection = nil
-    end
+local function startUncuffHeartbeat()
+    if uncuffHeartbeat then uncuffHeartbeat:Disconnect() end
+    uncuffHeartbeat = game:GetService("RunService").Heartbeat:Connect(tryUncuff)
+end
 
+local function stopUncuffHeartbeat()
+    if uncuffHeartbeat then
+        uncuffHeartbeat:Disconnect()
+        uncuffHeartbeat = nil
+    end
+end
+
+uncuffToggle:OnChanged(function(enabled)
     if enabled then
-        local player = game.Players.LocalPlayer
-        local char = player.Character
-        if char then
-            monitorCharacter(char)
-        end
-        -- На будущих персонажей
-        characterAddedConnection = player.CharacterAdded:Connect(function(newChar)
-            if not uncuffToggle.Value then return end
-            monitorCharacter(newChar)
-        end)
+        startUncuffHeartbeat()
+        Library:Notify("Auto UnCuff активирован ", 2)
+    else
+        stopUncuffHeartbeat()
+        Library:Notify("Auto UnCuff отключён.", 2)
     end
-end
-
-uncuffToggle:OnChanged(function()
-    toggleUncuff(uncuffToggle.Value)
 end)
 
     -- ===== VIEWMODEL CHANGER =====
@@ -354,6 +313,86 @@ end)
         savedOffset = { x = 0, y = -0.3, z = 0 }
     end
 
+-- ===== INSTANT PROMPT (TOGGLE) =====
+local instantPromptToggle = miscGroup:AddToggle('InstantPromptToggle', {
+    Text = 'Instant Prompt',
+    Default = false,
+    Tooltip = 'Все ProximityPrompt становятся мгновенными (HoldDuration = 0)'
+})
+
+local instantPromptConnection = nil
+local function setupInstantPrompt()
+    local workspace = game:GetService("Workspace")
+    local function processPrompt(prompt)
+        if prompt:IsA("ProximityPrompt") then
+            prompt.HoldDuration = 0
+        end
+    end
+    -- Обрабатываем все существующие
+    for _, prompt in ipairs(workspace:GetDescendants()) do
+        processPrompt(prompt)
+    end
+    -- Обрабатываем новые
+    if instantPromptConnection then instantPromptConnection:Disconnect() end
+    instantPromptConnection = workspace.DescendantAdded:Connect(processPrompt)
+end
+
+instantPromptToggle:OnChanged(function(enabled)
+    if enabled then
+        setupInstantPrompt()
+        Library:Notify("Instant Prompt включён. Все промты теперь мгновенные.", 2)
+    else
+        if instantPromptConnection then
+            instantPromptConnection:Disconnect()
+            instantPromptConnection = nil
+        end
+        -- Возвращать исходные HoldDuration сложно, поэтому просто отключаем фильтр.
+        Library:Notify("Instant Prompt отключён.", 2)
+    end
+end)
+
+-- ===== NO BLACK SCREEN (TOGGLE) =====
+local noBlackScreenToggle = miscGroup:AddToggle('NoBlackScreenToggle', {
+    Text = 'No Black Screen',
+    Default = false,
+    Tooltip = 'Удаляет скрипт DeathScrean из PlayerScripts'
+})
+
+local noBlackScreenConnection = nil
+local function startNoBlackScreen()
+    local player = game:GetService("Players").LocalPlayer
+    local playerScripts = player:WaitForChild("PlayerScripts", 5)
+    if not playerScripts then return end
+
+    -- Немедленное удаление существующего
+    local deathScreen = playerScripts:FindFirstChild("DeathScrean")
+    if deathScreen and deathScreen:IsA("LocalScript") then
+        deathScreen:Destroy()
+    end
+
+    -- Постоянное удаление при появлении нового
+    if noBlackScreenConnection then noBlackScreenConnection:Disconnect() end
+    noBlackScreenConnection = playerScripts.ChildAdded:Connect(function(child)
+        if child.Name == "DeathScrean" and child:IsA("LocalScript") then
+            child:Destroy()
+        end
+    end)
+end
+
+noBlackScreenToggle:OnChanged(function(enabled)
+    if enabled then
+        startNoBlackScreen()
+        Library:Notify("No Black Screen включён. Скрипт DeathScrean будет удаляться.", 2)
+    else
+        if noBlackScreenConnection then
+            noBlackScreenConnection:Disconnect()
+            noBlackScreenConnection = nil
+        end
+        Library:Notify("No Black Screen отключён.", 2)
+    end
+end)
+
+    
     local vmToggle = miscGroup:AddToggle('ViewmodelChanger', {
         Text = 'Viewmodel Offset(ReEquip to Apply)',
         Default = false,
