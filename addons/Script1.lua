@@ -313,83 +313,49 @@ end)
         savedOffset = { x = 0, y = -0.3, z = 0 }
     end
 
--- ===== INSTANT PROMPT (TOGGLE) =====
-local instantPromptToggle = miscGroup:AddToggle('InstantPromptToggle', {
-    Text = 'Instant Prompt',
-    Default = false,
-    Tooltip = 'Все ProximityPrompt становятся мгновенными (HoldDuration = 0)'
-})
-
-local instantPromptConnection = nil
-local function setupInstantPrompt()
+-- ===== INSTANT PROMPT (BUTTON) =====
+local instantPromptActive = false
+miscGroup:AddButton('Instant Prompt', function()
+    if instantPromptActive then return end
+    instantPromptActive = true
     local workspace = game:GetService("Workspace")
     local function processPrompt(prompt)
         if prompt:IsA("ProximityPrompt") then
             prompt.HoldDuration = 0
         end
     end
-    -- Обрабатываем все существующие
+    -- обработать существующие
     for _, prompt in ipairs(workspace:GetDescendants()) do
         processPrompt(prompt)
     end
-    -- Обрабатываем новые
-    if instantPromptConnection then instantPromptConnection:Disconnect() end
-    instantPromptConnection = workspace.DescendantAdded:Connect(processPrompt)
-end
-
-instantPromptToggle:OnChanged(function(enabled)
-    if enabled then
-        setupInstantPrompt()
-        Library:Notify("Instant Prompt включён. Все промты теперь мгновенные.", 2)
-    else
-        if instantPromptConnection then
-            instantPromptConnection:Disconnect()
-            instantPromptConnection = nil
-        end
-        -- Возвращать исходные HoldDuration сложно, поэтому просто отключаем фильтр.
-        Library:Notify("Instant Prompt отключён.", 2)
-    end
+    -- слушать новые
+    workspace.DescendantAdded:Connect(processPrompt)
+    Library:Notify("Instant Prompt активирован. Все промты теперь мгновенные.", 2)
 end)
 
--- ===== NO BLACK SCREEN (TOGGLE) =====
-local noBlackScreenToggle = miscGroup:AddToggle('NoBlackScreenToggle', {
-    Text = 'No Black Screen',
-    Default = false,
-    Tooltip = 'Удаляет скрипт DeathScrean из PlayerScripts'
-})
-
-local noBlackScreenConnection = nil
-local function startNoBlackScreen()
+-- ===== NO BLACK SCREEN (BUTTON) =====
+local noBlackScreenActive = false
+miscGroup:AddButton('No Black Screen', function()
+    if noBlackScreenActive then return end
+    noBlackScreenActive = true
     local player = game:GetService("Players").LocalPlayer
     local playerScripts = player:WaitForChild("PlayerScripts", 5)
-    if not playerScripts then return end
-
-    -- Немедленное удаление существующего
+    if not playerScripts then
+        Library:Notify("PlayerScripts не найдены.", 3)
+        return
+    end
+    -- удалить существующий
     local deathScreen = playerScripts:FindFirstChild("DeathScrean")
     if deathScreen and deathScreen:IsA("LocalScript") then
         deathScreen:Destroy()
     end
-
-    -- Постоянное удаление при появлении нового
-    if noBlackScreenConnection then noBlackScreenConnection:Disconnect() end
-    noBlackScreenConnection = playerScripts.ChildAdded:Connect(function(child)
+    -- слушать новые
+    playerScripts.ChildAdded:Connect(function(child)
         if child.Name == "DeathScrean" and child:IsA("LocalScript") then
             child:Destroy()
         end
     end)
-end
-
-noBlackScreenToggle:OnChanged(function(enabled)
-    if enabled then
-        startNoBlackScreen()
-        Library:Notify("No Black Screen включён. Скрипт DeathScrean будет удаляться.", 2)
-    else
-        if noBlackScreenConnection then
-            noBlackScreenConnection:Disconnect()
-            noBlackScreenConnection = nil
-        end
-        Library:Notify("No Black Screen отключён.", 2)
-    end
+    Library:Notify("No Black Screen активирован. DeathScrean будет удаляться.", 2)
 end)
 
     
