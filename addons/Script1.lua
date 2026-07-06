@@ -115,50 +115,59 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-   -- ===== AC BYPASS (удаление регуляторов + Trusted + безопасный респавн) =====
-miscGroup:AddButton('AC Bypass', function()
-    local player = game:GetService("Players").LocalPlayer
-    local replicatedStorage = game:GetService("ReplicatedStorage")
-    local collectionService = game:GetService("CollectionService")
+-- ===== AC BYPASS (удаление регуляторов + Trusted с защитой от сброса) =====
+    miscGroup:AddButton('AC Bypass', function()
+        local player = game:GetService("Players").LocalPlayer
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local collectionService = game:GetService("CollectionService")
 
-    -- 1. Удаляем регуляторы
-    local remotes = replicatedStorage:FindFirstChild("Remotes")
-    if remotes then
-        local targets = {
-            ["TellRegulator"] = true,
-            ["ConfirmRegulator"] = true,
-            ["GetRegulator"] = true
-        }
-        local deleted = 0
-        for _, remote in ipairs(remotes:GetChildren()) do
-            if targets[remote.Name] and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
-                remote:Destroy()
-                deleted = deleted + 1
+        -- 1. Удаляем регуляторы
+        local remotes = replicatedStorage:FindFirstChild("Remotes")
+        if remotes then
+            local targets = {
+                ["TellRegulator"] = true,
+                ["ConfirmRegulator"] = true,
+                ["GetRegulator"] = true
+            }
+            local deleted = 0
+            for _, remote in ipairs(remotes:GetChildren()) do
+                if targets[remote.Name] and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
+                    remote:Destroy()
+                    deleted = deleted + 1
+                end
+            end
+            Library:Notify(string.format("Deleted %d anti-cheat remote(s).", deleted), 2)
+        else
+            Library:Notify("Remotes folder not found.", 3)
+        end
+
+        -- 2. Добавляем тег Trusted сейчас
+        if not player:HasTag("Trusted") then
+            collectionService:AddTag(player, "Trusted")
+        end
+
+        -- 3. Защита от сброса тега после смерти (повторное добавление при каждом CharacterAdded)
+        -- Используем однократную подписку, чтобы не дублировать
+        if not _G.TrustedConnection then
+            _G.TrustedConnection = player.CharacterAdded:Connect(function()
+                if not player:HasTag("Trusted") then
+                    collectionService:AddTag(player, "Trusted")
+                end
+            end)
+            Library:Notify("Тег Trusted теперь будет сохраняться после каждой смерти.", 2)
+        end
+
+        -- 4. Убиваем персонажа (естественная смерть), чтобы немедленно применились изменения
+        local char = player.Character
+        if char then
+            local humanoid = char:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                humanoid.Health = 0
             end
         end
-        Library:Notify(string.format("Deleted %d anti-cheat remote(s).", deleted), 2)
-    else
-        Library:Notify("Remotes folder not found.", 3)
-    end
 
-    -- 2. Добавляем тег Trusted
-    if not player:HasTag("Trusted") then
-        collectionService:AddTag(player, "Trusted")
-        Library:Notify("Тег Trusted добавлен.", 2)
-    end
-
-    -- 3. Безопасно убиваем текущего персонажа (через Health = 0)
-    local char = player.Character
-    if char then
-        local humanoid = char:FindFirstChild("Humanoid")
-        if humanoid and humanoid.Health > 0 then
-            humanoid.Health = 0  -- естественная смерть, не детектится как BreakJoints
-        end
-    end
-
-    -- Оповещаем, что после респавна всё будет чисто
-    Library:Notify("Персонаж умрёт и возродится с Trusted. Проверки отключены.", 2)
-end)
+        Library:Notify("Персонаж умрёт и возродится с Trusted. Проверки отключены.", 2)
+    end)
 
     -- ===== NoJumpDelay (кнопка с постоянным удалением JumpPhysic) =====
     local noJumpLoopActive = false
