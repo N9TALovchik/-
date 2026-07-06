@@ -209,6 +209,54 @@ local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
     Tooltip = 'Моментально снимает наручники (работает и при включении заранее)'
 })
 
+    -- ===== RANDOM CHAT SPAM (TOGGLE) =====
+local chatSpamToggle = miscGroup:AddToggle('ChatSpamToggle', {
+    Text = 'Random Chat Spam',
+    Default = false,
+    Tooltip = 'Отправляет случайные сообщения (99-100 символов) каждый кадр'
+})
+
+local chatSpamConnection = nil
+
+-- Набор символов (только английские буквы и знаки)
+local charset = {}
+for c = 65, 90 do table.insert(charset, string.char(c)) end   -- A-Z
+for c = 97, 122 do table.insert(charset, string.char(c)) end  -- a-z
+local symbols = {
+    '=', '+', '-', '*', '/', '!', '?', '#', '@', '%', '&',
+    '(', ')', '[', ']', '{', '}', ':', ';', '"', '\'',
+    ',', '.', '<', '>', '~', '`', '|', '\\', '^', '_', ' '
+}
+for _, sym in ipairs(symbols) do
+    table.insert(charset, sym)
+end
+
+local function randomString()
+    local len = math.random(99, 200)
+    local t = {}
+    for _ = 1, len do
+        table.insert(t, charset[math.random(#charset)])
+    end
+    return table.concat(t)
+end
+
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local input = replicatedStorage.Network.Comms.Input
+
+chatSpamToggle:OnChanged(function(enabled)
+    if enabled then
+        if chatSpamConnection then chatSpamConnection:Disconnect() end
+        chatSpamConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            input:FireServer(randomString())
+        end)
+    else
+        if chatSpamConnection then
+            chatSpamConnection:Disconnect()
+            chatSpamConnection = nil
+        end
+    end
+end)
+
 local cuffedByConnection = nil          -- соединение ChildAdded на текущем персонаже
 local characterAddedConnection = nil    -- соединение CharacterAdded
 
