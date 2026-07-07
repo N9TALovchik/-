@@ -881,7 +881,7 @@ function ShopManager:Init(Window, Tabs)
     end)
     
 -- ============================================================
--- ===== PLAYER INTERACTION (исправленная Kill Player с кликами) =====
+-- ===== PLAYER INTERACTION (исправлено: возврат камеры + проверка команды) =====
 -- ============================================================
 local playerInteractionGroup = shopTab:AddLeftGroupbox('Player Interaction')
 
@@ -921,7 +921,15 @@ playerInteractionGroup:AddButton('Kill Player', function()
         Library:Notify("Player not found.", 3)
         return
     end
+
     local localPlayer = game.Players.LocalPlayer
+
+    -- ===== ПРОВЕРКА КОМАНДЫ =====
+    if localPlayer.Team and targetPlayer.Team and localPlayer.Team == targetPlayer.Team then
+        Library:Notify("Cannot kill teammate!", 3)
+        return
+    end
+
     local char = localPlayer.Character
     if not char then
         Library:Notify("Your character is not spawned.", 3)
@@ -933,23 +941,32 @@ playerInteractionGroup:AddButton('Kill Player', function()
         return
     end
 
+    -- Сохраняем исходное состояние камеры
     local oldCameraMode = localPlayer.CameraMode
+    -- CameraSubject по умолчанию — Humanoid локального игрока (если персонаж есть)
+    local myHumanoid = char:FindFirstChild("Humanoid")
     local oldCameraSubject = workspace.CurrentCamera.CameraSubject
 
-    localPlayer.CameraMode = Enum.CameraMode.LockFirstPerson  -- пули летят из глаз
-
+    localPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
     task.wait(0.1)
 
     local targetChar = targetPlayer.Character
     if not targetChar then
         Library:Notify("Target player's character not found.", 3)
+        -- Восстанавливаем камеру
         localPlayer.CameraMode = oldCameraMode
+        if myHumanoid then
+            workspace.CurrentCamera.CameraSubject = myHumanoid
+        end
         return
     end
     local head = targetChar:FindFirstChild("Head")
     if not head then
         Library:Notify("Target has no head.", 3)
         localPlayer.CameraMode = oldCameraMode
+        if myHumanoid then
+            workspace.CurrentCamera.CameraSubject = myHumanoid
+        end
         return
     end
 
@@ -957,23 +974,38 @@ playerInteractionGroup:AddButton('Kill Player', function()
     if not humanoid then
         Library:Notify("Target has no Humanoid.", 3)
         localPlayer.CameraMode = oldCameraMode
+        if myHumanoid then
+            workspace.CurrentCamera.CameraSubject = myHumanoid
+        end
         return
     end
 
     -- Привязываем камеру к голове цели
     workspace.CurrentCamera.CameraSubject = head
 
-    local mouse = localPlayer:GetMouse()
     local startTime = tick()
-
-    -- Цикл имитации кликов (нажать / отжать) каждый кадр, пока цель жива
     local heartBeatConnection
-    heartBeatConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        -- Проверяем условие выхода
-        if humanoid.Health <= 0 or not targetChar.Parent or tick() - startTime > 10 then
+
+    -- Функция восстановления камеры (будет вызвана в любом случае)
+    local function restoreCamera()
+        if heartBeatConnection then
             heartBeatConnection:Disconnect()
+            heartBeatConnection = nil
+        end
+        -- Возвращаем субъект камеры (предпочитаем Humanoid локального игрока)
+        if myHumanoid and myHumanoid.Parent then
+            workspace.CurrentCamera.CameraSubject = myHumanoid
+        else
             workspace.CurrentCamera.CameraSubject = oldCameraSubject
-            localPlayer.CameraMode = oldCameraMode
+        end
+        localPlayer.CameraMode = oldCameraMode
+    end
+
+    -- Цикл имитации одиночных выстрелов
+    heartBeatConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        -- Проверяем выход
+        if humanoid.Health <= 0 or not targetChar.Parent or tick() - startTime > 10 then
+            restoreCamera()
             if humanoid.Health <= 0 then
                 Library:Notify("Player killed.", 2)
             else
@@ -982,9 +1014,12 @@ playerInteractionGroup:AddButton('Kill Player', function()
             return
         end
 
-        -- Принудительно поворачиваем камеру строго вниз из головы цели
-        workspace.CurrentCamera.CFrame = CFrame.lookAt(head.Position, head.Position + Vector3.new(0, -1, 0))
+        -- Направляем камеру строго вниз из головы цели
+        pcall(function()
+            workspace.CurrentCamera.CFrame = CFrame.lookAt(head.Position, head.Position + Vector3.new(0, -1, 0))
+        end)
 
+        -- Одиночный выстрел (mouse1press -> wait 0.01 -> mouse1release)
         pcall(function() mouse1press() end)
         task.wait(0.01)
         pcall(function() mouse1release() end)
