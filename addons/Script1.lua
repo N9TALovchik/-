@@ -880,113 +880,116 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-    -- ============================================================
-    -- ===== PLAYER INTERACTION (исправленная Kill Player) =====
-    -- ============================================================
-    local playerInteractionGroup = shopTab:AddLeftGroupbox('Player Interaction')
+-- ============================================================
+-- ===== PLAYER INTERACTION (исправленная Kill Player с кликами) =====
+-- ============================================================
+local playerInteractionGroup = shopTab:AddLeftGroupbox('Player Interaction')
 
-    local function getPlayerList()
-        local list = {}
-        for _, p in ipairs(game.Players:GetPlayers()) do
-            if p ~= game.Players.LocalPlayer then
-                table.insert(list, p.Name)
-            end
+local function getPlayerList()
+    local list = {}
+    for _, p in ipairs(game.Players:GetPlayers()) do
+        if p ~= game.Players.LocalPlayer then
+            table.insert(list, p.Name)
         end
-        return list
+    end
+    return list
+end
+
+local playerDropdown = playerInteractionGroup:AddDropdown('TargetPlayer', {
+    Text = 'Target Player',
+    Values = getPlayerList(),
+    Multi = false,
+    AllowNull = true,
+    Default = nil,
+    Tooltip = 'Select a player to interact with'
+})
+
+playerInteractionGroup:AddButton('Refresh Player List', function()
+    local newList = getPlayerList()
+    playerDropdown:SetValues(newList)
+    Library:Notify("Player list refreshed.", 2)
+end)
+
+playerInteractionGroup:AddButton('Kill Player', function()
+    local targetName = playerDropdown.Value
+    if not targetName then
+        Library:Notify("Select a player first.", 3)
+        return
+    end
+    local targetPlayer = game.Players:FindFirstChild(targetName)
+    if not targetPlayer then
+        Library:Notify("Player not found.", 3)
+        return
+    end
+    local localPlayer = game.Players.LocalPlayer
+    local char = localPlayer.Character
+    if not char then
+        Library:Notify("Your character is not spawned.", 3)
+        return
+    end
+    local tool = char:FindFirstChildWhichIsA("Tool")
+    if not tool then
+        Library:Notify("You must equip a weapon first!", 3)
+        return
     end
 
-    local playerDropdown = playerInteractionGroup:AddDropdown('TargetPlayer', {
-        Text = 'Target Player',
-        Values = getPlayerList(),
-        Multi = false,
-        AllowNull = true,
-        Default = nil,
-        Tooltip = 'Select a player to interact with'
-    })
+    local oldCameraMode = localPlayer.CameraMode
+    local oldCameraSubject = workspace.CurrentCamera.CameraSubject
 
-    playerInteractionGroup:AddButton('Refresh Player List', function()
-        local newList = getPlayerList()
-        playerDropdown:SetValues(newList)
-        Library:Notify("Player list refreshed.", 2)
-    end)
+    localPlayer.CameraMode = Enum.CameraMode.LockFirstPerson  -- пули летят из глаз
 
-    playerInteractionGroup:AddButton('Kill Player', function()
-        local targetName = playerDropdown.Value
-        if not targetName then
-            Library:Notify("Select a player first.", 3)
-            return
-        end
-        local targetPlayer = game.Players:FindFirstChild(targetName)
-        if not targetPlayer then
-            Library:Notify("Player not found.", 3)
-            return
-        end
-        local localPlayer = game.Players.LocalPlayer
-        local char = localPlayer.Character
-        if not char then
-            Library:Notify("Your character is not spawned.", 3)
-            return
-        end
-        local tool = char:FindFirstChildWhichIsA("Tool")
-        if not tool then
-            Library:Notify("You must equip a weapon first!", 3)
-            return
-        end
+    task.wait(0.1)
 
-        local oldCameraMode = localPlayer.CameraMode
-        local oldCameraSubject = workspace.CurrentCamera.CameraSubject
+    local targetChar = targetPlayer.Character
+    if not targetChar then
+        Library:Notify("Target player's character not found.", 3)
+        localPlayer.CameraMode = oldCameraMode
+        return
+    end
+    local head = targetChar:FindFirstChild("Head")
+    if not head then
+        Library:Notify("Target has no head.", 3)
+        localPlayer.CameraMode = oldCameraMode
+        return
+    end
 
-        localPlayer.CameraMode = Enum.CameraMode.LockFirstPerson  -- пули летят из глаз
+    local humanoid = targetChar:FindFirstChild("Humanoid")
+    if not humanoid then
+        Library:Notify("Target has no Humanoid.", 3)
+        localPlayer.CameraMode = oldCameraMode
+        return
+    end
 
-        task.wait(0.1)
+    -- Привязываем камеру к голове цели
+    workspace.CurrentCamera.CameraSubject = head
 
-        local targetChar = targetPlayer.Character
-        if not targetChar then
-            Library:Notify("Target player's character not found.", 3)
+    local mouse = localPlayer:GetMouse()
+    local startTime = tick()
+
+    -- Цикл имитации кликов (нажать / отжать) каждый кадр, пока цель жива
+    local heartBeatConnection
+    heartBeatConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        -- Проверяем условие выхода
+        if humanoid.Health <= 0 or not targetChar.Parent or tick() - startTime > 10 then
+            heartBeatConnection:Disconnect()
+            workspace.CurrentCamera.CameraSubject = oldCameraSubject
             localPlayer.CameraMode = oldCameraMode
-            return
-        end
-        local head = targetChar:FindFirstChild("Head")
-        if not head then
-            Library:Notify("Target has no head.", 3)
-            localPlayer.CameraMode = oldCameraMode
-            return
-        end
-
-        local humanoid = targetChar:FindFirstChild("Humanoid")
-        if not humanoid then
-            Library:Notify("Target has no Humanoid.", 3)
-            localPlayer.CameraMode = oldCameraMode
-            return
-        end
-
-        -- Привязываем камеру к голове цели (как в StartSpectate)
-        workspace.CurrentCamera.CameraSubject = head
-
-        -- Зажимаем стрельбу
-        local mouse = localPlayer:GetMouse()
-        pcall(function() mouse.Button1Down() end)
-
-        -- Цикл: каждый кадр смотрим строго вниз из головы, пока цель жива
-        local startTime = tick()
-        local heartBeatConnection
-        heartBeatConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if humanoid.Health <= 0 or not targetChar.Parent or tick() - startTime > 10 then
-                heartBeatConnection:Disconnect()
-                pcall(function() mouse.Button1Up() end)
-                workspace.CurrentCamera.CameraSubject = oldCameraSubject
-                localPlayer.CameraMode = oldCameraMode
-                if humanoid.Health <= 0 then
-                    Library:Notify("Player killed.", 2)
-                else
-                    Library:Notify("Kill attempt finished (timeout or target left).", 3)
-                end
-                return
+            if humanoid.Health <= 0 then
+                Library:Notify("Player killed.", 2)
+            else
+                Library:Notify("Kill attempt finished (timeout or target left).", 3)
             end
-            -- Принудительно поворачиваем камеру строго вниз
-            workspace.CurrentCamera.CFrame = CFrame.lookAt(head.Position, head.Position + Vector3.new(0, -1, 0))
-        end)
+            return
+        end
+
+        -- Принудительно поворачиваем камеру строго вниз из головы цели
+        workspace.CurrentCamera.CFrame = CFrame.lookAt(head.Position, head.Position + Vector3.new(0, -1, 0))
+
+        -- Имитируем быстрый клик: нажать и сразу отпустить
+        pcall(function() mouse.Button1Down() end)
+        pcall(function() mouse.Button1Up() end)
     end)
+end)
 
     Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
 end
