@@ -1,4 +1,4 @@
--- ShopManager.lua (полный, добавлена кнопка Auto Pass Test)
+-- ShopManager.lua (финальный, заменён Inf Ammo на 2 кнопки + Bullet Radius TextBox)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -25,63 +25,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== БЕСКОНЕЧНЫЕ ПАТРОНЫ (TOGGLE) =====
-    local infiniteAmmoToggle = miscGroup:AddToggle('InfiniteAmmoToggle', {
-        Text = 'Infinite Ammo',
-        Default = false,
-        Tooltip = 'Автоматически восполняет патроны у всех оружий'
-    })
-
-    local infiniteAmmoConnection = nil
-    local function startInfiniteAmmo()
-        if infiniteAmmoConnection then
-            infiniteAmmoConnection:Disconnect()
-            infiniteAmmoConnection = nil
-        end
-        if not infiniteAmmoToggle.Value then return end
-
-        infiniteAmmoConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            local player = game.Players.LocalPlayer
-            if not player then return end
-            local character = player.Character
-            if not character then return end
-
-            local tools = {}
-            for _, tool in ipairs(character:GetChildren()) do
-                if tool:IsA("Tool") then table.insert(tools, tool) end
-            end
-            local backpack = player:FindFirstChild("Backpack")
-            if backpack then
-                for _, tool in ipairs(backpack:GetChildren()) do
-                    if tool:IsA("Tool") then table.insert(tools, tool) end
-                end
-            end
-
-            for _, tool in ipairs(tools) do
-                local gunServer = tool:FindFirstChild("GunScript_Server")
-                if gunServer then
-                    local changeAmmo = gunServer:FindFirstChild("ChangeMagAndAmmo")
-                    if changeAmmo then
-                        pcall(function()
-                            changeAmmo:FireServer(999, 9999)
-                        end)
-                    end
-                end
-            end
-        end)
-    end
-
-    infiniteAmmoToggle:OnChanged(function()
-        if infiniteAmmoToggle.Value then
-            startInfiniteAmmo()
-        else
-            if infiniteAmmoConnection then
-                infiniteAmmoConnection:Disconnect()
-                infiniteAmmoConnection = nil
-            end
-        end
-    end)
-
     -- ===== INF STAMINA (TOGGLE) =====
     local infStaminaToggle = miscGroup:AddToggle('InfStaminaToggle', {
         Text = 'Inf Stamina',
@@ -91,10 +34,7 @@ function ShopManager:Init(Window, Tabs)
 
     local infStaminaConnection = nil
     local function startInfStamina()
-        if infStaminaConnection then
-            infStaminaConnection:Disconnect()
-            infStaminaConnection = nil
-        end
+        if infStaminaConnection then infStaminaConnection:Disconnect() end
         if not infStaminaToggle.Value then return end
 
         local player = game.Players.LocalPlayer
@@ -105,30 +45,21 @@ function ShopManager:Init(Window, Tabs)
     end
 
     infStaminaToggle:OnChanged(function()
-        if infStaminaToggle.Value then
-            startInfStamina()
+        if infStaminaToggle.Value then startInfStamina()
         else
-            if infStaminaConnection then
-                infStaminaConnection:Disconnect()
-                infStaminaConnection = nil
-            end
+            if infStaminaConnection then infStaminaConnection:Disconnect() infStaminaConnection = nil end
         end
     end)
 
--- ===== AC BYPASS (удаление регуляторов + Trusted с защитой от сброса) =====
+    -- ===== AC BYPASS =====
     miscGroup:AddButton('AC Bypass', function()
         local player = game:GetService("Players").LocalPlayer
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local collectionService = game:GetService("CollectionService")
 
-        -- 1. Удаляем регуляторы
         local remotes = replicatedStorage:FindFirstChild("Remotes")
         if remotes then
-            local targets = {
-                ["TellRegulator"] = true,
-                ["ConfirmRegulator"] = true,
-                ["GetRegulator"] = true
-            }
+            local targets = {["TellRegulator"] = true, ["ConfirmRegulator"] = true, ["GetRegulator"] = true}
             local deleted = 0
             for _, remote in ipairs(remotes:GetChildren()) do
                 if targets[remote.Name] and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
@@ -141,13 +72,10 @@ function ShopManager:Init(Window, Tabs)
             Library:Notify("Remotes folder not found.", 3)
         end
 
-        -- 2. Добавляем тег Trusted сейчас
         if not player:HasTag("Trusted") then
             collectionService:AddTag(player, "Trusted")
         end
 
-        -- 3. Защита от сброса тега после смерти (повторное добавление при каждом CharacterAdded)
-        -- Используем однократную подписку, чтобы не дублировать
         if not _G.TrustedConnection then
             _G.TrustedConnection = player.CharacterAdded:Connect(function()
                 if not player:HasTag("Trusted") then
@@ -157,7 +85,6 @@ function ShopManager:Init(Window, Tabs)
             Library:Notify("Тег Trusted теперь будет сохраняться после каждой смерти.", 2)
         end
 
-        -- 4. Убиваем персонажа (естественная смерть), чтобы немедленно применились изменения
         local char = player.Character
         if char then
             local humanoid = char:FindFirstChild("Humanoid")
@@ -169,120 +96,7 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Персонаж умрёт и возродится с Trusted. Проверки отключены.", 2)
     end)
 
-
--- Активные моды (изначально все выключены)
-local activeMods = {
-    rapidFire = false,
-    noSpread = false,
-    instaEquip = false,
-    allAuto = false
-}
-
--- Кеш изменённых копий для каждого модуля Setting (ключ – модуль, значение – модифицированная таблица)
-local patchedSettings = {}
-
--- Функция, которая применяет все активные моды к оригинальной таблице настроек
-local function applyMods(original)
-    local copy = {}
-    for k, v in pairs(original) do
-        copy[k] = v
-    end
-    if activeMods.rapidFire then
-        copy.FireRate = 0
-    end
-    if activeMods.noSpread then
-        copy.Spread = 0
-        copy.Recoil = 0
-    end
-    if activeMods.instaEquip then
-        copy.EquipTime = 0
-    end
-    if activeMods.allAuto then
-        copy.Auto = true
-    end
-    return copy
-end
-
--- Перехватываем require
-local oldRequire
-oldRequire = hookfunction(require, function(moduleScript)
-    if moduleScript:IsA("ModuleScript") and moduleScript.Name == "Setting" then
-        local parent = moduleScript.Parent
-        while parent and not parent:IsA("Tool") do
-            parent = parent.Parent
-        end
-        if parent and parent:IsA("Tool") then
-            if not patchedSettings[moduleScript] then
-                local original = oldRequire(moduleScript)
-                if type(original) == "table" then
-                    patchedSettings[moduleScript] = original
-                end
-            end
-            if patchedSettings[moduleScript] then
-                return applyMods(patchedSettings[moduleScript])
-            end
-        end
-    end
-    return oldRequire(moduleScript)
-end)
-
--- Функция перезагрузки локального скрипта оружия
-local function restartGunScript(tool)
-    if not tool or not tool:IsA("Tool") then return end
-    local localScript = tool:FindFirstChildWhichIsA("LocalScript")
-    if localScript then
-        localScript.Disabled = true
-        task.wait(0.05)
-        localScript.Disabled = false
-    end
-end
-
--- Функция, которая применяет моды ко всем текущим оружиям
-local function refreshAllWeapons()
-    if character then
-        for _, tool in ipairs(character:GetChildren()) do
-            if tool:IsA("Tool") then restartGunScript(tool) end
-        end
-    end
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") then restartGunScript(tool) end
-    end
-end
-
--- Активация/деактивация мода (по кнопке)
-local function setMod(modName, enable)
-    if activeMods[modName] == enable then return end
-    activeMods[modName] = enable
-    refreshAllWeapons()
-end
-
--- ===== КНОПКИ =====
-miscGroup:AddButton('Rapid Fire', function()
-    if activeMods.rapidFire then return end
-    setMod('rapidFire', true)
-    Library:Notify("Rapid Fire включён", 2)
-end)
-
-miscGroup:AddButton('No Spread', function()
-    if activeMods.noSpread then return end
-    setMod('noSpread', true)
-    Library:Notify("No Spread (Recoil & Spread) включён", 2)
-end)
-
-miscGroup:AddButton('Insta Equip', function()
-    if activeMods.instaEquip then return end
-    setMod('instaEquip', true)
-    Library:Notify("Insta Equip включён", 2)
-end)
-
-miscGroup:AddButton('All Auto', function()
-    if activeMods.allAuto then return end
-    setMod('allAuto', true)
-    Library:Notify("All Auto включён (все оружия авто)", 2)
-end)
-
-    
-    -- ===== NoJumpDelay (кнопка с постоянным удалением JumpPhysic) =====
+    -- ===== NoJumpDelay =====
     local noJumpLoopActive = false
     miscGroup:AddButton('NoJumpDelay', function()
         if noJumpLoopActive then return end
@@ -303,114 +117,97 @@ end)
         end)
         Library:Notify("NoJumpDelay activated. JumpPhysic will be removed continuously.", 2)
     end)
--- ===== SHOW INVENTORY (через Heartbeat) =====
-local invHeartbeat = nil
-miscGroup:AddButton('No Hide Inventory', function()
-    if invHeartbeat then return end
-    local StarterGui = game:GetService("StarterGui")
-    invHeartbeat = game:GetService("RunService").Heartbeat:Connect(function()
-        pcall(function()
-            StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true)
+
+    -- ===== SHOW INVENTORY =====
+    local invHeartbeat = nil
+    miscGroup:AddButton('No Hide Inventory', function()
+        if invHeartbeat then return end
+        local StarterGui = game:GetService("StarterGui")
+        invHeartbeat = game:GetService("RunService").Heartbeat:Connect(function()
+            pcall(function()
+                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true)
+            end)
         end)
+        Library:Notify("Инвентарь теперь всегда виден", 2)
     end)
-    Library:Notify("Инвентарь теперь всегда виден", 2)
-end)
-    -- ===== AUTO UNCUFF (исправлен: корректная подписка/отписка) =====
-local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
-    Text = 'Auto UnCuff',
-    Default = false,
-    Tooltip = 'Моментально снимает наручники (работает и при включении заранее)'
-})
 
-    -- ===== RANDOM CHAT SPAM (TOGGLE) =====
-local chatSpamToggle = miscGroup:AddToggle('ChatSpamToggle', {
-    Text = 'Random Chat Spam',
-    Default = false,
-    Tooltip = 'Отправляет случайные сообщения (99-100 символов) каждый кадр'
-})
+    -- ===== AUTO UNCUFF =====
+    local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
+        Text = 'Auto UnCuff',
+        Default = false,
+        Tooltip = 'Моментально снимает наручники (работает и при включении заранее)'
+    })
 
-local chatSpamConnection = nil
-
--- Набор символов (только английские буквы и знаки)
-local charset = {}
-for c = 65, 90 do table.insert(charset, string.char(c)) end   -- A-Z
-for c = 97, 122 do table.insert(charset, string.char(c)) end  -- a-z
-local symbols = {
-    '=', '+', '-', '*', '/', '!', '?', '#', '@', '%', '&',
-    '(', ')', '[', ']', '{', '}', ':', ';', '"', '\'',
-    ',', '.', '<', '>', '~', '`', '|', '\\', '^', '_', ' '
-}
-for _, sym in ipairs(symbols) do
-    table.insert(charset, sym)
-end
-
-local function randomString()
-    local len = math.random(99, 200)
-    local t = {}
-    for _ = 1, len do
-        table.insert(t, charset[math.random(#charset)])
+    local uncuffHeartbeat = nil
+    local function tryUncuff()
+        local player = game.Players.LocalPlayer
+        if not player then return end
+        local char = player.Character
+        if not char then return end
+        local cuffedBy = char:FindFirstChild("cuffedBy")
+        if not cuffedBy then return end
+        local cuffer = cuffedBy.Value
+        if not cuffer then return end
+        local cufferChar = cuffer.Character
+        if not cufferChar then return end
+        local tool = cufferChar:FindFirstChildWhichIsA("Tool")
+        if not (tool and tool:HasTag("Cuffs")) then return end
+        local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
+        if not remote then return end
+        remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
     end
-    return table.concat(t)
-end
 
-local replicatedStorage = game:GetService("ReplicatedStorage")
-local input = replicatedStorage.Network.Comms.Input
+    local function startUncuffHeartbeat()
+        if uncuffHeartbeat then uncuffHeartbeat:Disconnect() end
+        uncuffHeartbeat = game:GetService("RunService").Heartbeat:Connect(tryUncuff)
+    end
 
-chatSpamToggle:OnChanged(function(enabled)
-    if enabled then
-        if chatSpamConnection then chatSpamConnection:Disconnect() end
-        chatSpamConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            input:FireServer(randomString())
-        end)
-    else
-        if chatSpamConnection then
-            chatSpamConnection:Disconnect()
-            chatSpamConnection = nil
+    local function stopUncuffHeartbeat()
+        if uncuffHeartbeat then uncuffHeartbeat:Disconnect() uncuffHeartbeat = nil end
+    end
+
+    uncuffToggle:OnChanged(function(enabled)
+        if enabled then startUncuffHeartbeat() else stopUncuffHeartbeat() end
+    end)
+
+    -- ===== RANDOM CHAT SPAM =====
+    local chatSpamToggle = miscGroup:AddToggle('ChatSpamToggle', {
+        Text = 'Random Chat Spam',
+        Default = false,
+        Tooltip = 'Отправляет случайные сообщения (99-200 символов) каждый кадр'
+    })
+
+    local chatSpamConnection = nil
+    local charset = {}
+    for c = 65, 90 do table.insert(charset, string.char(c)) end
+    for c = 97, 122 do table.insert(charset, string.char(c)) end
+    local symbols = {
+        '=', '+', '-', '*', '/', '!', '?', '#', '@', '%', '&',
+        '(', ')', '[', ']', '{', '}', ':', ';', '"', '\'',
+        ',', '.', '<', '>', '~', '`', '|', '\\', '^', '_', ' '
+    }
+    for _, sym in ipairs(symbols) do table.insert(charset, sym) end
+
+    local function randomString()
+        local len = math.random(99, 200)
+        local t = {}
+        for _ = 1, len do table.insert(t, charset[math.random(#charset)]) end
+        return table.concat(t)
+    end
+
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local input = replicatedStorage.Network.Comms.Input
+
+    chatSpamToggle:OnChanged(function(enabled)
+        if enabled then
+            if chatSpamConnection then chatSpamConnection:Disconnect() end
+            chatSpamConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                input:FireServer(randomString())
+            end)
+        else
+            if chatSpamConnection then chatSpamConnection:Disconnect() chatSpamConnection = nil end
         end
-    end
-end)
-
-local uncuffHeartbeat = nil
-
-local function tryUncuff()
-    local player = game.Players.LocalPlayer
-    if not player then return end
-    local char = player.Character
-    if not char then return end
-    local cuffedBy = char:FindFirstChild("cuffedBy")
-    if not cuffedBy then return end
-    local cuffer = cuffedBy.Value
-    if not cuffer then return end
-    local cufferChar = cuffer.Character
-    if not cufferChar then return end
-    local tool = cufferChar:FindFirstChildWhichIsA("Tool")
-    if not (tool and tool:HasTag("Cuffs")) then return end
-    local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
-    if not remote then return end
-    remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
-end
-
-local function startUncuffHeartbeat()
-    if uncuffHeartbeat then uncuffHeartbeat:Disconnect() end
-    uncuffHeartbeat = game:GetService("RunService").Heartbeat:Connect(tryUncuff)
-end
-
-local function stopUncuffHeartbeat()
-    if uncuffHeartbeat then
-        uncuffHeartbeat:Disconnect()
-        uncuffHeartbeat = nil
-    end
-end
-
-uncuffToggle:OnChanged(function(enabled)
-    if enabled then
-        startUncuffHeartbeat()
-        Library:Notify("Auto UnCuff активирован ", 2)
-    else
-        stopUncuffHeartbeat()
-        Library:Notify("Auto UnCuff отключён.", 2)
-    end
-end)
+    end)
 
     -- ===== VIEWMODEL CHANGER =====
     local savedOffset = nil
@@ -426,52 +223,6 @@ end)
         savedOffset = { x = 0, y = -0.3, z = 0 }
     end
 
--- ===== INSTANT PROMPT (BUTTON) =====
-local instantPromptActive = false
-miscGroup:AddButton('Instant Prompt', function()
-    if instantPromptActive then return end
-    instantPromptActive = true
-    local workspace = game:GetService("Workspace")
-    local function processPrompt(prompt)
-        if prompt:IsA("ProximityPrompt") then
-            prompt.HoldDuration = 0
-        end
-    end
-    -- обработать существующие
-    for _, prompt in ipairs(workspace:GetDescendants()) do
-        processPrompt(prompt)
-    end
-    -- слушать новые
-    workspace.DescendantAdded:Connect(processPrompt)
-    Library:Notify("Instant Prompt активирован. Все промты теперь мгновенные.", 2)
-end)
-
--- ===== NO BLACK SCREEN (BUTTON) =====
-local noBlackScreenActive = false
-miscGroup:AddButton('No Black Screen', function()
-    if noBlackScreenActive then return end
-    noBlackScreenActive = true
-    local player = game:GetService("Players").LocalPlayer
-    local playerScripts = player:WaitForChild("PlayerScripts", 5)
-    if not playerScripts then
-        Library:Notify("PlayerScripts не найдены.", 3)
-        return
-    end
-    -- удалить существующий
-    local deathScreen = playerScripts:FindFirstChild("DeathScrean")
-    if deathScreen and deathScreen:IsA("LocalScript") then
-        deathScreen:Destroy()
-    end
-    -- слушать новые
-    playerScripts.ChildAdded:Connect(function(child)
-        if child.Name == "DeathScrean" and child:IsA("LocalScript") then
-            child:Destroy()
-        end
-    end)
-    Library:Notify("No Black Screen активирован. DeathScrean будет удаляться.", 2)
-end)
-
-    
     local vmToggle = miscGroup:AddToggle('ViewmodelChanger', {
         Text = 'Viewmodel Offset(ReEquip to Apply)',
         Default = false,
@@ -480,29 +231,17 @@ end)
 
     local sliderX = miscGroup:AddSlider('ViewmodelX', {
         Text = 'X Offset',
-        Min = -5,
-        Max = 5,
-        Default = savedOffset.x,
-        Suffix = ' studs',
-        Rounding = 3,
+        Min = -5, Max = 5, Default = savedOffset.x, Suffix = ' studs', Rounding = 3,
         Tooltip = 'Смещение вправо/влево'
     })
     local sliderY = miscGroup:AddSlider('ViewmodelY', {
         Text = 'Y Offset',
-        Min = -5,
-        Max = 5,
-        Default = savedOffset.y,
-        Suffix = ' studs',
-        Rounding = 3,
+        Min = -5, Max = 5, Default = savedOffset.y, Suffix = ' studs', Rounding = 3,
         Tooltip = 'Смещение вверх/вниз'
     })
     local sliderZ = miscGroup:AddSlider('ViewmodelZ', {
         Text = 'Z Offset',
-        Min = -5,
-        Max = 5,
-        Default = savedOffset.z,
-        Suffix = ' studs',
-        Rounding = 3,
+        Min = -5, Max = 5, Default = savedOffset.z, Suffix = ' studs', Rounding = 3,
         Tooltip = 'Смещение ближе/дальше'
     })
 
@@ -532,51 +271,32 @@ end)
         end
 
         local char = player.Character
-        if char then
-            setOffsetOnTools(char)
-        end
+        if char then setOffsetOnTools(char) end
         setOffsetOnTools(player:FindFirstChild("Backpack"))
     end
 
     local function updateVmHeartbeat()
-        if vmHeartbeat then
-            vmHeartbeat:Disconnect()
-            vmHeartbeat = nil
-        end
+        if vmHeartbeat then vmHeartbeat:Disconnect() vmHeartbeat = nil end
         if vmToggle.Value then
             vmHeartbeat = game:GetService("RunService").Heartbeat:Connect(applyVmOffset)
         end
     end
 
-    sliderX:OnChanged(function(value)
-        saveViewmodelOffset()
-        applyVmOffset()
-    end)
-    sliderY:OnChanged(function(value)
-        saveViewmodelOffset()
-        applyVmOffset()
-    end)
-    sliderZ:OnChanged(function(value)
-        saveViewmodelOffset()
-        applyVmOffset()
-    end)
+    sliderX:OnChanged(function(value) saveViewmodelOffset() applyVmOffset() end)
+    sliderY:OnChanged(function(value) saveViewmodelOffset() applyVmOffset() end)
+    sliderZ:OnChanged(function(value) saveViewmodelOffset() applyVmOffset() end)
 
     vmToggle:OnChanged(function(enabled)
         if enabled then
             updateVmHeartbeat()
         else
-            if vmHeartbeat then
-                vmHeartbeat:Disconnect()
-                vmHeartbeat = nil
-            end
+            if vmHeartbeat then vmHeartbeat:Disconnect() vmHeartbeat = nil end
             local player = game.Players.LocalPlayer
             if player then
                 local function resetOffset(container)
                     if container then
                         for _, tool in ipairs(container:GetChildren()) do
-                            if tool:IsA("Tool") then
-                                tool:SetAttribute("CustomViewmodelOffset", nil)
-                            end
+                            if tool:IsA("Tool") then tool:SetAttribute("CustomViewmodelOffset", nil) end
                         end
                     end
                 end
@@ -586,37 +306,229 @@ end)
         end
     end)
 
-    if vmToggle.Value then
-        updateVmHeartbeat()
+    if vmToggle.Value then updateVmHeartbeat() end
+
+    -- ===== INSTANT PROMPT =====
+    local instantPromptActive = false
+    miscGroup:AddButton('Instant Prompt', function()
+        if instantPromptActive then return end
+        instantPromptActive = true
+        local workspace = game:GetService("Workspace")
+        local function processPrompt(prompt)
+            if prompt:IsA("ProximityPrompt") then prompt.HoldDuration = 0 end
+        end
+        for _, prompt in ipairs(workspace:GetDescendants()) do processPrompt(prompt) end
+        workspace.DescendantAdded:Connect(processPrompt)
+        Library:Notify("Instant Prompt активирован. Все промты теперь мгновенные.", 2)
+    end)
+
+    -- ===== NO BLACK SCREEN =====
+    local noBlackScreenActive = false
+    miscGroup:AddButton('No Black Screen', function()
+        if noBlackScreenActive then return end
+        noBlackScreenActive = true
+        local player = game:GetService("Players").LocalPlayer
+        local playerScripts = player:WaitForChild("PlayerScripts", 5)
+        if not playerScripts then
+            Library:Notify("PlayerScripts не найдены.", 3)
+            return
+        end
+        local deathScreen = playerScripts:FindFirstChild("DeathScrean")
+        if deathScreen and deathScreen:IsA("LocalScript") then deathScreen:Destroy() end
+        playerScripts.ChildAdded:Connect(function(child)
+            if child.Name == "DeathScrean" and child:IsA("LocalScript") then child:Destroy() end
+        end)
+        Library:Notify("No Black Screen активирован. DeathScrean будет удаляться.", 2)
+    end)
+
+    -- ===== AUTO PASS TEST =====
+    miscGroup:AddButton('Auto Pass Test', function()
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local startTestRemote = replicatedStorage.Remotes.StartTest
+        local player = game.Players.LocalPlayer
+        local playerGui = player:WaitForChild("PlayerGui")
+
+        startTestRemote.OnClientEvent:Connect(function(testId)
+            startTestRemote:FireServer(testId, true)
+            Library:Notify("Test passed automatically!", 2)
+
+            local ui = playerGui:FindFirstChild("UI")
+            if ui then
+                local milTest = ui:FindFirstChild("MilTest")
+                if milTest and milTest:IsA("Frame") then milTest.Visible = false end
+            end
+        end)
+
+        Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
+    end)
+
+    -- =====================================================
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (GUN MODS)
+    -- =====================================================
+    -- Активные моды (все начинаются с false)
+    local activeMods = {
+        rapidFire = false,
+        noSpread = false,
+        instaEquip = false,
+        allAuto = false,
+        autoReload = false,
+        noReloadTime = false,
+        infBulletSpeed = false,
+        infMag = false,        -- бесконечный магазин (LimitedAmmoEnabled = false, AmmoPerMag = 99999)
+        infReserve = false,    -- бесконечный запас (MaxAmmo = 99999)
+        explosionRadius = nil  -- специальный мод: число (радиус взрыва)
+    }
+
+    -- Кеш оригинальных модулей Setting
+    local originalSettingsCache = {}
+
+    -- Функция применения всех активных модов к оригинальной таблице
+    local function applyMods(original)
+        local copy = {}
+        for k, v in pairs(original) do copy[k] = v end
+
+        if activeMods.rapidFire then copy.FireRate = 0 end
+        if activeMods.noSpread then
+            copy.Spread = 0
+            copy.Recoil = 0
+        end
+        if activeMods.instaEquip then copy.EquipTime = 0 end
+        if activeMods.allAuto then copy.Auto = true end
+        if activeMods.autoReload then copy.AutoReload = true end
+        if activeMods.noReloadTime then copy.ReloadTime = 0 end
+        if activeMods.infBulletSpeed then copy.BulletSpeed = 9999 end
+        if activeMods.infMag then
+            copy.LimitedAmmoEnabled = false
+            copy.AmmoPerMag = 99999
+        end
+        if activeMods.infReserve then
+            copy.MaxAmmo = 99999
+        end
+        if type(activeMods.explosionRadius) == "number" then
+            copy.ExplosionRadius = activeMods.explosionRadius
+        end
+
+        return copy
     end
 
-    -- ===== AUTO PASS TEST (кнопка мгновенной сдачи теста) =====
-   -- ===== AUTO PASS TEST (с закрытием GUI MilTest) =====
-miscGroup:AddButton('Auto Pass Test', function()
-    local replicatedStorage = game:GetService("ReplicatedStorage")
-    local startTestRemote = replicatedStorage.Remotes.StartTest
-    local player = game.Players.LocalPlayer
-    local playerGui = player:WaitForChild("PlayerGui")
-
-    -- Подключаем перехватчик
-    startTestRemote.OnClientEvent:Connect(function(testId)
-        startTestRemote:FireServer(testId, true)  -- true = тест пройден
-        Library:Notify("Test passed automatically!", 2)
-
-        -- Скрываем GUI теста (если есть)
-        local ui = playerGui:FindFirstChild("UI")
-        if ui then
-            local milTest = ui:FindFirstChild("MilTest")
-            if milTest and milTest:IsA("Frame") then
-                milTest.Visible = false
+    -- Перехват require
+    local oldRequire = hookfunction(require, function(moduleScript)
+        if moduleScript:IsA("ModuleScript") and moduleScript.Name == "Setting" then
+            local parent = moduleScript.Parent
+            while parent and not parent:IsA("Tool") do parent = parent.Parent end
+            if parent and parent:IsA("Tool") then
+                if not originalSettingsCache[moduleScript] then
+                    local original = oldRequire(moduleScript)
+                    if type(original) == "table" then
+                        originalSettingsCache[moduleScript] = original
+                    end
+                end
+                if originalSettingsCache[moduleScript] then
+                    return applyMods(originalSettingsCache[moduleScript])
+                end
             end
+        end
+        return oldRequire(moduleScript)
+    end)
+
+    -- Перезагрузка локального скрипта внутри Tool
+    local function restartGunScript(tool)
+        if not tool or not tool:IsA("Tool") then return end
+        local clientScript = tool:FindFirstChildWhichIsA("LocalScript")
+        if clientScript then
+            clientScript.Disabled = true
+            task.wait(0.05)
+            clientScript.Disabled = false
+        end
+    end
+
+    -- Обновить все текущие оружия (в руках и в рюкзаке)
+    local function refreshAllWeapons()
+        local player = game.Players.LocalPlayer
+        if not player then return end
+        local char = player.Character
+        local bp = player:FindFirstChild("Backpack")
+        if char then
+            for _, tool in ipairs(char:GetChildren()) do
+                if tool:IsA("Tool") then restartGunScript(tool) end
+            end
+        end
+        if bp then
+            for _, tool in ipairs(bp:GetChildren()) do
+                if tool:IsA("Tool") then restartGunScript(tool) end
+            end
+        end
+    end
+
+    -- Включить мод (однократно)
+    local function enableMod(modName)
+        if activeMods[modName] then return end
+        activeMods[modName] = true
+        refreshAllWeapons()
+    end
+
+    -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
+    miscGroup:AddButton('Rapid Fire', function()
+        enableMod('rapidFire')
+        Library:Notify("Rapid Fire (FireRate=0) включён", 2)
+    end)
+    miscGroup:AddButton('No Spread', function()
+        enableMod('noSpread')
+        Library:Notify("No Spread (Recoil & Spread=0) включён", 2)
+    end)
+    miscGroup:AddButton('Insta Equip', function()
+        enableMod('instaEquip')
+        Library:Notify("Insta Equip (EquipTime=0) включён", 2)
+    end)
+    miscGroup:AddButton('All Auto', function()
+        enableMod('allAuto')
+        Library:Notify("All Auto включён (все оружия авто)", 2)
+    end)
+    miscGroup:AddButton('Auto Reload', function()
+        enableMod('autoReload')
+        Library:Notify("Auto Reload (AutoReload=true) включён", 2)
+    end)
+    miscGroup:AddButton('No Reload Time', function()
+        enableMod('noReloadTime')
+        Library:Notify("No Reload Time (ReloadTime=0) включён", 2)
+    end)
+    miscGroup:AddButton('Inf Bullet Speed', function()
+        enableMod('infBulletSpeed')
+        Library:Notify("Inf Bullet Speed (BulletSpeed=9999) включён", 2)
+    end)
+    miscGroup:AddButton('Inf MagazineAmmo', function()
+        enableMod('infMag')
+        Library:Notify("Inf Magazine Ammo (LimitedAmmoEnabled=false) включён", 2)
+    end)
+    miscGroup:AddButton('Inf ReserveAmmo', function()
+        enableMod('infReserve')
+        Library:Notify("Inf Reserve Ammo (MaxAmmo=99999) включён", 2)
+    end)
+
+    -- ===== BULLET RADIUS (TEXTBOX) =====
+    local explosionRadiusInput = miscGroup:AddInput('ExplosionRadius', {
+        Text = 'Bullet Radius',
+        Default = '',
+        Placeholder = 'Введи радиус взрыва (например 8)',
+        Numeric = true,
+        Finished = true,   -- применяется только после нажатия Enter или потери фокуса
+        Tooltip = 'Устанавливает ExplosionRadius для всех оружий'
+    })
+
+    explosionRadiusInput:OnChanged(function(value)
+        local num = tonumber(value)
+        if num then
+            activeMods.explosionRadius = num
+            refreshAllWeapons()
+            Library:Notify("Радиус взрыва установлен на " .. num, 2)
+        else
+            activeMods.explosionRadius = nil
+            refreshAllWeapons()
         end
     end)
 
-    Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
-end)
-
-    -- ===== АВТО-БАЙ =====
+    -- ===== АВТО-БАЙ (без изменений) =====
+    -- ... (весь код авто-бая, как в предыдущей полной версии) ...
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
