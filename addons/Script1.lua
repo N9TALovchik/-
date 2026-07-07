@@ -1,4 +1,4 @@
--- ShopManager.lua (финальный, заменён Inf Ammo на 2 кнопки + Bullet Radius TextBox)
+-- ShopManager.lua (финальная стабильная версия с отложенным перехватом оружейных модов)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -36,7 +36,6 @@ function ShopManager:Init(Window, Tabs)
     local function startInfStamina()
         if infStaminaConnection then infStaminaConnection:Disconnect() end
         if not infStaminaToggle.Value then return end
-
         local player = game.Players.LocalPlayer
         infStaminaConnection = game:GetService("RunService").Heartbeat:Connect(function()
             if not player then return end
@@ -363,9 +362,8 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (GUN MODS)
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ)
     -- =====================================================
-    -- Активные моды (все начинаются с false)
     local activeMods = {
         rapidFire = false,
         noSpread = false,
@@ -374,75 +372,41 @@ function ShopManager:Init(Window, Tabs)
         autoReload = false,
         noReloadTime = false,
         infBulletSpeed = false,
-        infMag = false,        -- бесконечный магазин (LimitedAmmoEnabled = false, AmmoPerMag = 99999)
-        infReserve = false,    -- бесконечный запас (MaxAmmo = 99999)
-        explosionRadius = nil  -- специальный мод: число (радиус взрыва)
+        infMag = false,
+        infReserve = false,
+        explosionRadius = nil
     }
 
-    -- Кеш оригинальных модулей Setting
     local originalSettingsCache = {}
+    local requireHooked = false   -- перехвачен ли уже require
+    local oldRequire = nil        -- ссылка на оригинальный require
 
-    -- Функция применения всех активных модов к оригинальной таблице
     local function applyMods(original)
         local copy = {}
         for k, v in pairs(original) do copy[k] = v end
-
         if activeMods.rapidFire then copy.FireRate = 0 end
-        if activeMods.noSpread then
-            copy.Spread = 0
-            copy.Recoil = 0
-        end
+        if activeMods.noSpread then copy.Spread = 0; copy.Recoil = 0 end
         if activeMods.instaEquip then copy.EquipTime = 0 end
         if activeMods.allAuto then copy.Auto = true end
         if activeMods.autoReload then copy.AutoReload = true end
         if activeMods.noReloadTime then copy.ReloadTime = 0 end
         if activeMods.infBulletSpeed then copy.BulletSpeed = 9999 end
-        if activeMods.infMag then
-            copy.LimitedAmmoEnabled = false
-            copy.AmmoPerMag = 99999
-        end
-        if activeMods.infReserve then
-            copy.MaxAmmo = 99999
-        end
-        if type(activeMods.explosionRadius) == "number" then
-            copy.ExplosionRadius = activeMods.explosionRadius
-        end
-
+        if activeMods.infMag then copy.LimitedAmmoEnabled = false; copy.AmmoPerMag = 99999 end
+        if activeMods.infReserve then copy.MaxAmmo = 99999 end
+        if type(activeMods.explosionRadius) == "number" then copy.ExplosionRadius = activeMods.explosionRadius end
         return copy
     end
 
-    -- Перехват require
-    local oldRequire = hookfunction(require, function(moduleScript)
-        if moduleScript:IsA("ModuleScript") and moduleScript.Name == "Setting" then
-            local parent = moduleScript.Parent
-            while parent and not parent:IsA("Tool") do parent = parent.Parent end
-            if parent and parent:IsA("Tool") then
-                if not originalSettingsCache[moduleScript] then
-                    local original = oldRequire(moduleScript)
-                    if type(original) == "table" then
-                        originalSettingsCache[moduleScript] = original
-                    end
-                end
-                if originalSettingsCache[moduleScript] then
-                    return applyMods(originalSettingsCache[moduleScript])
-                end
-            end
-        end
-        return oldRequire(moduleScript)
-    end)
-
-    -- Перезагрузка локального скрипта внутри Tool
     local function restartGunScript(tool)
         if not tool or not tool:IsA("Tool") then return end
-        local clientScript = tool:FindFirstChildWhichIsA("LocalScript")
-        if clientScript then
-            clientScript.Disabled = true
+        local localScript = tool:FindFirstChildWhichIsA("LocalScript")
+        if localScript then
+            localScript.Disabled = true
             task.wait(0.05)
-            clientScript.Disabled = false
+            localScript.Disabled = false
         end
     end
 
-    -- Обновить все текущие оружия (в руках и в рюкзаке)
     local function refreshAllWeapons()
         local player = game.Players.LocalPlayer
         if not player then return end
@@ -460,50 +424,51 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- Включить мод (однократно)
+    -- Функция инициализации перехвата (вызывается при первом нажатии любой оружейной кнопки)
+    local function ensureRequireHooked()
+        if requireHooked then return end
+        requireHooked = true
+
+        oldRequire = hookfunction(require, function(moduleScript)
+            if moduleScript:IsA("ModuleScript") and moduleScript.Name == "Setting" then
+                local parent = moduleScript.Parent
+                while parent and not parent:IsA("Tool") do parent = parent.Parent end
+                if parent and parent:IsA("Tool") then
+                    if not originalSettingsCache[moduleScript] then
+                        local original = oldRequire(moduleScript)
+                        if type(original) == "table" then
+                            originalSettingsCache[moduleScript] = original
+                        end
+                    end
+                    if originalSettingsCache[moduleScript] then
+                        return applyMods(originalSettingsCache[moduleScript])
+                    end
+                end
+            end
+            return oldRequire(moduleScript)
+        end)
+
+        -- Сразу применяем ко всем текущим оружиям
+        refreshAllWeapons()
+    end
+
     local function enableMod(modName)
         if activeMods[modName] then return end
         activeMods[modName] = true
+        ensureRequireHooked()  -- активируем перехват, если ещё не сделано
         refreshAllWeapons()
     end
 
     -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
-    miscGroup:AddButton('Rapid Fire', function()
-        enableMod('rapidFire')
-        Library:Notify("Rapid Fire (FireRate=0) включён", 2)
-    end)
-    miscGroup:AddButton('No Spread', function()
-        enableMod('noSpread')
-        Library:Notify("No Spread (Recoil & Spread=0) включён", 2)
-    end)
-    miscGroup:AddButton('Insta Equip', function()
-        enableMod('instaEquip')
-        Library:Notify("Insta Equip (EquipTime=0) включён", 2)
-    end)
-    miscGroup:AddButton('All Auto', function()
-        enableMod('allAuto')
-        Library:Notify("All Auto включён (все оружия авто)", 2)
-    end)
-    miscGroup:AddButton('Auto Reload', function()
-        enableMod('autoReload')
-        Library:Notify("Auto Reload (AutoReload=true) включён", 2)
-    end)
-    miscGroup:AddButton('No Reload Time', function()
-        enableMod('noReloadTime')
-        Library:Notify("No Reload Time (ReloadTime=0) включён", 2)
-    end)
-    miscGroup:AddButton('Inf Bullet Speed', function()
-        enableMod('infBulletSpeed')
-        Library:Notify("Inf Bullet Speed (BulletSpeed=9999) включён", 2)
-    end)
-    miscGroup:AddButton('Inf MagazineAmmo', function()
-        enableMod('infMag')
-        Library:Notify("Inf Magazine Ammo (LimitedAmmoEnabled=false) включён", 2)
-    end)
-    miscGroup:AddButton('Inf ReserveAmmo', function()
-        enableMod('infReserve')
-        Library:Notify("Inf Reserve Ammo (MaxAmmo=99999) включён", 2)
-    end)
+    miscGroup:AddButton('Rapid Fire', function() enableMod('rapidFire') Library:Notify("Rapid Fire (FireRate=0) включён", 2) end)
+    miscGroup:AddButton('No Spread', function() enableMod('noSpread') Library:Notify("No Spread (Recoil & Spread=0) включён", 2) end)
+    miscGroup:AddButton('Insta Equip', function() enableMod('instaEquip') Library:Notify("Insta Equip (EquipTime=0) включён", 2) end)
+    miscGroup:AddButton('All Auto', function() enableMod('allAuto') Library:Notify("All Auto включён (все оружия авто)", 2) end)
+    miscGroup:AddButton('Auto Reload', function() enableMod('autoReload') Library:Notify("Auto Reload (AutoReload=true) включён", 2) end)
+    miscGroup:AddButton('No Reload Time', function() enableMod('noReloadTime') Library:Notify("No Reload Time (ReloadTime=0) включён", 2) end)
+    miscGroup:AddButton('Inf Bullet Speed', function() enableMod('infBulletSpeed') Library:Notify("Inf Bullet Speed (BulletSpeed=9999) включён", 2) end)
+    miscGroup:AddButton('Inf MagazineAmmo', function() enableMod('infMag') Library:Notify("Inf Magazine Ammo (LimitedAmmoEnabled=false) включён", 2) end)
+    miscGroup:AddButton('Inf ReserveAmmo', function() enableMod('infReserve') Library:Notify("Inf Reserve Ammo (MaxAmmo=99999) включён", 2) end)
 
     -- ===== BULLET RADIUS (TEXTBOX) =====
     local explosionRadiusInput = miscGroup:AddInput('ExplosionRadius', {
@@ -511,7 +476,7 @@ function ShopManager:Init(Window, Tabs)
         Default = '',
         Placeholder = 'Введи радиус взрыва (например 8)',
         Numeric = true,
-        Finished = true,   -- применяется только после нажатия Enter или потери фокуса
+        Finished = true,
         Tooltip = 'Устанавливает ExplosionRadius для всех оружий'
     })
 
@@ -519,16 +484,19 @@ function ShopManager:Init(Window, Tabs)
         local num = tonumber(value)
         if num then
             activeMods.explosionRadius = num
-            refreshAllWeapons()
-            Library:Notify("Радиус взрыва установлен на " .. num, 2)
         else
             activeMods.explosionRadius = nil
-            refreshAllWeapons()
         end
+        if requireHooked then
+            refreshAllWeapons()
+        else
+            ensureRequireHooked()  -- если перехвата ещё нет, включим его и обновим оружия
+        end
+        Library:Notify("Радиус взрыва установлен на " .. (num and tostring(num) or "нет"), 2)
     end)
 
-    -- ===== АВТО-БАЙ (без изменений) =====
-    -- ... (весь код авто-бая, как в предыдущей полной версии) ...
+    -- ===== АВТО-БАЙ =====
+    -- ... (весь код авто-бая без изменений) ...
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
