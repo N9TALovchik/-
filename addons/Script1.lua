@@ -1,4 +1,4 @@
--- ShopManager.lua (финальная стабильная версия с отложенным перехватом оружейных модов)
+-- ShopManager.lua (полный финальный, без сокращений)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -372,18 +372,19 @@ function ShopManager:Init(Window, Tabs)
         autoReload = false,
         noReloadTime = false,
         infBulletSpeed = false,
-        infMag = false,
         infReserve = false,
+        slowAnim = false,
         explosionRadius = nil
     }
 
     local originalSettingsCache = {}
-    local requireHooked = false   -- перехвачен ли уже require
-    local oldRequire = nil        -- ссылка на оригинальный require
+    local requireHooked = false
+    local oldRequire = nil
 
     local function applyMods(original)
         local copy = {}
         for k, v in pairs(original) do copy[k] = v end
+
         if activeMods.rapidFire then copy.FireRate = 0 end
         if activeMods.noSpread then copy.Spread = 0; copy.Recoil = 0 end
         if activeMods.instaEquip then copy.EquipTime = 0 end
@@ -391,9 +392,29 @@ function ShopManager:Init(Window, Tabs)
         if activeMods.autoReload then copy.AutoReload = true end
         if activeMods.noReloadTime then copy.ReloadTime = 0 end
         if activeMods.infBulletSpeed then copy.BulletSpeed = 9999 end
-        if activeMods.infMag then copy.LimitedAmmoEnabled = false; copy.AmmoPerMag = 99999 end
         if activeMods.infReserve then copy.MaxAmmo = 99999 end
-        if type(activeMods.explosionRadius) == "number" then copy.ExplosionRadius = activeMods.explosionRadius end
+        if activeMods.slowAnim then
+            copy.IdleAnimationSpeed = 0.1
+            copy.RunAnimationSpeed = 0.1
+            copy.FireAnimationSpeed = 0.1
+            copy.ReloadAnimationSpeed = 0.1
+            copy.EquippedAnimationSpeed = 0.1
+            copy.SecondaryFireAnimationSpeed = 0.1
+            copy.AimIdleAnimationSpeed = 0.1
+            copy.AimFireAnimationSpeed = 0.1
+            copy.AimSecondaryFireAnimationSpeed = 0.1
+            copy.HoldDownAnimationSpeed = 0.1
+            copy.SpinaAnimationSpeed = 0.1
+            copy.TacticalReloadAnimationSpeed = 0.1
+            copy.ShotgunClipinAnimationSpeed = 0.1
+            copy.ShotgunPumpinAnimationSpeed = 0.1
+            copy.SecondaryShotgunPumpinAnimationSpeed = 0.1
+            copy.InspectAnimationSpeed = 0.1
+        end
+        if type(activeMods.explosionRadius) == "number" then
+            copy.ExplosionRadius = activeMods.explosionRadius
+        end
+
         return copy
     end
 
@@ -424,7 +445,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- Функция инициализации перехвата (вызывается при первом нажатии любой оружейной кнопки)
     local function ensureRequireHooked()
         if requireHooked then return end
         requireHooked = true
@@ -448,14 +468,13 @@ function ShopManager:Init(Window, Tabs)
             return oldRequire(moduleScript)
         end)
 
-        -- Сразу применяем ко всем текущим оружиям
         refreshAllWeapons()
     end
 
     local function enableMod(modName)
         if activeMods[modName] then return end
         activeMods[modName] = true
-        ensureRequireHooked()  -- активируем перехват, если ещё не сделано
+        ensureRequireHooked()
         refreshAllWeapons()
     end
 
@@ -467,12 +486,41 @@ function ShopManager:Init(Window, Tabs)
     miscGroup:AddButton('Auto Reload', function() enableMod('autoReload') Library:Notify("Auto Reload (AutoReload=true) включён", 2) end)
     miscGroup:AddButton('No Reload Time', function() enableMod('noReloadTime') Library:Notify("No Reload Time (ReloadTime=0) включён", 2) end)
     miscGroup:AddButton('Inf Bullet Speed', function() enableMod('infBulletSpeed') Library:Notify("Inf Bullet Speed (BulletSpeed=9999) включён", 2) end)
-    miscGroup:AddButton('Inf MagazineAmmo', function() enableMod('infMag') Library:Notify("Inf Magazine Ammo (LimitedAmmoEnabled=false) включён", 2) end)
     miscGroup:AddButton('Inf ReserveAmmo', function() enableMod('infReserve') Library:Notify("Inf Reserve Ammo (MaxAmmo=99999) включён", 2) end)
+    miscGroup:AddButton('Slow Anim', function() enableMod('slowAnim') Library:Notify("Slow Anim (все скорости анимаций 0.1) включён", 2) end)
 
-    -- ===== BULLET RADIUS (TEXTBOX) =====
-    local explosionRadiusInput = miscGroup:AddInput('ExplosionRadius', {
-        Text = 'Bullet Radius',
+    -- ===== INF MAGAZINE (REMOTE) – старый способ с Heartbeat =====
+    local infMagRemoteActive = false
+    miscGroup:AddButton('Inf MagazineAmmo', function()
+        if infMagRemoteActive then return end
+        infMagRemoteActive = true
+        local player = game.Players.LocalPlayer
+        task.spawn(function()
+            while infMagRemoteActive do
+                local char = player.Character
+                if char then
+                    local tool = char:FindFirstChildWhichIsA("Tool")
+                    if tool then
+                        local gunServer = tool:FindFirstChild("GunScript_Server")
+                        if gunServer then
+                            local changeAmmo = gunServer:FindFirstChild("ChangeMagAndAmmo")
+                            if changeAmmo then
+                                pcall(function()
+                                    changeAmmo:FireServer(999, 9999)
+                                end)
+                            end
+                        end
+                    end
+                end
+                task.wait(0) -- каждый кадр
+            end
+        end)
+        Library:Notify("Inf Magazine активирован. Магазин и запас постоянно полны.", 2)
+    end)
+
+    -- ===== AT4 EXPLOSION RADIUS (TEXTBOX) =====
+    local explosionRadiusInput = miscGroup:AddInput('AT4ExplosionRadius', {
+        Text = 'AT4 Explosion Radius',
         Default = '',
         Placeholder = 'Введи радиус взрыва (например 8)',
         Numeric = true,
@@ -490,13 +538,12 @@ function ShopManager:Init(Window, Tabs)
         if requireHooked then
             refreshAllWeapons()
         else
-            ensureRequireHooked()  -- если перехвата ещё нет, включим его и обновим оружия
+            ensureRequireHooked()
         end
         Library:Notify("Радиус взрыва установлен на " .. (num and tostring(num) or "нет"), 2)
     end)
 
     -- ===== АВТО-БАЙ =====
-    -- ... (весь код авто-бая без изменений) ...
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
