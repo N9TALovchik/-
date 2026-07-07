@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финальный + Player Interaction)
+-- ShopManager.lua (полный финальный, с исправленной Kill Player)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -881,11 +881,10 @@ function ShopManager:Init(Window, Tabs)
     end)
     
     -- ============================================================
-    -- ===== НОВАЯ ГРУППА: PLAYER INTERACTION =====
+    -- ===== PLAYER INTERACTION (исправленная Kill Player) =====
     -- ============================================================
     local playerInteractionGroup = shopTab:AddLeftGroupbox('Player Interaction')
 
-    -- Вспомогательная функция получения списка игроков (кроме себя)
     local function getPlayerList()
         local list = {}
         for _, p in ipairs(game.Players:GetPlayers()) do
@@ -896,7 +895,6 @@ function ShopManager:Init(Window, Tabs)
         return list
     end
 
-    -- Выпадающий список игроков
     local playerDropdown = playerInteractionGroup:AddDropdown('TargetPlayer', {
         Text = 'Target Player',
         Values = getPlayerList(),
@@ -906,14 +904,12 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Select a player to interact with'
     })
 
-    -- Кнопка обновления списка
     playerInteractionGroup:AddButton('Refresh Player List', function()
         local newList = getPlayerList()
         playerDropdown:SetValues(newList)
         Library:Notify("Player list refreshed.", 2)
     end)
 
-    -- Кнопка Kill Player
     playerInteractionGroup:AddButton('Kill Player', function()
         local targetName = playerDropdown.Value
         if not targetName then
@@ -938,9 +934,11 @@ function ShopManager:Init(Window, Tabs)
         end
 
         local oldCameraMode = localPlayer.CameraMode
-        localPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+        local oldCameraSubject = workspace.CurrentCamera.CameraSubject
 
-        task.wait(0.1) -- даём камере время переключиться
+        localPlayer.CameraMode = Enum.CameraMode.LockFirstPerson  -- пули летят из глаз
+
+        task.wait(0.1)
 
         local targetChar = targetPlayer.Character
         if not targetChar then
@@ -955,37 +953,39 @@ function ShopManager:Init(Window, Tabs)
             return
         end
 
-        -- Помещаем камеру в голову и направляем строго вниз
-        workspace.CurrentCamera.CFrame = CFrame.lookAt(head.Position, head.Position + Vector3.new(0, -1, 0))
-
-        -- Эмулируем нажатие кнопки стрельбы
-        local mouse = localPlayer:GetMouse()
-        pcall(function()
-            mouse.Button1Down()
-        end)
-
-        -- Ждём, пока цель умрёт или пройдёт таймаут
         local humanoid = targetChar:FindFirstChild("Humanoid")
         if not humanoid then
-            pcall(function() mouse.Button1Up() end)
-            localPlayer.CameraMode = oldCameraMode
             Library:Notify("Target has no Humanoid.", 3)
+            localPlayer.CameraMode = oldCameraMode
             return
         end
 
+        -- Привязываем камеру к голове цели (как в StartSpectate)
+        workspace.CurrentCamera.CameraSubject = head
+
+        -- Зажимаем стрельбу
+        local mouse = localPlayer:GetMouse()
+        pcall(function() mouse.Button1Down() end)
+
+        -- Цикл: каждый кадр смотрим строго вниз из головы, пока цель жива
         local startTime = tick()
-        while humanoid.Health > 0 and targetChar.Parent and tick() - startTime < 10 do
-            task.wait(0.1)
-        end
-
-        pcall(function() mouse.Button1Up() end)
-
-        localPlayer.CameraMode = oldCameraMode
-        if humanoid.Health <= 0 then
-            Library:Notify("Player killed.", 2)
-        else
-            Library:Notify("Kill attempt finished (timeout or target left).", 3)
-        end
+        local heartBeatConnection
+        heartBeatConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            if humanoid.Health <= 0 or not targetChar.Parent or tick() - startTime > 10 then
+                heartBeatConnection:Disconnect()
+                pcall(function() mouse.Button1Up() end)
+                workspace.CurrentCamera.CameraSubject = oldCameraSubject
+                localPlayer.CameraMode = oldCameraMode
+                if humanoid.Health <= 0 then
+                    Library:Notify("Player killed.", 2)
+                else
+                    Library:Notify("Kill attempt finished (timeout or target left).", 3)
+                end
+                return
+            end
+            -- Принудительно поворачиваем камеру строго вниз
+            workspace.CurrentCamera.CFrame = CFrame.lookAt(head.Position, head.Position + Vector3.new(0, -1, 0))
+        end)
     end)
 
     Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
