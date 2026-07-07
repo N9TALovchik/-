@@ -985,9 +985,9 @@ playerInteractionGroup:AddButton('Kill Player', function()
         -- Принудительно поворачиваем камеру строго вниз из головы цели
         workspace.CurrentCamera.CFrame = CFrame.lookAt(head.Position, head.Position + Vector3.new(0, -1, 0))
 
-        -- Имитируем быстрый клик: нажать и сразу отпустить
-        pcall(function() mouse.Button1Down() end)
-        pcall(function() mouse.Button1Up() end)
+        pcall(function() mouse1press() end)
+        task.wait(0.01)
+        pcall(function() mouse1release() end)
     end)
 end)
 
