@@ -169,6 +169,119 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Персонаж умрёт и возродится с Trusted. Проверки отключены.", 2)
     end)
 
+
+-- Активные моды (изначально все выключены)
+local activeMods = {
+    rapidFire = false,
+    noSpread = false,
+    instaEquip = false,
+    allAuto = false
+}
+
+-- Кеш изменённых копий для каждого модуля Setting (ключ – модуль, значение – модифицированная таблица)
+local patchedSettings = {}
+
+-- Функция, которая применяет все активные моды к оригинальной таблице настроек
+local function applyMods(original)
+    local copy = {}
+    for k, v in pairs(original) do
+        copy[k] = v
+    end
+    if activeMods.rapidFire then
+        copy.FireRate = 0
+    end
+    if activeMods.noSpread then
+        copy.Spread = 0
+        copy.Recoil = 0
+    end
+    if activeMods.instaEquip then
+        copy.EquipTime = 0
+    end
+    if activeMods.allAuto then
+        copy.Auto = true
+    end
+    return copy
+end
+
+-- Перехватываем require
+local oldRequire
+oldRequire = hookfunction(require, function(moduleScript)
+    if moduleScript:IsA("ModuleScript") and moduleScript.Name == "Setting" then
+        local parent = moduleScript.Parent
+        while parent and not parent:IsA("Tool") do
+            parent = parent.Parent
+        end
+        if parent and parent:IsA("Tool") then
+            if not patchedSettings[moduleScript] then
+                local original = oldRequire(moduleScript)
+                if type(original) == "table" then
+                    patchedSettings[moduleScript] = original
+                end
+            end
+            if patchedSettings[moduleScript] then
+                return applyMods(patchedSettings[moduleScript])
+            end
+        end
+    end
+    return oldRequire(moduleScript)
+end)
+
+-- Функция перезагрузки локального скрипта оружия
+local function restartGunScript(tool)
+    if not tool or not tool:IsA("Tool") then return end
+    local localScript = tool:FindFirstChildWhichIsA("LocalScript")
+    if localScript then
+        localScript.Disabled = true
+        task.wait(0.05)
+        localScript.Disabled = false
+    end
+end
+
+-- Функция, которая применяет моды ко всем текущим оружиям
+local function refreshAllWeapons()
+    if character then
+        for _, tool in ipairs(character:GetChildren()) do
+            if tool:IsA("Tool") then restartGunScript(tool) end
+        end
+    end
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then restartGunScript(tool) end
+    end
+end
+
+-- Активация/деактивация мода (по кнопке)
+local function setMod(modName, enable)
+    if activeMods[modName] == enable then return end
+    activeMods[modName] = enable
+    refreshAllWeapons()
+end
+
+-- ===== КНОПКИ =====
+miscGroup:AddButton('Rapid Fire', function()
+    if activeMods.rapidFire then return end
+    setMod('rapidFire', true)
+    Library:Notify("Rapid Fire включён", 2)
+end)
+
+miscGroup:AddButton('No Spread', function()
+    if activeMods.noSpread then return end
+    setMod('noSpread', true)
+    Library:Notify("No Spread (Recoil & Spread) включён", 2)
+end)
+
+miscGroup:AddButton('Insta Equip', function()
+    if activeMods.instaEquip then return end
+    setMod('instaEquip', true)
+    Library:Notify("Insta Equip включён", 2)
+end)
+
+miscGroup:AddButton('All Auto', function()
+    if activeMods.allAuto then return end
+    setMod('allAuto', true)
+    Library:Notify("All Auto включён (все оружия авто)", 2)
+end)
+
+    
     -- ===== NoJumpDelay (кнопка с постоянным удалением JumpPhysic) =====
     local noJumpLoopActive = false
     miscGroup:AddButton('NoJumpDelay', function()
