@@ -477,7 +477,49 @@ function ShopManager:Init(Window, Tabs)
         ensureRequireHooked()
         refreshAllWeapons()
     end
+   -- ===== Enable All Gun Mods =====
+miscGroup:AddButton('Enable All Gun Mods', function()
+    -- Включаем все моды, которые управляются через activeMods
+    enableMod('rapidFire')
+    enableMod('noSpread')
+    enableMod('instaEquip')
+    enableMod('allAuto')
+    enableMod('autoReload')
+    enableMod('noReloadTime')
+    enableMod('infBulletSpeed')
+    enableMod('infReserve')
+    enableMod('slowAnim')
+    
+    -- Запускаем Inf Magazine (Remote), если ещё не запущен
+    if not infMagRemoteActive then
+        infMagRemoteActive = true
+        local player = game.Players.LocalPlayer
+        task.spawn(function()
+            while infMagRemoteActive do
+                local char = player.Character
+                if char then
+                    local tool = char:FindFirstChildWhichIsA("Tool")
+                    if tool then
+                        local gunServer = tool:FindFirstChild("GunScript_Server")
+                        if gunServer then
+                            local changeAmmo = gunServer:FindFirstChild("ChangeMagAndAmmo")
+                            if changeAmmo then
+                                pcall(function()
+                                    changeAmmo:FireServer(999, 9999)
+                                end)
+                            end
+                        end
+                    end
+                end
+                task.wait(0)
+            end
+        end)
+    end
+    
+    Library:Notify("All gun mods enabled!", 2)
+end)
 
+    miscGroup:AddDivider()
     -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
     miscGroup:AddButton('Rapid Fire', function() enableMod('rapidFire') Library:Notify("Rapid Fire (FireRate=0) включён", 2) end)
     miscGroup:AddButton('No Spread', function() enableMod('noSpread') Library:Notify("No Spread (Recoil & Spread=0) включён", 2) end)
