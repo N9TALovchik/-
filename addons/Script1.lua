@@ -1,4 +1,4 @@
--- ShopManager.lua (добавлены Lifesteal и Tracer)
+-- ShopManager.lua (полный финальный, без сокращений)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -374,8 +374,6 @@ function ShopManager:Init(Window, Tabs)
         infBulletSpeed = false,
         infReserve = false,
         slowAnim = false,
-        lifesteal = false,   -- добавлено
-        tracer = false,      -- добавлено
         explosionRadius = nil
     }
 
@@ -395,8 +393,6 @@ function ShopManager:Init(Window, Tabs)
         if activeMods.noReloadTime then copy.ReloadTime = 0 end
         if activeMods.infBulletSpeed then copy.BulletSpeed = 9999 end
         if activeMods.infReserve then copy.MaxAmmo = 99999 end
-        if activeMods.lifesteal then copy.Lifesteal = 100 end       -- добавлено
-        if activeMods.tracer then copy.TracerEnabled = true end     -- добавлено
         if activeMods.slowAnim then
             copy.IdleAnimationSpeed = 0.1
             copy.RunAnimationSpeed = 0.1
@@ -481,48 +477,47 @@ function ShopManager:Init(Window, Tabs)
         ensureRequireHooked()
         refreshAllWeapons()
     end
-
-    -- ===== Enable All Gun Mods =====
-    miscGroup:AddButton('Enable All Gun Mods', function()
-        enableMod('rapidFire')
-        enableMod('noSpread')
-        enableMod('instaEquip')
-        enableMod('allAuto')
-        enableMod('autoReload')
-        enableMod('noReloadTime')
-        enableMod('infBulletSpeed')
-        enableMod('infReserve')
-        enableMod('slowAnim')
-        enableMod('lifesteal')
-        enableMod('tracer')
-        
-        if not infMagRemoteActive then
-            infMagRemoteActive = true
-            local player = game.Players.LocalPlayer
-            task.spawn(function()
-                while infMagRemoteActive do
-                    local char = player.Character
-                    if char then
-                        local tool = char:FindFirstChildWhichIsA("Tool")
-                        if tool then
-                            local gunServer = tool:FindFirstChild("GunScript_Server")
-                            if gunServer then
-                                local changeAmmo = gunServer:FindFirstChild("ChangeMagAndAmmo")
-                                if changeAmmo then
-                                    pcall(function()
-                                        changeAmmo:FireServer(999, 9999)
-                                    end)
-                                end
+   -- ===== Enable All Gun Mods =====
+miscGroup:AddButton('Enable All Gun Mods', function()
+    -- Включаем все моды, которые управляются через activeMods
+    enableMod('rapidFire')
+    enableMod('noSpread')
+    enableMod('instaEquip')
+    enableMod('allAuto')
+    enableMod('autoReload')
+    enableMod('noReloadTime')
+    enableMod('infBulletSpeed')
+    enableMod('infReserve')
+    enableMod('slowAnim')
+    
+    -- Запускаем Inf Magazine (Remote), если ещё не запущен
+    if not infMagRemoteActive then
+        infMagRemoteActive = true
+        local player = game.Players.LocalPlayer
+        task.spawn(function()
+            while infMagRemoteActive do
+                local char = player.Character
+                if char then
+                    local tool = char:FindFirstChildWhichIsA("Tool")
+                    if tool then
+                        local gunServer = tool:FindFirstChild("GunScript_Server")
+                        if gunServer then
+                            local changeAmmo = gunServer:FindFirstChild("ChangeMagAndAmmo")
+                            if changeAmmo then
+                                pcall(function()
+                                    changeAmmo:FireServer(999, 9999)
+                                end)
                             end
                         end
                     end
-                    task.wait(0)
                 end
-            end)
-        end
-        
-        Library:Notify("All gun mods enabled!", 2)
-    end)
+                task.wait(0)
+            end
+        end)
+    end
+    
+    Library:Notify("All gun mods enabled!", 2)
+end)
 
     miscGroup:AddDivider()
     -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
@@ -535,10 +530,8 @@ function ShopManager:Init(Window, Tabs)
     miscGroup:AddButton('Inf Bullet Speed', function() enableMod('infBulletSpeed') Library:Notify("Inf Bullet Speed (BulletSpeed=9999) включён", 2) end)
     miscGroup:AddButton('Inf ReserveAmmo', function() enableMod('infReserve') Library:Notify("Inf Reserve Ammo (MaxAmmo=99999) включён", 2) end)
     miscGroup:AddButton('Slow Anim', function() enableMod('slowAnim') Library:Notify("Slow Anim (все скорости анимаций 0.1) включён", 2) end)
-    miscGroup:AddButton('Inf Lifesteal', function() enableMod('lifesteal') Library:Notify("Lifesteal (100%) включён", 2) end)      -- новая кнопка
-    miscGroup:AddButton('Enable Tracer', function() enableMod('tracer') Library:Notify("Tracer включён", 2) end)                -- новая кнопка
 
-    -- ===== INF MAGAZINE (REMOTE) =====
+    -- ===== INF MAGAZINE (REMOTE) – старый способ с Heartbeat =====
     local infMagRemoteActive = false
     miscGroup:AddButton('Inf MagazineAmmo', function()
         if infMagRemoteActive then return end
@@ -561,7 +554,7 @@ function ShopManager:Init(Window, Tabs)
                         end
                     end
                 end
-                task.wait(0)
+                task.wait(0) -- каждый кадр
             end
         end)
         Library:Notify("Inf Magazine активирован. Магазин и запас постоянно полны.", 2)
