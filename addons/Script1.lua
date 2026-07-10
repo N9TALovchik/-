@@ -362,17 +362,17 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 -- =====================================================
--- ESP GROUP (Car ESP) – экранные Drawing, финальная версия (без аспект-багов)
+-- ESP GROUP (Car ESP) – финальная версия
 -- =====================================================
 local espGroup = shopTab:AddLeftGroupbox('ESP')
 local workspace = game:GetService("Workspace")
 local runService = game:GetService("RunService")
 
--- Car Highlight
+-- Car Highlight (главный тумблер)
 local carHighlightToggle = espGroup:AddToggle('CarHighlightToggle', {
     Text = 'Car Highlight',
     Default = false,
-    Tooltip = 'Включает подсветку машин'
+    Tooltip = 'Включает подсветку и текст над машинами'
 })
 espGroup:AddLabel('Fill Color'):AddColorPicker('CarHighlightFillColor', { Default = Color3.fromRGB(255, 0, 0) })
 espGroup:AddLabel('Outline Color'):AddColorPicker('CarHighlightOutlineColor', { Default = Color3.fromRGB(255, 255, 255) })
@@ -393,11 +393,10 @@ local strokeSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
 espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
 
 -- Хранилища
-local carModels = {}                     -- все модели машин
-local carDrawings = {}                  -- [carModel] = { Owner, Name, HP }
-local ownerNames = {}                  -- кеш имён владельцев
+local carModels = {}
+local carDrawings = {}   -- [carModel] = { Owner, Name, HP }
+local ownerNames = {}
 
--- Получение имени владельца
 local function getOwnerName(userId)
     if not userId or userId == 0 then return "None" end
     if not ownerNames[userId] then
@@ -409,7 +408,7 @@ local function getOwnerName(userId)
     return ownerNames[userId]
 end
 
--- Хайлайты (как раньше)
+-- Хайлайты
 local function addCarHighlight(carModel)
     local hl = Instance.new("Highlight")
     hl.Name = "CarHighlight"
@@ -432,14 +431,22 @@ local function updateHighlight(carModel)
     hl.OutlineTransparency = outlineTransSlider.Value
 end
 
--- ============================================================
--- НОВАЯ функция отрисовки текста (аналог плеерного ESP, без аспект-багов)
--- ============================================================
+-- Отрисовка текста (только если Highlight включён)
 local function updateCarDrawings(carModel, camera)
     local drawings = carDrawings[carModel]
-    local anyInfo = showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value
 
-    -- Если всё выключено – полностью удаляем Drawing
+    -- Если Highlight выключен – удаляем все рисунки и выходим
+    if not carHighlightToggle.Value then
+        if drawings then
+            for _, d in pairs(drawings) do
+                pcall(function() d:Remove() end)
+            end
+            carDrawings[carModel] = nil
+        end
+        return
+    end
+
+    local anyInfo = showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value
     if not anyInfo then
         if drawings then
             for _, d in pairs(drawings) do
@@ -450,7 +457,7 @@ local function updateCarDrawings(carModel, camera)
         return
     end
 
-    -- Определяем опорную точку (аналог HumanoidRootPart)
+    -- Определяем опорную точку
     local primaryPart = carModel.PrimaryPart or carModel:FindFirstChild("DriveSeat") or carModel:FindFirstChildWhichIsA("BasePart")
     if not primaryPart then
         if drawings then
@@ -461,14 +468,12 @@ local function updateCarDrawings(carModel, camera)
         return
     end
 
-    -- Размеры модели (аналог GetExtentsSize)
     local modelSize = carModel:GetExtentsSize()
     if modelSize.Magnitude == 0 then
-        modelSize = Vector3.new(4, 2, 4)  -- дефолтный размер, если не определился
+        modelSize = Vector3.new(4, 2, 4)
     end
 
     local centerPos = primaryPart.Position
-    -- Точка над машиной (как "голова" для плеера)
     local topPos = centerPos + Vector3.new(0, modelSize.Y * 0.5 + 1, 0)
 
     local screenTop, onScreen = camera:WorldToViewportPoint(topPos)
@@ -484,7 +489,6 @@ local function updateCarDrawings(carModel, camera)
         return
     end
 
-    -- Создаём Drawing, если ещё нет
     if not drawings then
         drawings = {
             Owner = Drawing.new("Text"),
@@ -503,7 +507,6 @@ local function updateCarDrawings(carModel, camera)
     local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
     local textSize = strokeSizeSlider.Value
 
-    -- Строки
     local ownerText = showOwnerToggle.Value and getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0) or nil
     local nameText = showNameToggle.Value and carModel.Name or nil
     local hpValue = tonumber(carModel:GetAttribute("VehicleHP")) or 0
@@ -511,11 +514,9 @@ local function updateCarDrawings(carModel, camera)
     local hpPercent = (maxHP > 0) and math.floor((hpValue / maxHP) * 100) or 0
     local hpText = showHPToggle.Value and (hpPercent .. "%") or nil
 
-    -- Позиционирование как в плеерном ESP: текст над боксом, начиная с верхней точки
     local lineHeight = textSize * 1.5
-    local startY = screenTop.Y - lineHeight   -- первая строка над "головой"
+    local startY = screenTop.Y - lineHeight
 
-    -- Owner
     if ownerText then
         drawings.Owner.Text = ownerText
         drawings.Owner.Position = Vector2.new(screenTop.X, startY)
@@ -526,7 +527,6 @@ local function updateCarDrawings(carModel, camera)
         drawings.Owner.Visible = false
     end
 
-    -- Name
     if nameText then
         drawings.Name.Text = nameText
         drawings.Name.Position = Vector2.new(screenTop.X, startY + lineHeight)
@@ -537,7 +537,6 @@ local function updateCarDrawings(carModel, camera)
         drawings.Name.Visible = false
     end
 
-    -- HP
     if hpText then
         drawings.HP.Text = hpText
         drawings.HP.Position = Vector2.new(screenTop.X, startY + lineHeight * 2)
@@ -549,7 +548,6 @@ local function updateCarDrawings(carModel, camera)
     end
 end
 
--- Полное удаление Drawing для машины
 local function removeCarDrawings(carModel)
     local drawings = carDrawings[carModel]
     if drawings then
@@ -560,7 +558,7 @@ local function removeCarDrawings(carModel)
     end
 end
 
--- Добавление / удаление машин
+-- Добавление/удаление машин
 local function onCarAdded(car)
     if not car:IsA("Model") then return end
     table.insert(carModels, car)
@@ -568,20 +566,13 @@ local function onCarAdded(car)
         addCarHighlight(car)
     end
 
-    -- При изменении HP (0 = удалить)
-    car:GetAttributeChangedSignal("VehicleHP"):Connect(function()
-        local hp = tonumber(car:GetAttribute("VehicleHP")) or 0
-        if hp <= 0 then
-            onCarRemoved(car)
-        end
-    end)
-    -- При установке VehicleDestroyed = true
+    -- Автоматическое удаление только при Destroyed = true
     car:GetAttributeChangedSignal("VehicleDestroyed"):Connect(function()
         if car:GetAttribute("VehicleDestroyed") == true then
             onCarRemoved(car)
         end
     end)
-    -- Если уже уничтожена
+    -- Если уже уничтожена при добавлении
     if car:GetAttribute("VehicleDestroyed") == true then
         onCarRemoved(car)
     end
@@ -595,7 +586,6 @@ local function onCarRemoved(car)
     removeCarDrawings(car)
 end
 
--- Первичное сканирование LiveCars
 task.defer(function()
     local liveCars = workspace:FindFirstChild("LiveCars")
     if liveCars then
@@ -607,7 +597,6 @@ task.defer(function()
     end
 end)
 
--- Цикл обновления позиций (RenderStepped)
 local updateConnection = nil
 local function startUpdateLoop()
     if updateConnection then return end
@@ -626,19 +615,29 @@ local function stopUpdateLoop()
     end
 end
 
--- Включаем/выключаем цикл в зависимости от тумблеров
 local function checkLoop()
-    if showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value then
+    if carHighlightToggle.Value and (showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value) then
         startUpdateLoop()
     else
         stopUpdateLoop()
     end
 end
+
+carHighlightToggle:OnChanged(function(enabled)
+    for _, car in ipairs(carModels) do
+        if enabled then
+            addCarHighlight(car)
+        else
+            removeCarHighlight(car)
+            removeCarDrawings(car)   -- при выключении хайлайта удаляем текст
+        end
+    end
+    checkLoop()
+end)
 showOwnerToggle:OnChanged(checkLoop)
 showNameToggle:OnChanged(checkLoop)
 showHPToggle:OnChanged(checkLoop)
 
--- При изменении размера/цвета сразу перерисовываем всё
 local function redrawAll()
     if not updateConnection then return end
     local camera = workspace.CurrentCamera
@@ -650,7 +649,6 @@ end
 strokeSizeSlider:OnChanged(redrawAll)
 Options.CarInfoTextColor:OnChanged(redrawAll)
 
--- Обновление хайлайтов
 local function updateAllHighlights()
     if carHighlightToggle.Value then
         for _, car in ipairs(carModels) do
@@ -663,13 +661,6 @@ Options.CarHighlightOutlineColor:OnChanged(updateAllHighlights)
 fillTransSlider:OnChanged(updateAllHighlights)
 outlineTransSlider:OnChanged(updateAllHighlights)
 
-carHighlightToggle:OnChanged(function(enabled)
-    for _, car in ipairs(carModels) do
-        if enabled then addCarHighlight(car) else removeCarHighlight(car) end
-    end
-end)
-
--- Начальная проверка
 checkLoop()
     -- =====================================================
     -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без lifesteal и tracer
