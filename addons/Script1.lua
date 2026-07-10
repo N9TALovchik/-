@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 -- =====================================================
--- ESP GROUP (Car ESP) – BillboardGui (без CanvasSize, без PrimaryPart)
+-- ESP GROUP (Car ESP) – исправленный HP, дальность, удаление при уничтожении
 -- =====================================================
 local espGroup = shopTab:AddLeftGroupbox('ESP')
 local workspace = game:GetService("Workspace")
@@ -444,7 +444,6 @@ local function createOrUpdateLabel(carModel)
         return
     end
 
-    -- Формируем текст
     local parts = {}
     if showOwner then
         table.insert(parts, getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0))
@@ -453,8 +452,13 @@ local function createOrUpdateLabel(carModel)
         table.insert(parts, carModel.Name)
     end
     if showHP then
-        local hp = carModel:GetAttribute("VehicleHp")
-        table.insert(parts, hp and tostring(hp) or "?")
+        local hp = tonumber(carModel:GetAttribute("VehicleHP")) or 0
+        local maxHP = tonumber(carModel:GetAttribute("VehicleMaxHP")) or 1000
+        local percent = 0
+        if maxHP > 0 then
+            percent = math.floor((hp / maxHP) * 100)
+        end
+        table.insert(parts, percent .. "%")
     end
     local text = "[" .. table.concat(parts, " | ") .. "]"
 
@@ -465,8 +469,8 @@ local function createOrUpdateLabel(carModel)
         gui = Instance.new("BillboardGui")
         gui.Name = "CarInfoGUI"
         gui.AlwaysOnTop = true
-        gui.Size = UDim2.new(0, 300, 0, 50)   -- фиксированный размер, CanvasSize не нужен!
-        gui.MaxDistance = 1000
+        gui.Size = UDim2.new(0, 300, 0, 50)
+        gui.MaxDistance = 10000   -- очень далеко видно
         gui.Parent = carModel
 
         local label = Instance.new("TextLabel")
@@ -509,12 +513,31 @@ local function onCarAdded(car)
         addCarHighlight(car)
     end
     createOrUpdateLabel(car)
-    car:GetAttributeChangedSignal("VehicleHp"):Connect(function()
-        pcall(createOrUpdateLabel, car)
+
+    -- Слушаем изменения HP и уничтожение
+    car:GetAttributeChangedSignal("VehicleHP"):Connect(function()
+        local hp = tonumber(car:GetAttribute("VehicleHP")) or 0
+        if hp <= 0 then
+            onCarRemoved(car)   -- удаляем ESP при нулевом HP
+        else
+            pcall(createOrUpdateLabel, car)
+        end
     end)
+
     car:GetAttributeChangedSignal("VehicleOwnerUserId"):Connect(function()
         pcall(createOrUpdateLabel, car)
     end)
+
+    car:GetAttributeChangedSignal("VehicleDestroyed"):Connect(function()
+        if car:GetAttribute("VehicleDestroyed") == true then
+            onCarRemoved(car)
+        end
+    end)
+
+    -- Если уже уничтожена при добавлении – убрать
+    if car:GetAttribute("VehicleDestroyed") == true then
+        onCarRemoved(car)
+    end
 end
 
 local function onCarRemoved(car)
