@@ -362,13 +362,13 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 -- =====================================================
--- ESP GROUP (Car ESP) – экранные Drawing (аналог плеерного ESP, без BillboardGui)
+-- ESP GROUP (Car ESP) – экранные Drawing, исправлено
 -- =====================================================
 local espGroup = shopTab:AddLeftGroupbox('ESP')
 local workspace = game:GetService("Workspace")
 local runService = game:GetService("RunService")
 
--- Car Highlight (без изменений)
+-- Car Highlight
 local carHighlightToggle = espGroup:AddToggle('CarHighlightToggle', {
     Text = 'Car Highlight',
     Default = false,
@@ -392,12 +392,12 @@ local textSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
 })
 espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
 
--- Хранилище машин и их Drawing-объектов
-local carModels = {}
-local carDrawings = {}          -- [carModel] = { Name, Owner, HP, Distance }  (Drawing objects)
-local ownerNames = {}           -- кеш имён владельцев
+-- Хранилища
+local carModels = {}                     -- все модели машин
+local carDrawings = {}                  -- [carModel] = { Owner, Name, HP }
+local ownerNames = {}                  -- кеш имён владельцев
 
--- Функция получения имени по userId
+-- Получение имени владельца
 local function getOwnerName(userId)
     if not userId or userId == 0 then return "None" end
     if not ownerNames[userId] then
@@ -409,7 +409,7 @@ local function getOwnerName(userId)
     return ownerNames[userId]
 end
 
--- Хайлайты (без изменений)
+-- Хайлайты (как раньше)
 local function addCarHighlight(carModel)
     local hl = Instance.new("Highlight")
     hl.Name = "CarHighlight"
@@ -432,15 +432,28 @@ local function updateHighlight(carModel)
     hl.OutlineTransparency = outlineTransSlider.Value
 end
 
--- Создание/обновление Drawing-текстов для одной машины
-local function updateCarDrawings(carModel, camera, screenSize)
+-- Создание / обновление трёх Drawing-строк для одной машины
+local function updateCarDrawings(carModel, camera)
     local drawings = carDrawings[carModel]
+    local anyInfo = showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value
+
+    -- Если всё выключено – полностью удаляем Drawing
+    if not anyInfo then
+        if drawings then
+            for _, d in pairs(drawings) do
+                pcall(function() d:Remove() end)
+            end
+            carDrawings[carModel] = nil
+        end
+        return
+    end
+
+    -- Создаём, если ещё нет
     if not drawings then
         drawings = {
-            Name = Drawing.new("Text"),
             Owner = Drawing.new("Text"),
-            HP = Drawing.new("Text"),
-            Distance = Drawing.new("Text")
+            Name = Drawing.new("Text"),
+            HP = Drawing.new("Text")
         }
         for _, d in pairs(drawings) do
             d.Visible = false
@@ -451,18 +464,10 @@ local function updateCarDrawings(carModel, camera, screenSize)
         carDrawings[carModel] = drawings
     end
 
-    local anyInfo = showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value
-    if not anyInfo then
-        for _, d in pairs(drawings) do
-            d.Visible = false
-        end
-        return
-    end
-
-    -- Получаем позицию машины (по центру или над капотом)
+    -- Определяем позицию (центр модели + высота)
     local pos = nil
     if carModel.PrimaryPart then
-        pos = carModel.PrimaryPart.Position + Vector3.new(0, 3, 0)  -- над машиной
+        pos = carModel.PrimaryPart.Position + Vector3.new(0, 3, 0)
     else
         local driveSeat = carModel:FindFirstChild("DriveSeat")
         if driveSeat and driveSeat:IsA("BasePart") then
@@ -475,23 +480,18 @@ local function updateCarDrawings(carModel, camera, screenSize)
         end
     end
     if not pos then
-        for _, d in pairs(drawings) do
-            d.Visible = false
-        end
+        for _, d in pairs(drawings) do d.Visible = false end
         return
     end
 
     local screenPos, onScreen = camera:WorldToViewportPoint(pos)
     local distance = (pos - camera.CFrame.Position).Magnitude
-    local maxDist = 1000  -- дальность отрисовки текста
-    if distance > maxDist then
-        onScreen = false
-    end
+    if distance > 1000 then onScreen = false end   -- дальность отрисовки
 
     local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
     local textSize = textSizeSlider.Value
 
-    -- Подготовка строк
+    -- Строки
     local ownerText = showOwnerToggle.Value and getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0) or nil
     local nameText = showNameToggle.Value and carModel.Name or nil
     local hpValue = tonumber(carModel:GetAttribute("VehicleHP")) or 0
@@ -499,71 +499,45 @@ local function updateCarDrawings(carModel, camera, screenSize)
     local hpPercent = (maxHP > 0) and math.floor((hpValue / maxHP) * 100) or 0
     local hpText = showHPToggle.Value and (hpPercent .. "%") or nil
 
-    -- Собираем строки в порядке: Owner, Name, HP (как в плеерном ESP)
-    local lines = {}
-    if ownerText then table.insert(lines, ownerText) end
-    if nameText then table.insert(lines, nameText) end
-    if hpText then table.insert(lines, hpText) end
+    -- Позиционирование по вертикали
+    local lineHeight = textSize * 1.5
+    local startY = screenPos.Y - lineHeight   -- чуть выше центра (чтобы весь блок был над машиной)
 
-    local distText = math.floor(distance) .. " st"
+    -- Owner
+    if ownerText and onScreen then
+        drawings.Owner.Text = ownerText
+        drawings.Owner.Position = Vector2.new(screenPos.X, startY)
+        drawings.Owner.Color = textColor
+        drawings.Owner.Size = textSize
+        drawings.Owner.Visible = true
+    else
+        drawings.Owner.Visible = false
+    end
 
-    -- Позиционирование (как в твоём коде: Name над боксом, Dist под боксом)
-    local baseY = screenPos.Y
-    local lineHeight = textSize * 1.4
-    local totalLines = #lines
-    local startY = baseY - (totalLines * lineHeight) / 2  -- центрируем
+    -- Name
+    if nameText and onScreen then
+        drawings.Name.Text = nameText
+        drawings.Name.Position = Vector2.new(screenPos.X, startY + lineHeight)
+        drawings.Name.Color = textColor
+        drawings.Name.Size = textSize
+        drawings.Name.Visible = true
+    else
+        drawings.Name.Visible = false
+    end
 
-    -- Name (первая строка)
-    if drawings.Name then
-        if onScreen and lines[1] then
-            drawings.Name.Text = lines[1]
-            drawings.Name.Position = Vector2.new(screenPos.X, startY)
-            drawings.Name.Color = textColor
-            drawings.Name.Size = textSize
-            drawings.Name.Visible = true
-        else
-            drawings.Name.Visible = false
-        end
-    end
-    -- Owner (вторая строка, если есть) – мы объединили всё в lines, но для простоты используем Owner для второй строки
-    if drawings.Owner then
-        if onScreen and lines[2] then
-            drawings.Owner.Text = lines[2]
-            drawings.Owner.Position = Vector2.new(screenPos.X, startY + lineHeight)
-            drawings.Owner.Color = textColor
-            drawings.Owner.Size = textSize
-            drawings.Owner.Visible = true
-        else
-            drawings.Owner.Visible = false
-        end
-    end
-    -- HP (третья строка)
-    if drawings.HP then
-        if onScreen and lines[3] then
-            drawings.HP.Text = lines[3]
-            drawings.HP.Position = Vector2.new(screenPos.X, startY + lineHeight * 2)
-            drawings.HP.Color = textColor
-            drawings.HP.Size = textSize
-            drawings.HP.Visible = true
-        else
-            drawings.HP.Visible = false
-        end
-    end
-    -- Distance
-    if drawings.Distance then
-        if onScreen then
-            drawings.Distance.Text = distText
-            drawings.Distance.Position = Vector2.new(screenPos.X, screenPos.Y + lineHeight * 0.5)
-            drawings.Distance.Color = textColor
-            drawings.Distance.Size = textSize
-            drawings.Distance.Visible = true
-        else
-            drawings.Distance.Visible = false
-        end
+    -- HP
+    if hpText and onScreen then
+        drawings.HP.Text = hpText
+        drawings.HP.Position = Vector2.new(screenPos.X, startY + lineHeight * 2)
+        drawings.HP.Color = textColor
+        drawings.HP.Size = textSize
+        drawings.HP.Visible = true
+    else
+        drawings.HP.Visible = false
     end
 end
 
--- Удаление всех рисунков для машины
+-- Полное удаление Drawing для машины
 local function removeCarDrawings(carModel)
     local drawings = carDrawings[carModel]
     if drawings then
@@ -574,26 +548,28 @@ local function removeCarDrawings(carModel)
     end
 end
 
--- Обработчики добавления/удаления машин
+-- Добавление / удаление машин
 local function onCarAdded(car)
     if not car:IsA("Model") then return end
     table.insert(carModels, car)
     if carHighlightToggle.Value then
         addCarHighlight(car)
     end
-    -- Автоудаление ESP при уничтожении или нулевом HP
+
+    -- При изменении HP (0 = удалить)
     car:GetAttributeChangedSignal("VehicleHP"):Connect(function()
         local hp = tonumber(car:GetAttribute("VehicleHP")) or 0
         if hp <= 0 then
             onCarRemoved(car)
         end
     end)
+    -- При установке VehicleDestroyed = true
     car:GetAttributeChangedSignal("VehicleDestroyed"):Connect(function()
         if car:GetAttribute("VehicleDestroyed") == true then
             onCarRemoved(car)
         end
     end)
-    -- Если уже уничтожена – сразу удалить
+    -- Если уже уничтожена
     if car:GetAttribute("VehicleDestroyed") == true then
         onCarRemoved(car)
     end
@@ -607,7 +583,7 @@ local function onCarRemoved(car)
     removeCarDrawings(car)
 end
 
--- Сканируем существующие машины (отложенно, чтобы GUI были готовы)
+-- Первичное сканирование LiveCars
 task.defer(function()
     local liveCars = workspace:FindFirstChild("LiveCars")
     if liveCars then
@@ -619,16 +595,15 @@ task.defer(function()
     end
 end)
 
--- Цикл обновления позиций (аналог v115)
+-- Цикл обновления позиций (RenderStepped)
 local updateConnection = nil
 local function startUpdateLoop()
     if updateConnection then return end
     updateConnection = runService.RenderStepped:Connect(function()
         local camera = workspace.CurrentCamera
         if not camera then return end
-        local screenSize = camera.ViewportSize
         for _, car in ipairs(carModels) do
-            pcall(updateCarDrawings, car, camera, screenSize)
+            pcall(updateCarDrawings, car, camera)
         end
     end)
 end
@@ -639,7 +614,7 @@ local function stopUpdateLoop()
     end
 end
 
--- Запускаем цикл, если есть хотя бы одно включённое отображение
+-- Включаем/выключаем цикл в зависимости от тумблеров
 local function checkLoop()
     if showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value then
         startUpdateLoop()
@@ -651,7 +626,7 @@ showOwnerToggle:OnChanged(checkLoop)
 showNameToggle:OnChanged(checkLoop)
 showHPToggle:OnChanged(checkLoop)
 
--- При изменении цвета/размера перерисовываем всё
+-- При изменении размера/цвета сразу перерисовываем всё (цикл уже должен быть запущен)
 local function redrawAll()
     if not updateConnection then return end
     local camera = workspace.CurrentCamera
@@ -663,7 +638,7 @@ end
 textSizeSlider:OnChanged(redrawAll)
 Options.CarInfoTextColor:OnChanged(redrawAll)
 
--- Обновление хайлайтов при изменении их настроек
+-- Обновление хайлайтов
 local function updateAllHighlights()
     if carHighlightToggle.Value then
         for _, car in ipairs(carModels) do
@@ -682,7 +657,7 @@ carHighlightToggle:OnChanged(function(enabled)
     end
 end)
 
--- Первоначальная проверка (на случай, если тоглы уже включены)
+-- Начальная проверка (вдруг тумблеры уже включены)
 checkLoop()
     -- =====================================================
     -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без lifesteal и tracer
