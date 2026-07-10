@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финальный, без сокращений)
+-- ShopManager.lua (полный финальный + ESP)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -362,6 +362,200 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
+    -- ESP GROUP (Car ESP)
+    -- =====================================================
+    local espGroup = shopTab:AddLeftGroupbox('ESP')
+    local workspace = game:GetService("Workspace")
+
+    -- Car Highlight
+    local carHighlightToggle = espGroup:AddToggle('CarHighlightToggle', {
+        Text = 'Car Highlight',
+        Default = false,
+        Tooltip = 'Включает подсветку машин'
+    })
+    local fillColorPicker = espGroup:AddLabel('Fill Color'):AddColorPicker('CarHighlightFillColor', { Default = Color3.fromRGB(255, 0, 0) })
+    local outlineColorPicker = espGroup:AddLabel('Outline Color'):AddColorPicker('CarHighlightOutlineColor', { Default = Color3.fromRGB(255, 255, 255) })
+    local fillTransSlider = espGroup:AddSlider('CarHighlightFillTrans', {
+        Text = 'Fill Transparency',
+        Min = 0, Max = 1, Default = 0.5, Rounding = 2, Suffix = ''
+    })
+    local outlineTransSlider = espGroup:AddSlider('CarHighlightOutlineTrans', {
+        Text = 'Outline Transparency',
+        Min = 0, Max = 1, Default = 0, Rounding = 2, Suffix = ''
+    })
+
+    -- Car Info (Owner, Name, HP)
+    local showOwnerToggle = espGroup:AddToggle('ShowOwnerToggle', { Text = 'Show Owner', Default = true })
+    local showNameToggle = espGroup:AddToggle('ShowNameToggle', { Text = 'Show Name', Default = true })
+    local showHPToggle = espGroup:AddToggle('ShowHPToggle', { Text = 'Show HP', Default = true })
+    local textSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
+        Text = 'Text Size', Min = 8, Max = 48, Default = 14, Rounding = 0
+    })
+    local textColorPicker = espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
+
+    local carModels = {}
+    local ownerNames = {}
+
+    local function getOwnerName(userId)
+        if not userId or userId == 0 then return "None" end
+        if not ownerNames[userId] then
+            local success, name = pcall(function()
+                return game.Players:GetNameFromUserIdAsync(userId)
+            end)
+            ownerNames[userId] = (success and name) or "?"
+        end
+        return ownerNames[userId]
+    end
+
+    local function addCarHighlight(carModel)
+        local hl = Instance.new("Highlight")
+        hl.Name = "CarHighlight"
+        hl.FillColor = fillColorPicker.Value
+        hl.OutlineColor = outlineColorPicker.Value
+        hl.FillTransparency = fillTransSlider.Value
+        hl.OutlineTransparency = outlineTransSlider.Value
+        hl.Parent = carModel
+    end
+
+    local function removeCarHighlight(carModel)
+        local hl = carModel:FindFirstChild("CarHighlight")
+        if hl then hl:Destroy() end
+    end
+
+    local function updateHighlight(carModel)
+        local hl = carModel:FindFirstChild("CarHighlight")
+        if not hl then return end
+        hl.FillColor = fillColorPicker.Value
+        hl.OutlineColor = outlineColorPicker.Value
+        hl.FillTransparency = fillTransSlider.Value
+        hl.OutlineTransparency = outlineTransSlider.Value
+    end
+
+    local function createOrUpdateLabel(carModel)
+        local showOwner = showOwnerToggle.Value
+        local showName = showNameToggle.Value
+        local showHP = showHPToggle.Value
+        local anyInfo = showOwner or showName or showHP
+        local gui = carModel:FindFirstChild("CarInfoGUI")
+        if not anyInfo then
+            if gui then gui:Destroy() end
+            return
+        end
+
+        local parts = {}
+        if showOwner then
+            table.insert(parts, getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0))
+        end
+        if showName then
+            table.insert(parts, carModel.Name)
+        end
+        if showHP then
+            local hp = carModel:GetAttribute("VehicleHp")
+            table.insert(parts, hp and tostring(hp) or "?")
+        end
+        local text = "[" .. table.concat(parts, " | ") .. "]"
+
+        if not gui then
+            local primary = carModel.PrimaryPart
+            if not primary then return end
+            gui = Instance.new("SurfaceGui")
+            gui.Name = "CarInfoGUI"
+            gui.AlwaysOnTop = true
+            gui.Adornee = primary
+            gui.Face = Enum.NormalId.Front
+            gui.CanvasSize = Vector2.zero
+            gui.Parent = carModel
+
+            local frame = Instance.new("Frame")
+            frame.BackgroundTransparency = 1
+            frame.Size = UDim2.new(1, 0, 1, 0)
+            frame.Parent = gui
+
+            local label = Instance.new("TextLabel")
+            label.Name = "InfoLabel"
+            label.BackgroundTransparency = 1
+            label.Size = UDim2.new(1, 0, 1, 0)
+            label.Text = text
+            label.TextColor3 = textColorPicker.Value
+            label.TextSize = textSizeSlider.Value
+            label.Font = Enum.Font.SourceSansBold
+            label.TextStrokeTransparency = 0.5
+            label.Parent = frame
+        else
+            local label = gui.Frame and gui.Frame:FindFirstChild("InfoLabel")
+            if label then
+                label.Text = text
+                label.TextColor3 = textColorPicker.Value
+                label.TextSize = textSizeSlider.Value
+            end
+        end
+    end
+
+    local function updateAllLabels()
+        for _, car in ipairs(carModels) do
+            pcall(createOrUpdateLabel, car)
+        end
+    end
+
+    local function updateAllHighlights()
+        if carHighlightToggle.Value then
+            for _, car in ipairs(carModels) do
+                updateHighlight(car)
+            end
+        end
+    end
+
+    local function onCarAdded(car)
+        if not car:IsA("Model") then return end
+        table.insert(carModels, car)
+        if carHighlightToggle.Value then
+            addCarHighlight(car)
+        end
+        createOrUpdateLabel(car)
+        car:GetAttributeChangedSignal("VehicleHp"):Connect(function()
+            pcall(createOrUpdateLabel, car)
+        end)
+        car:GetAttributeChangedSignal("VehicleOwnerUserId"):Connect(function()
+            pcall(createOrUpdateLabel, car)
+        end)
+    end
+
+    local function onCarRemoved(car)
+        for i, m in ipairs(carModels) do
+            if m == car then table.remove(carModels, i) break end
+        end
+        removeCarHighlight(car)
+        local gui = car:FindFirstChild("CarInfoGUI")
+        if gui then gui:Destroy() end
+    end
+
+    local liveCars = workspace:FindFirstChild("LiveCars")
+    if liveCars then
+        for _, child in ipairs(liveCars:GetChildren()) do
+            if child:IsA("Model") then onCarAdded(child) end
+        end
+        liveCars.ChildAdded:Connect(function(c) if c:IsA("Model") then onCarAdded(c) end end)
+        liveCars.ChildRemoved:Connect(function(c) if c:IsA("Model") then onCarRemoved(c) end end)
+    end
+
+    carHighlightToggle:OnChanged(function(enabled)
+        for _, car in ipairs(carModels) do
+            if enabled then addCarHighlight(car) else removeCarHighlight(car) end
+        end
+    end)
+
+    fillColorPicker:OnChanged(updateAllHighlights)
+    outlineColorPicker:OnChanged(updateAllHighlights)
+    fillTransSlider:OnChanged(updateAllHighlights)
+    outlineTransSlider:OnChanged(updateAllHighlights)
+
+    showOwnerToggle:OnChanged(updateAllLabels)
+    showNameToggle:OnChanged(updateAllLabels)
+    showHPToggle:OnChanged(updateAllLabels)
+    textSizeSlider:OnChanged(updateAllLabels)
+    textColorPicker:OnChanged(updateAllLabels)
+
+    -- =====================================================
     -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ)
     -- =====================================================
     local activeMods = {
@@ -374,6 +568,8 @@ function ShopManager:Init(Window, Tabs)
         infBulletSpeed = false,
         infReserve = false,
         slowAnim = false,
+        lifesteal = false,
+        tracer = false,
         explosionRadius = nil
     }
 
@@ -393,6 +589,8 @@ function ShopManager:Init(Window, Tabs)
         if activeMods.noReloadTime then copy.ReloadTime = 0 end
         if activeMods.infBulletSpeed then copy.BulletSpeed = 9999 end
         if activeMods.infReserve then copy.MaxAmmo = 99999 end
+        if activeMods.lifesteal then copy.Lifesteal = 100 end
+        if activeMods.tracer then copy.TracerEnabled = true end
         if activeMods.slowAnim then
             copy.IdleAnimationSpeed = 0.1
             copy.RunAnimationSpeed = 0.1
@@ -477,47 +675,47 @@ function ShopManager:Init(Window, Tabs)
         ensureRequireHooked()
         refreshAllWeapons()
     end
-   -- ===== Enable All Gun Mods =====
-miscGroup:AddButton('Enable All Gun Mods', function()
-    -- Включаем все моды, которые управляются через activeMods
-    enableMod('rapidFire')
-    enableMod('noSpread')
-    enableMod('instaEquip')
-    enableMod('allAuto')
-    enableMod('autoReload')
-    enableMod('noReloadTime')
-    enableMod('infBulletSpeed')
-    enableMod('infReserve')
-    enableMod('slowAnim')
-    
-    -- Запускаем Inf Magazine (Remote), если ещё не запущен
-    if not infMagRemoteActive then
-        infMagRemoteActive = true
-        local player = game.Players.LocalPlayer
-        task.spawn(function()
-            while infMagRemoteActive do
-                local char = player.Character
-                if char then
-                    local tool = char:FindFirstChildWhichIsA("Tool")
-                    if tool then
-                        local gunServer = tool:FindFirstChild("GunScript_Server")
-                        if gunServer then
-                            local changeAmmo = gunServer:FindFirstChild("ChangeMagAndAmmo")
-                            if changeAmmo then
-                                pcall(function()
-                                    changeAmmo:FireServer(999, 9999)
-                                end)
+
+    -- ===== Enable All Gun Mods =====
+    miscGroup:AddButton('Enable All Gun Mods', function()
+        enableMod('rapidFire')
+        enableMod('noSpread')
+        enableMod('instaEquip')
+        enableMod('allAuto')
+        enableMod('autoReload')
+        enableMod('noReloadTime')
+        enableMod('infBulletSpeed')
+        enableMod('infReserve')
+        enableMod('slowAnim')
+
+        
+        if not infMagRemoteActive then
+            infMagRemoteActive = true
+            local player = game.Players.LocalPlayer
+            task.spawn(function()
+                while infMagRemoteActive do
+                    local char = player.Character
+                    if char then
+                        local tool = char:FindFirstChildWhichIsA("Tool")
+                        if tool then
+                            local gunServer = tool:FindFirstChild("GunScript_Server")
+                            if gunServer then
+                                local changeAmmo = gunServer:FindFirstChild("ChangeMagAndAmmo")
+                                if changeAmmo then
+                                    pcall(function()
+                                        changeAmmo:FireServer(999, 9999)
+                                    end)
+                                end
                             end
                         end
                     end
+                    task.wait(0)
                 end
-                task.wait(0)
-            end
-        end)
-    end
-    
-    Library:Notify("All gun mods enabled!", 2)
-end)
+            end)
+        end
+        
+        Library:Notify("All gun mods enabled!", 2)
+    end)
 
     miscGroup:AddDivider()
     -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
@@ -531,7 +729,8 @@ end)
     miscGroup:AddButton('Inf ReserveAmmo', function() enableMod('infReserve') Library:Notify("Inf Reserve Ammo (MaxAmmo=99999) включён", 2) end)
     miscGroup:AddButton('Slow Anim', function() enableMod('slowAnim') Library:Notify("Slow Anim (все скорости анимаций 0.1) включён", 2) end)
 
-    -- ===== INF MAGAZINE (REMOTE) – старый способ с Heartbeat =====
+
+    -- ===== INF MAGAZINE (REMOTE) =====
     local infMagRemoteActive = false
     miscGroup:AddButton('Inf MagazineAmmo', function()
         if infMagRemoteActive then return end
@@ -554,7 +753,7 @@ end)
                         end
                     end
                 end
-                task.wait(0) -- каждый кадр
+                task.wait(0)
             end
         end)
         Library:Notify("Inf Magazine активирован. Магазин и запас постоянно полны.", 2)
