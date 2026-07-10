@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 -- =====================================================
--- ESP GROUP (Car ESP) – БЕЗ CanvasSize
+-- ESP GROUP (Car ESP) – BillboardGui (без CanvasSize, без PrimaryPart)
 -- =====================================================
 local espGroup = shopTab:AddLeftGroupbox('ESP')
 local workspace = game:GetService("Workspace")
@@ -444,11 +444,7 @@ local function createOrUpdateLabel(carModel)
         return
     end
 
-    local driveSeat = carModel:FindFirstChild("DriveSeat")
-    if not (driveSeat and (driveSeat:IsA("VehicleSeat") or driveSeat:IsA("BasePart"))) then
-        return
-    end
-
+    -- Формируем текст
     local parts = {}
     if showOwner then
         table.insert(parts, getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0))
@@ -466,21 +462,14 @@ local function createOrUpdateLabel(carModel)
     local textSize = textSizeSlider.Value
 
     if not gui then
-        gui = Instance.new("SurfaceGui")
+        gui = Instance.new("BillboardGui")
         gui.Name = "CarInfoGUI"
         gui.AlwaysOnTop = true
-        gui.Adornee = driveSeat
-        gui.Face = Enum.NormalId.Front
-        -- CanvasSize не задаём – он подстроится автоматически
+        gui.Size = UDim2.new(0, 300, 0, 50)   -- фиксированный размер, CanvasSize не нужен!
+        gui.MaxDistance = 1000
         gui.Parent = carModel
 
-        local frame = Instance.new("Frame")
-        frame.BackgroundTransparency = 1
-        frame.Size = UDim2.new(1, 0, 1, 0)
-        frame.Parent = gui
-
         local label = Instance.new("TextLabel")
-        label.Name = "InfoLabel"
         label.BackgroundTransparency = 1
         label.Size = UDim2.new(1, 0, 1, 0)
         label.Text = text
@@ -488,9 +477,9 @@ local function createOrUpdateLabel(carModel)
         label.TextSize = textSize
         label.Font = Enum.Font.SourceSansBold
         label.TextStrokeTransparency = 0.5
-        label.Parent = frame
+        label.Parent = gui
     else
-        local label = gui:FindFirstChild("Frame") and gui.Frame:FindFirstChild("InfoLabel")
+        local label = gui:FindFirstChildWhichIsA("TextLabel")
         if label then
             label.Text = text
             label.TextColor3 = textColor
