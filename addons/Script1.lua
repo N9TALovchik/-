@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 -- =====================================================
--- ESP GROUP (Car ESP) – экранные Drawing, исправлено
+-- ESP GROUP (Car ESP) – экранные Drawing, без дистанции, Stroke Size
 -- =====================================================
 local espGroup = shopTab:AddLeftGroupbox('ESP')
 local workspace = game:GetService("Workspace")
@@ -387,7 +387,7 @@ local outlineTransSlider = espGroup:AddSlider('CarHighlightOutlineTrans', {
 local showOwnerToggle = espGroup:AddToggle('ShowOwnerToggle', { Text = 'Show Owner', Default = true })
 local showNameToggle = espGroup:AddToggle('ShowNameToggle', { Text = 'Show Name', Default = true })
 local showHPToggle = espGroup:AddToggle('ShowHPToggle', { Text = 'Show HP', Default = true })
-local textSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
+local strokeSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
     Text = 'Stroke Size', Min = 8, Max = 48, Default = 8, Rounding = 0
 })
 espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
@@ -489,7 +489,7 @@ local function updateCarDrawings(carModel, camera)
     if distance > 1000 then onScreen = false end   -- дальность отрисовки
 
     local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
-    local textSize = textSizeSlider.Value
+    local textSize = strokeSizeSlider.Value
 
     -- Строки
     local ownerText = showOwnerToggle.Value and getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0) or nil
@@ -501,7 +501,7 @@ local function updateCarDrawings(carModel, camera)
 
     -- Позиционирование по вертикали
     local lineHeight = textSize * 1.5
-    local startY = screenPos.Y - lineHeight   -- чуть выше центра (чтобы весь блок был над машиной)
+    local startY = screenPos.Y - lineHeight   -- чуть выше центра
 
     -- Owner
     if ownerText and onScreen then
@@ -626,7 +626,7 @@ showOwnerToggle:OnChanged(checkLoop)
 showNameToggle:OnChanged(checkLoop)
 showHPToggle:OnChanged(checkLoop)
 
--- При изменении размера/цвета сразу перерисовываем всё (цикл уже должен быть запущен)
+-- При изменении размера/цвета сразу перерисовываем всё
 local function redrawAll()
     if not updateConnection then return end
     local camera = workspace.CurrentCamera
@@ -635,7 +635,7 @@ local function redrawAll()
         pcall(updateCarDrawings, car, camera)
     end
 end
-textSizeSlider:OnChanged(redrawAll)
+strokeSizeSlider:OnChanged(redrawAll)
 Options.CarInfoTextColor:OnChanged(redrawAll)
 
 -- Обновление хайлайтов
@@ -657,7 +657,7 @@ carHighlightToggle:OnChanged(function(enabled)
     end
 end)
 
--- Начальная проверка (вдруг тумблеры уже включены)
+-- Начальная проверка
 checkLoop()
     -- =====================================================
     -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без lifesteal и tracer
