@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финальный + ESP)
+-- ShopManager.lua (исправлены ошибки Car ESP, удалены неработающие Tracer и Lifesteal)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -410,8 +410,9 @@ function ShopManager:Init(Window, Tabs)
     local function addCarHighlight(carModel)
         local hl = Instance.new("Highlight")
         hl.Name = "CarHighlight"
-        hl.FillColor = fillColorPicker.Value
-        hl.OutlineColor = outlineColorPicker.Value
+        -- Используем значения по умолчанию, если picker ещё не готов
+        hl.FillColor = fillColorPicker.Value or Color3.fromRGB(255, 0, 0)
+        hl.OutlineColor = outlineColorPicker.Value or Color3.fromRGB(255, 255, 255)
         hl.FillTransparency = fillTransSlider.Value
         hl.OutlineTransparency = outlineTransSlider.Value
         hl.Parent = carModel
@@ -425,8 +426,8 @@ function ShopManager:Init(Window, Tabs)
     local function updateHighlight(carModel)
         local hl = carModel:FindFirstChild("CarHighlight")
         if not hl then return end
-        hl.FillColor = fillColorPicker.Value
-        hl.OutlineColor = outlineColorPicker.Value
+        hl.FillColor = fillColorPicker.Value or Color3.fromRGB(255, 0, 0)
+        hl.OutlineColor = outlineColorPicker.Value or Color3.fromRGB(255, 255, 255)
         hl.FillTransparency = fillTransSlider.Value
         hl.OutlineTransparency = outlineTransSlider.Value
     end
@@ -476,7 +477,7 @@ function ShopManager:Init(Window, Tabs)
             label.BackgroundTransparency = 1
             label.Size = UDim2.new(1, 0, 1, 0)
             label.Text = text
-            label.TextColor3 = textColorPicker.Value
+            label.TextColor3 = textColorPicker.Value or Color3.fromRGB(255, 255, 255)
             label.TextSize = textSizeSlider.Value
             label.Font = Enum.Font.SourceSansBold
             label.TextStrokeTransparency = 0.5
@@ -485,7 +486,7 @@ function ShopManager:Init(Window, Tabs)
             local label = gui.Frame and gui.Frame:FindFirstChild("InfoLabel")
             if label then
                 label.Text = text
-                label.TextColor3 = textColorPicker.Value
+                label.TextColor3 = textColorPicker.Value or Color3.fromRGB(255, 255, 255)
                 label.TextSize = textSizeSlider.Value
             end
         end
@@ -556,7 +557,7 @@ function ShopManager:Init(Window, Tabs)
     textColorPicker:OnChanged(updateAllLabels)
 
     -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ)
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без lifesteal и tracer
     -- =====================================================
     local activeMods = {
         rapidFire = false,
@@ -568,8 +569,6 @@ function ShopManager:Init(Window, Tabs)
         infBulletSpeed = false,
         infReserve = false,
         slowAnim = false,
-        lifesteal = false,
-        tracer = false,
         explosionRadius = nil
     }
 
@@ -589,8 +588,6 @@ function ShopManager:Init(Window, Tabs)
         if activeMods.noReloadTime then copy.ReloadTime = 0 end
         if activeMods.infBulletSpeed then copy.BulletSpeed = 9999 end
         if activeMods.infReserve then copy.MaxAmmo = 99999 end
-        if activeMods.lifesteal then copy.Lifesteal = 100 end
-        if activeMods.tracer then copy.TracerEnabled = true end
         if activeMods.slowAnim then
             copy.IdleAnimationSpeed = 0.1
             copy.RunAnimationSpeed = 0.1
@@ -687,7 +684,6 @@ function ShopManager:Init(Window, Tabs)
         enableMod('infBulletSpeed')
         enableMod('infReserve')
         enableMod('slowAnim')
-
         
         if not infMagRemoteActive then
             infMagRemoteActive = true
@@ -718,7 +714,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     miscGroup:AddDivider()
-    -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
+    -- ===== КНОПКИ МОДОВ ОРУЖИЯ (без Tracer и Lifesteal) =====
     miscGroup:AddButton('Rapid Fire', function() enableMod('rapidFire') Library:Notify("Rapid Fire (FireRate=0) включён", 2) end)
     miscGroup:AddButton('No Spread', function() enableMod('noSpread') Library:Notify("No Spread (Recoil & Spread=0) включён", 2) end)
     miscGroup:AddButton('Insta Equip', function() enableMod('instaEquip') Library:Notify("Insta Equip (EquipTime=0) включён", 2) end)
@@ -728,7 +724,6 @@ function ShopManager:Init(Window, Tabs)
     miscGroup:AddButton('Inf Bullet Speed', function() enableMod('infBulletSpeed') Library:Notify("Inf Bullet Speed (BulletSpeed=9999) включён", 2) end)
     miscGroup:AddButton('Inf ReserveAmmo', function() enableMod('infReserve') Library:Notify("Inf Reserve Ammo (MaxAmmo=99999) включён", 2) end)
     miscGroup:AddButton('Slow Anim', function() enableMod('slowAnim') Library:Notify("Slow Anim (все скорости анимаций 0.1) включён", 2) end)
-
 
     -- ===== INF MAGAZINE (REMOTE) =====
     local infMagRemoteActive = false
@@ -1121,7 +1116,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-    Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
+
 end
 
 return ShopManager
