@@ -1,4 +1,4 @@
--- ShopManager.lua (исправленная ESP, доступ к цветам через Options)
+-- ShopManager.lua (полный финальный + SurfaceGui на DriveSeat)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- ESP GROUP (Car ESP) – исправлено!
+    -- ESP GROUP (Car ESP) – SurfaceGui на DriveSeat
     -- =====================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
@@ -374,7 +374,6 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Включает подсветку машин'
     })
 
-    -- Color pickers (лейблы, значения берём из Options)
     espGroup:AddLabel('Fill Color'):AddColorPicker('CarHighlightFillColor', { Default = Color3.fromRGB(255, 0, 0) })
     espGroup:AddLabel('Outline Color'):AddColorPicker('CarHighlightOutlineColor', { Default = Color3.fromRGB(255, 255, 255) })
 
@@ -448,6 +447,14 @@ function ShopManager:Init(Window, Tabs)
             return
         end
 
+        -- Ищем DriveSeat (VehicleSeat или BasePart) для Adornee
+        local driveSeat = carModel:FindFirstChild("DriveSeat")
+        if not (driveSeat and (driveSeat:IsA("VehicleSeat") or driveSeat:IsA("BasePart"))) then
+            -- Если сиденье не найдено, просто ничего не делаем
+            return
+        end
+
+        -- Формируем текст
         local parts = {}
         if showOwner then
             table.insert(parts, getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0))
@@ -465,14 +472,12 @@ function ShopManager:Init(Window, Tabs)
         local textSize = textSizeSlider.Value
 
         if not gui then
-            local primary = carModel.PrimaryPart
-            if not primary then return end
             gui = Instance.new("SurfaceGui")
             gui.Name = "CarInfoGUI"
             gui.AlwaysOnTop = true
-            gui.Adornee = primary
+            gui.Adornee = driveSeat  -- теперь это точно BasePart или VehicleSeat
             gui.Face = Enum.NormalId.Front
-            gui.CanvasSize = Vector2.zero
+            gui.CanvasSize = UDim2.new(0, 300, 0, 50) -- фиксированный размер холста
             gui.Parent = carModel
 
             local frame = Instance.new("Frame")
@@ -491,7 +496,7 @@ function ShopManager:Init(Window, Tabs)
             label.TextStrokeTransparency = 0.5
             label.Parent = frame
         else
-            local label = gui.Frame and gui.Frame:FindFirstChild("InfoLabel")
+            local label = gui:FindFirstChild("Frame") and gui.Frame:FindFirstChild("InfoLabel")
             if label then
                 label.Text = text
                 label.TextColor3 = textColor
