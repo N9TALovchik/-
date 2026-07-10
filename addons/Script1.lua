@@ -1,4 +1,4 @@
--- ShopManager.lua (исправлены ошибки Car ESP, удалены неработающие Tracer и Lifesteal)
+-- ShopManager.lua (исправленная ESP, доступ к цветам через Options)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -362,19 +362,22 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- ESP GROUP (Car ESP)
+    -- ESP GROUP (Car ESP) – исправлено!
     -- =====================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
 
-    -- Car Highlight
+    -- Car Highlight toggle
     local carHighlightToggle = espGroup:AddToggle('CarHighlightToggle', {
         Text = 'Car Highlight',
         Default = false,
         Tooltip = 'Включает подсветку машин'
     })
-    local fillColorPicker = espGroup:AddLabel('Fill Color'):AddColorPicker('CarHighlightFillColor', { Default = Color3.fromRGB(255, 0, 0) })
-    local outlineColorPicker = espGroup:AddLabel('Outline Color'):AddColorPicker('CarHighlightOutlineColor', { Default = Color3.fromRGB(255, 255, 255) })
+
+    -- Color pickers (лейблы, значения берём из Options)
+    espGroup:AddLabel('Fill Color'):AddColorPicker('CarHighlightFillColor', { Default = Color3.fromRGB(255, 0, 0) })
+    espGroup:AddLabel('Outline Color'):AddColorPicker('CarHighlightOutlineColor', { Default = Color3.fromRGB(255, 255, 255) })
+
     local fillTransSlider = espGroup:AddSlider('CarHighlightFillTrans', {
         Text = 'Fill Transparency',
         Min = 0, Max = 1, Default = 0.5, Rounding = 2, Suffix = ''
@@ -384,15 +387,17 @@ function ShopManager:Init(Window, Tabs)
         Min = 0, Max = 1, Default = 0, Rounding = 2, Suffix = ''
     })
 
-    -- Car Info (Owner, Name, HP)
+    -- Car Info toggles
     local showOwnerToggle = espGroup:AddToggle('ShowOwnerToggle', { Text = 'Show Owner', Default = true })
     local showNameToggle = espGroup:AddToggle('ShowNameToggle', { Text = 'Show Name', Default = true })
     local showHPToggle = espGroup:AddToggle('ShowHPToggle', { Text = 'Show HP', Default = true })
+
     local textSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
         Text = 'Text Size', Min = 8, Max = 48, Default = 14, Rounding = 0
     })
-    local textColorPicker = espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
+    espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
 
+    -- Вспомогательные таблицы
     local carModels = {}
     local ownerNames = {}
 
@@ -410,9 +415,8 @@ function ShopManager:Init(Window, Tabs)
     local function addCarHighlight(carModel)
         local hl = Instance.new("Highlight")
         hl.Name = "CarHighlight"
-        -- Используем значения по умолчанию, если picker ещё не готов
-        hl.FillColor = fillColorPicker.Value or Color3.fromRGB(255, 0, 0)
-        hl.OutlineColor = outlineColorPicker.Value or Color3.fromRGB(255, 255, 255)
+        hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
+        hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
         hl.FillTransparency = fillTransSlider.Value
         hl.OutlineTransparency = outlineTransSlider.Value
         hl.Parent = carModel
@@ -426,8 +430,8 @@ function ShopManager:Init(Window, Tabs)
     local function updateHighlight(carModel)
         local hl = carModel:FindFirstChild("CarHighlight")
         if not hl then return end
-        hl.FillColor = fillColorPicker.Value or Color3.fromRGB(255, 0, 0)
-        hl.OutlineColor = outlineColorPicker.Value or Color3.fromRGB(255, 255, 255)
+        hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
+        hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
         hl.FillTransparency = fillTransSlider.Value
         hl.OutlineTransparency = outlineTransSlider.Value
     end
@@ -438,6 +442,7 @@ function ShopManager:Init(Window, Tabs)
         local showHP = showHPToggle.Value
         local anyInfo = showOwner or showName or showHP
         local gui = carModel:FindFirstChild("CarInfoGUI")
+
         if not anyInfo then
             if gui then gui:Destroy() end
             return
@@ -455,6 +460,9 @@ function ShopManager:Init(Window, Tabs)
             table.insert(parts, hp and tostring(hp) or "?")
         end
         local text = "[" .. table.concat(parts, " | ") .. "]"
+
+        local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
+        local textSize = textSizeSlider.Value
 
         if not gui then
             local primary = carModel.PrimaryPart
@@ -477,8 +485,8 @@ function ShopManager:Init(Window, Tabs)
             label.BackgroundTransparency = 1
             label.Size = UDim2.new(1, 0, 1, 0)
             label.Text = text
-            label.TextColor3 = textColorPicker.Value or Color3.fromRGB(255, 255, 255)
-            label.TextSize = textSizeSlider.Value
+            label.TextColor3 = textColor
+            label.TextSize = textSize
             label.Font = Enum.Font.SourceSansBold
             label.TextStrokeTransparency = 0.5
             label.Parent = frame
@@ -486,8 +494,8 @@ function ShopManager:Init(Window, Tabs)
             local label = gui.Frame and gui.Frame:FindFirstChild("InfoLabel")
             if label then
                 label.Text = text
-                label.TextColor3 = textColorPicker.Value or Color3.fromRGB(255, 255, 255)
-                label.TextSize = textSizeSlider.Value
+                label.TextColor3 = textColor
+                label.TextSize = textSize
             end
         end
     end
@@ -530,23 +538,27 @@ function ShopManager:Init(Window, Tabs)
         if gui then gui:Destroy() end
     end
 
-    local liveCars = workspace:FindFirstChild("LiveCars")
-    if liveCars then
-        for _, child in ipairs(liveCars:GetChildren()) do
-            if child:IsA("Model") then onCarAdded(child) end
+    -- Запускаем мониторинг LiveCars с отложенным сканированием
+    task.defer(function()
+        local liveCars = workspace:FindFirstChild("LiveCars")
+        if liveCars then
+            for _, child in ipairs(liveCars:GetChildren()) do
+                if child:IsA("Model") then onCarAdded(child) end
+            end
+            liveCars.ChildAdded:Connect(function(c) if c:IsA("Model") then onCarAdded(c) end end)
+            liveCars.ChildRemoved:Connect(function(c) if c:IsA("Model") then onCarRemoved(c) end end)
         end
-        liveCars.ChildAdded:Connect(function(c) if c:IsA("Model") then onCarAdded(c) end end)
-        liveCars.ChildRemoved:Connect(function(c) if c:IsA("Model") then onCarRemoved(c) end end)
-    end
+    end)
 
+    -- Подписки на изменения настроек
     carHighlightToggle:OnChanged(function(enabled)
         for _, car in ipairs(carModels) do
             if enabled then addCarHighlight(car) else removeCarHighlight(car) end
         end
     end)
 
-    fillColorPicker:OnChanged(updateAllHighlights)
-    outlineColorPicker:OnChanged(updateAllHighlights)
+    Options.CarHighlightFillColor:OnChanged(updateAllHighlights)
+    Options.CarHighlightOutlineColor:OnChanged(updateAllHighlights)
     fillTransSlider:OnChanged(updateAllHighlights)
     outlineTransSlider:OnChanged(updateAllHighlights)
 
@@ -554,7 +566,7 @@ function ShopManager:Init(Window, Tabs)
     showNameToggle:OnChanged(updateAllLabels)
     showHPToggle:OnChanged(updateAllLabels)
     textSizeSlider:OnChanged(updateAllLabels)
-    textColorPicker:OnChanged(updateAllLabels)
+    Options.CarInfoTextColor:OnChanged(updateAllLabels)
 
     -- =====================================================
     -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без lifesteal и tracer
@@ -714,7 +726,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     miscGroup:AddDivider()
-    -- ===== КНОПКИ МОДОВ ОРУЖИЯ (без Tracer и Lifesteal) =====
+    -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
     miscGroup:AddButton('Rapid Fire', function() enableMod('rapidFire') Library:Notify("Rapid Fire (FireRate=0) включён", 2) end)
     miscGroup:AddButton('No Spread', function() enableMod('noSpread') Library:Notify("No Spread (Recoil & Spread=0) включён", 2) end)
     miscGroup:AddButton('Insta Equip', function() enableMod('instaEquip') Library:Notify("Insta Equip (EquipTime=0) включён", 2) end)
@@ -1116,7 +1128,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-
+    Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
 end
 
 return ShopManager
