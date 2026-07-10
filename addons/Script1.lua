@@ -388,7 +388,7 @@ local showOwnerToggle = espGroup:AddToggle('ShowOwnerToggle', { Text = 'Show Own
 local showNameToggle = espGroup:AddToggle('ShowNameToggle', { Text = 'Show Name', Default = true })
 local showHPToggle = espGroup:AddToggle('ShowHPToggle', { Text = 'Show HP', Default = true })
 local textSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
-    Text = 'Text Size', Min = 8, Max = 48, Default = 14, Rounding = 0
+    Text = 'Stroke Size', Min = 8, Max = 48, Default = 8, Rounding = 0
 })
 espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
 
