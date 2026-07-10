@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 -- =====================================================
--- ESP GROUP (Car ESP) – экранные Drawing, защищённые от аспекта
+-- ESP GROUP (Car ESP) – экранные Drawing, финальная версия (без аспект-багов)
 -- =====================================================
 local espGroup = shopTab:AddLeftGroupbox('ESP')
 local workspace = game:GetService("Workspace")
@@ -432,7 +432,9 @@ local function updateHighlight(carModel)
     hl.OutlineTransparency = outlineTransSlider.Value
 end
 
--- Создание / обновление трёх Drawing-строк для одной машины
+-- ============================================================
+-- НОВАЯ функция отрисовки текста (аналог плеерного ESP, без аспект-багов)
+-- ============================================================
 local function updateCarDrawings(carModel, camera)
     local drawings = carDrawings[carModel]
     local anyInfo = showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value
@@ -448,7 +450,41 @@ local function updateCarDrawings(carModel, camera)
         return
     end
 
-    -- Создаём, если ещё нет
+    -- Определяем опорную точку (аналог HumanoidRootPart)
+    local primaryPart = carModel.PrimaryPart or carModel:FindFirstChild("DriveSeat") or carModel:FindFirstChildWhichIsA("BasePart")
+    if not primaryPart then
+        if drawings then
+            for _, d in pairs(drawings) do
+                d.Visible = false
+            end
+        end
+        return
+    end
+
+    -- Размеры модели (аналог GetExtentsSize)
+    local modelSize = carModel:GetExtentsSize()
+    if modelSize.Magnitude == 0 then
+        modelSize = Vector3.new(4, 2, 4)  -- дефолтный размер, если не определился
+    end
+
+    local centerPos = primaryPart.Position
+    -- Точка над машиной (как "голова" для плеера)
+    local topPos = centerPos + Vector3.new(0, modelSize.Y * 0.5 + 1, 0)
+
+    local screenTop, onScreen = camera:WorldToViewportPoint(topPos)
+    local distance = (centerPos - camera.CFrame.Position).Magnitude
+    if distance > 1000 then onScreen = false end
+
+    if not onScreen then
+        if drawings then
+            for _, d in pairs(drawings) do
+                d.Visible = false
+            end
+        end
+        return
+    end
+
+    -- Создаём Drawing, если ещё нет
     if not drawings then
         drawings = {
             Owner = Drawing.new("Text"),
@@ -464,30 +500,6 @@ local function updateCarDrawings(carModel, camera)
         carDrawings[carModel] = drawings
     end
 
-    -- Определяем позицию (центр модели + высота)
-    local pos = nil
-    if carModel.PrimaryPart then
-        pos = carModel.PrimaryPart.Position + Vector3.new(0, 3, 0)
-    else
-        local driveSeat = carModel:FindFirstChild("DriveSeat")
-        if driveSeat and driveSeat:IsA("BasePart") then
-            pos = driveSeat.Position + Vector3.new(0, 3, 0)
-        else
-            local firstPart = carModel:FindFirstChildWhichIsA("BasePart")
-            if firstPart then
-                pos = firstPart.Position + Vector3.new(0, 3, 0)
-            end
-        end
-    end
-    if not pos then
-        for _, d in pairs(drawings) do d.Visible = false end
-        return
-    end
-
-    local screenPos, onScreen = camera:WorldToViewportPoint(pos)
-    local distance = (pos - camera.CFrame.Position).Magnitude
-    if distance > 1000 then onScreen = false end   -- дальность отрисовки
-
     local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
     local textSize = strokeSizeSlider.Value
 
@@ -499,14 +511,14 @@ local function updateCarDrawings(carModel, camera)
     local hpPercent = (maxHP > 0) and math.floor((hpValue / maxHP) * 100) or 0
     local hpText = showHPToggle.Value and (hpPercent .. "%") or nil
 
-    -- Позиционирование по вертикали
+    -- Позиционирование как в плеерном ESP: текст над боксом, начиная с верхней точки
     local lineHeight = textSize * 1.5
-    local startY = screenPos.Y - lineHeight   -- чуть выше центра
+    local startY = screenTop.Y - lineHeight   -- первая строка над "головой"
 
     -- Owner
-    if ownerText and onScreen then
+    if ownerText then
         drawings.Owner.Text = ownerText
-        drawings.Owner.Position = Vector2.new(screenPos.X, startY)
+        drawings.Owner.Position = Vector2.new(screenTop.X, startY)
         drawings.Owner.Color = textColor
         drawings.Owner.Size = textSize
         drawings.Owner.Visible = true
@@ -515,9 +527,9 @@ local function updateCarDrawings(carModel, camera)
     end
 
     -- Name
-    if nameText and onScreen then
+    if nameText then
         drawings.Name.Text = nameText
-        drawings.Name.Position = Vector2.new(screenPos.X, startY + lineHeight)
+        drawings.Name.Position = Vector2.new(screenTop.X, startY + lineHeight)
         drawings.Name.Color = textColor
         drawings.Name.Size = textSize
         drawings.Name.Visible = true
@@ -526,9 +538,9 @@ local function updateCarDrawings(carModel, camera)
     end
 
     -- HP
-    if hpText and onScreen then
+    if hpText then
         drawings.HP.Text = hpText
-        drawings.HP.Position = Vector2.new(screenPos.X, startY + lineHeight * 2)
+        drawings.HP.Position = Vector2.new(screenTop.X, startY + lineHeight * 2)
         drawings.HP.Color = textColor
         drawings.HP.Size = textSize
         drawings.HP.Visible = true
