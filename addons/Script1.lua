@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 -- =====================================================
--- ESP GROUP (Car ESP) – экранные Drawing, без дистанции, Stroke Size
+-- ESP GROUP (Car ESP) – экранные Drawing, защищённые от аспекта
 -- =====================================================
 local espGroup = shopTab:AddLeftGroupbox('ESP')
 local workspace = game:GetService("Workspace")
