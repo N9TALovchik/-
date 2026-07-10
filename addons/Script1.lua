@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 -- =====================================================
--- ESP GROUP (Car ESP) – исправлено: CanvasSize как Vector2
+-- ESP GROUP (Car ESP) – БЕЗ CanvasSize
 -- =====================================================
 local espGroup = shopTab:AddLeftGroupbox('ESP')
 local workspace = game:GetService("Workspace")
@@ -471,7 +471,7 @@ local function createOrUpdateLabel(carModel)
         gui.AlwaysOnTop = true
         gui.Adornee = driveSeat
         gui.Face = Enum.NormalId.Front
-        gui.CanvasSize = Vector2.new(300, 50)   -- исправлено: Vector2!
+        -- CanvasSize не задаём – он подстроится автоматически
         gui.Parent = carModel
 
         local frame = Instance.new("Frame")
