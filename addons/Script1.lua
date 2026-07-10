@@ -361,217 +361,209 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
     end)
 
-    -- =====================================================
-    -- ESP GROUP (Car ESP) – SurfaceGui на DriveSeat
-    -- =====================================================
-    local espGroup = shopTab:AddLeftGroupbox('ESP')
-    local workspace = game:GetService("Workspace")
+-- =====================================================
+-- ESP GROUP (Car ESP) – исправлено: CanvasSize как Vector2
+-- =====================================================
+local espGroup = shopTab:AddLeftGroupbox('ESP')
+local workspace = game:GetService("Workspace")
 
-    -- Car Highlight toggle
-    local carHighlightToggle = espGroup:AddToggle('CarHighlightToggle', {
-        Text = 'Car Highlight',
-        Default = false,
-        Tooltip = 'Включает подсветку машин'
-    })
+local carHighlightToggle = espGroup:AddToggle('CarHighlightToggle', {
+    Text = 'Car Highlight',
+    Default = false,
+    Tooltip = 'Включает подсветку машин'
+})
 
-    espGroup:AddLabel('Fill Color'):AddColorPicker('CarHighlightFillColor', { Default = Color3.fromRGB(255, 0, 0) })
-    espGroup:AddLabel('Outline Color'):AddColorPicker('CarHighlightOutlineColor', { Default = Color3.fromRGB(255, 255, 255) })
+espGroup:AddLabel('Fill Color'):AddColorPicker('CarHighlightFillColor', { Default = Color3.fromRGB(255, 0, 0) })
+espGroup:AddLabel('Outline Color'):AddColorPicker('CarHighlightOutlineColor', { Default = Color3.fromRGB(255, 255, 255) })
 
-    local fillTransSlider = espGroup:AddSlider('CarHighlightFillTrans', {
-        Text = 'Fill Transparency',
-        Min = 0, Max = 1, Default = 0.5, Rounding = 2, Suffix = ''
-    })
-    local outlineTransSlider = espGroup:AddSlider('CarHighlightOutlineTrans', {
-        Text = 'Outline Transparency',
-        Min = 0, Max = 1, Default = 0, Rounding = 2, Suffix = ''
-    })
+local fillTransSlider = espGroup:AddSlider('CarHighlightFillTrans', {
+    Text = 'Fill Transparency',
+    Min = 0, Max = 1, Default = 0.5, Rounding = 2, Suffix = ''
+})
+local outlineTransSlider = espGroup:AddSlider('CarHighlightOutlineTrans', {
+    Text = 'Outline Transparency',
+    Min = 0, Max = 1, Default = 0, Rounding = 2, Suffix = ''
+})
 
-    -- Car Info toggles
-    local showOwnerToggle = espGroup:AddToggle('ShowOwnerToggle', { Text = 'Show Owner', Default = true })
-    local showNameToggle = espGroup:AddToggle('ShowNameToggle', { Text = 'Show Name', Default = true })
-    local showHPToggle = espGroup:AddToggle('ShowHPToggle', { Text = 'Show HP', Default = true })
+local showOwnerToggle = espGroup:AddToggle('ShowOwnerToggle', { Text = 'Show Owner', Default = true })
+local showNameToggle = espGroup:AddToggle('ShowNameToggle', { Text = 'Show Name', Default = true })
+local showHPToggle = espGroup:AddToggle('ShowHPToggle', { Text = 'Show HP', Default = true })
 
-    local textSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
-        Text = 'Text Size', Min = 8, Max = 48, Default = 14, Rounding = 0
-    })
-    espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
+local textSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
+    Text = 'Text Size', Min = 8, Max = 48, Default = 14, Rounding = 0
+})
+espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
 
-    -- Вспомогательные таблицы
-    local carModels = {}
-    local ownerNames = {}
+local carModels = {}
+local ownerNames = {}
 
-    local function getOwnerName(userId)
-        if not userId or userId == 0 then return "None" end
-        if not ownerNames[userId] then
-            local success, name = pcall(function()
-                return game.Players:GetNameFromUserIdAsync(userId)
-            end)
-            ownerNames[userId] = (success and name) or "?"
-        end
-        return ownerNames[userId]
+local function getOwnerName(userId)
+    if not userId or userId == 0 then return "None" end
+    if not ownerNames[userId] then
+        local success, name = pcall(function()
+            return game.Players:GetNameFromUserIdAsync(userId)
+        end)
+        ownerNames[userId] = (success and name) or "?"
+    end
+    return ownerNames[userId]
+end
+
+local function addCarHighlight(carModel)
+    local hl = Instance.new("Highlight")
+    hl.Name = "CarHighlight"
+    hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
+    hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
+    hl.FillTransparency = fillTransSlider.Value
+    hl.OutlineTransparency = outlineTransSlider.Value
+    hl.Parent = carModel
+end
+
+local function removeCarHighlight(carModel)
+    local hl = carModel:FindFirstChild("CarHighlight")
+    if hl then hl:Destroy() end
+end
+
+local function updateHighlight(carModel)
+    local hl = carModel:FindFirstChild("CarHighlight")
+    if not hl then return end
+    hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
+    hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
+    hl.FillTransparency = fillTransSlider.Value
+    hl.OutlineTransparency = outlineTransSlider.Value
+end
+
+local function createOrUpdateLabel(carModel)
+    local showOwner = showOwnerToggle.Value
+    local showName = showNameToggle.Value
+    local showHP = showHPToggle.Value
+    local anyInfo = showOwner or showName or showHP
+    local gui = carModel:FindFirstChild("CarInfoGUI")
+
+    if not anyInfo then
+        if gui then gui:Destroy() end
+        return
     end
 
-    local function addCarHighlight(carModel)
-        local hl = Instance.new("Highlight")
-        hl.Name = "CarHighlight"
-        hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
-        hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
-        hl.FillTransparency = fillTransSlider.Value
-        hl.OutlineTransparency = outlineTransSlider.Value
-        hl.Parent = carModel
+    local driveSeat = carModel:FindFirstChild("DriveSeat")
+    if not (driveSeat and (driveSeat:IsA("VehicleSeat") or driveSeat:IsA("BasePart"))) then
+        return
     end
 
-    local function removeCarHighlight(carModel)
-        local hl = carModel:FindFirstChild("CarHighlight")
-        if hl then hl:Destroy() end
+    local parts = {}
+    if showOwner then
+        table.insert(parts, getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0))
     end
-
-    local function updateHighlight(carModel)
-        local hl = carModel:FindFirstChild("CarHighlight")
-        if not hl then return end
-        hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
-        hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
-        hl.FillTransparency = fillTransSlider.Value
-        hl.OutlineTransparency = outlineTransSlider.Value
+    if showName then
+        table.insert(parts, carModel.Name)
     end
+    if showHP then
+        local hp = carModel:GetAttribute("VehicleHp")
+        table.insert(parts, hp and tostring(hp) or "?")
+    end
+    local text = "[" .. table.concat(parts, " | ") .. "]"
 
-    local function createOrUpdateLabel(carModel)
-        local showOwner = showOwnerToggle.Value
-        local showName = showNameToggle.Value
-        local showHP = showHPToggle.Value
-        local anyInfo = showOwner or showName or showHP
-        local gui = carModel:FindFirstChild("CarInfoGUI")
+    local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
+    local textSize = textSizeSlider.Value
 
-        if not anyInfo then
-            if gui then gui:Destroy() end
-            return
-        end
+    if not gui then
+        gui = Instance.new("SurfaceGui")
+        gui.Name = "CarInfoGUI"
+        gui.AlwaysOnTop = true
+        gui.Adornee = driveSeat
+        gui.Face = Enum.NormalId.Front
+        gui.CanvasSize = Vector2.new(300, 50)   -- исправлено: Vector2!
+        gui.Parent = carModel
 
-        -- Ищем DriveSeat (VehicleSeat или BasePart) для Adornee
-        local driveSeat = carModel:FindFirstChild("DriveSeat")
-        if not (driveSeat and (driveSeat:IsA("VehicleSeat") or driveSeat:IsA("BasePart"))) then
-            -- Если сиденье не найдено, просто ничего не делаем
-            return
-        end
+        local frame = Instance.new("Frame")
+        frame.BackgroundTransparency = 1
+        frame.Size = UDim2.new(1, 0, 1, 0)
+        frame.Parent = gui
 
-        -- Формируем текст
-        local parts = {}
-        if showOwner then
-            table.insert(parts, getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0))
-        end
-        if showName then
-            table.insert(parts, carModel.Name)
-        end
-        if showHP then
-            local hp = carModel:GetAttribute("VehicleHp")
-            table.insert(parts, hp and tostring(hp) or "?")
-        end
-        local text = "[" .. table.concat(parts, " | ") .. "]"
-
-        local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
-        local textSize = textSizeSlider.Value
-
-        if not gui then
-            gui = Instance.new("SurfaceGui")
-            gui.Name = "CarInfoGUI"
-            gui.AlwaysOnTop = true
-            gui.Adornee = driveSeat  -- теперь это точно BasePart или VehicleSeat
-            gui.Face = Enum.NormalId.Front
-            gui.CanvasSize = UDim2.new(0, 300, 0, 50) -- фиксированный размер холста
-            gui.Parent = carModel
-
-            local frame = Instance.new("Frame")
-            frame.BackgroundTransparency = 1
-            frame.Size = UDim2.new(1, 0, 1, 0)
-            frame.Parent = gui
-
-            local label = Instance.new("TextLabel")
-            label.Name = "InfoLabel"
-            label.BackgroundTransparency = 1
-            label.Size = UDim2.new(1, 0, 1, 0)
+        local label = Instance.new("TextLabel")
+        label.Name = "InfoLabel"
+        label.BackgroundTransparency = 1
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.Text = text
+        label.TextColor3 = textColor
+        label.TextSize = textSize
+        label.Font = Enum.Font.SourceSansBold
+        label.TextStrokeTransparency = 0.5
+        label.Parent = frame
+    else
+        local label = gui:FindFirstChild("Frame") and gui.Frame:FindFirstChild("InfoLabel")
+        if label then
             label.Text = text
             label.TextColor3 = textColor
             label.TextSize = textSize
-            label.Font = Enum.Font.SourceSansBold
-            label.TextStrokeTransparency = 0.5
-            label.Parent = frame
-        else
-            local label = gui:FindFirstChild("Frame") and gui.Frame:FindFirstChild("InfoLabel")
-            if label then
-                label.Text = text
-                label.TextColor3 = textColor
-                label.TextSize = textSize
-            end
         end
     end
+end
 
-    local function updateAllLabels()
+local function updateAllLabels()
+    for _, car in ipairs(carModels) do
+        pcall(createOrUpdateLabel, car)
+    end
+end
+
+local function updateAllHighlights()
+    if carHighlightToggle.Value then
         for _, car in ipairs(carModels) do
-            pcall(createOrUpdateLabel, car)
+            updateHighlight(car)
         end
     end
+end
 
-    local function updateAllHighlights()
-        if carHighlightToggle.Value then
-            for _, car in ipairs(carModels) do
-                updateHighlight(car)
-            end
-        end
+local function onCarAdded(car)
+    if not car:IsA("Model") then return end
+    table.insert(carModels, car)
+    if carHighlightToggle.Value then
+        addCarHighlight(car)
     end
-
-    local function onCarAdded(car)
-        if not car:IsA("Model") then return end
-        table.insert(carModels, car)
-        if carHighlightToggle.Value then
-            addCarHighlight(car)
-        end
-        createOrUpdateLabel(car)
-        car:GetAttributeChangedSignal("VehicleHp"):Connect(function()
-            pcall(createOrUpdateLabel, car)
-        end)
-        car:GetAttributeChangedSignal("VehicleOwnerUserId"):Connect(function()
-            pcall(createOrUpdateLabel, car)
-        end)
-    end
-
-    local function onCarRemoved(car)
-        for i, m in ipairs(carModels) do
-            if m == car then table.remove(carModels, i) break end
-        end
-        removeCarHighlight(car)
-        local gui = car:FindFirstChild("CarInfoGUI")
-        if gui then gui:Destroy() end
-    end
-
-    -- Запускаем мониторинг LiveCars с отложенным сканированием
-    task.defer(function()
-        local liveCars = workspace:FindFirstChild("LiveCars")
-        if liveCars then
-            for _, child in ipairs(liveCars:GetChildren()) do
-                if child:IsA("Model") then onCarAdded(child) end
-            end
-            liveCars.ChildAdded:Connect(function(c) if c:IsA("Model") then onCarAdded(c) end end)
-            liveCars.ChildRemoved:Connect(function(c) if c:IsA("Model") then onCarRemoved(c) end end)
-        end
+    createOrUpdateLabel(car)
+    car:GetAttributeChangedSignal("VehicleHp"):Connect(function()
+        pcall(createOrUpdateLabel, car)
     end)
-
-    -- Подписки на изменения настроек
-    carHighlightToggle:OnChanged(function(enabled)
-        for _, car in ipairs(carModels) do
-            if enabled then addCarHighlight(car) else removeCarHighlight(car) end
-        end
+    car:GetAttributeChangedSignal("VehicleOwnerUserId"):Connect(function()
+        pcall(createOrUpdateLabel, car)
     end)
+end
 
-    Options.CarHighlightFillColor:OnChanged(updateAllHighlights)
-    Options.CarHighlightOutlineColor:OnChanged(updateAllHighlights)
-    fillTransSlider:OnChanged(updateAllHighlights)
-    outlineTransSlider:OnChanged(updateAllHighlights)
+local function onCarRemoved(car)
+    for i, m in ipairs(carModels) do
+        if m == car then table.remove(carModels, i) break end
+    end
+    removeCarHighlight(car)
+    local gui = car:FindFirstChild("CarInfoGUI")
+    if gui then gui:Destroy() end
+end
 
-    showOwnerToggle:OnChanged(updateAllLabels)
-    showNameToggle:OnChanged(updateAllLabels)
-    showHPToggle:OnChanged(updateAllLabels)
-    textSizeSlider:OnChanged(updateAllLabels)
-    Options.CarInfoTextColor:OnChanged(updateAllLabels)
+task.defer(function()
+    local liveCars = workspace:FindFirstChild("LiveCars")
+    if liveCars then
+        for _, child in ipairs(liveCars:GetChildren()) do
+            if child:IsA("Model") then onCarAdded(child) end
+        end
+        liveCars.ChildAdded:Connect(function(c) if c:IsA("Model") then onCarAdded(c) end end)
+        liveCars.ChildRemoved:Connect(function(c) if c:IsA("Model") then onCarRemoved(c) end end)
+    end
+end)
+
+carHighlightToggle:OnChanged(function(enabled)
+    for _, car in ipairs(carModels) do
+        if enabled then addCarHighlight(car) else removeCarHighlight(car) end
+    end
+end)
+
+Options.CarHighlightFillColor:OnChanged(updateAllHighlights)
+Options.CarHighlightOutlineColor:OnChanged(updateAllHighlights)
+fillTransSlider:OnChanged(updateAllHighlights)
+outlineTransSlider:OnChanged(updateAllHighlights)
+
+showOwnerToggle:OnChanged(updateAllLabels)
+showNameToggle:OnChanged(updateAllLabels)
+showHPToggle:OnChanged(updateAllLabels)
+textSizeSlider:OnChanged(updateAllLabels)
+Options.CarInfoTextColor:OnChanged(updateAllLabels)
 
     -- =====================================================
     -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без lifesteal и tracer
