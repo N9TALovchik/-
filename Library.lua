@@ -1,4 +1,4 @@
--- LinoriaLib модифицированная (кастомный курсор, анимированные уведомления, защита от дубликатов табов)
+-- LinoriaLib модифицированная (исправлены уведомления: выезд из-за экрана, двойной прогресс-бар)
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -15,7 +15,7 @@ local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для ка
 local NOTIFY_SOUND_ID = "8679627751"    -- ID звука уведомлений
 local NOTIFY_ANIMATION_SPEED = 0.3      -- скорость анимации уведомлений (секунды)
 -- ==========================================
-loadstring(game:HttpGet("https://raw.githubusercontent.com/N9TALovchik/-/refs/heads/main/addons/NOTALovchik.lua"))()
+
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
 local ScreenGui = Instance.new('ScreenGui');
@@ -58,16 +58,12 @@ local Hue = 0
 
 table.insert(Library.Signals, RenderStepped:Connect(function(Delta)
     RainbowStep = RainbowStep + Delta
-
     if RainbowStep >= (1 / 60) then
         RainbowStep = 0
-
         Hue = Hue + (1 / 400);
-
         if Hue > 1 then
             Hue = 0;
         end;
-
         Library.CurrentRainbowHue = Hue;
         Library.CurrentRainbowColor = Color3.fromHSV(Hue, 0.8, 1);
     end;
@@ -75,25 +71,19 @@ end))
 
 local function GetPlayersString()
     local PlayerList = Players:GetPlayers();
-
     for i = 1, #PlayerList do
         PlayerList[i] = PlayerList[i].Name;
     end;
-
     table.sort(PlayerList, function(str1, str2) return str1 < str2 end);
-
     return PlayerList;
 end;
 
 local function GetTeamsString()
     local TeamList = Teams:GetTeams();
-
     for i = 1, #TeamList do
         TeamList[i] = TeamList[i].Name;
     end;
-
     table.sort(TeamList, function(str1, str2) return str1 < str2 end);
-    
     return TeamList;
 end;
 
@@ -2660,7 +2650,7 @@ do
     end;
 end;
 
--- ========== АНИМИРОВАННЫЕ УВЕДОМЛЕНИЯ (выезжают снизу) ==========
+-- ========== АНИМИРОВАННЫЕ УВЕДОМЛЕНИЯ (выезжают из-за экрана, двойной прогресс-бар) ==========
 local NotificationArea = Library:Create('Frame', {
     BackgroundTransparency = 1;
     AnchorPoint = Vector2.new(0.5, 1);
@@ -2694,28 +2684,30 @@ end
 
 function Library:Notify(Text, Time)
     Time = Time or 5
-    PlayNotifySound()
-    
+    PlayNotifySound()  -- звук срабатывает сразу
+
     local XSize = Library:GetTextBounds(Text, Library.Font, 14) + 24
     local YSize = 32
-    
+
     local Outer = Library:Create('Frame', {
         BorderColor3 = Color3.new(0, 0, 0);
         Size = UDim2.new(0, XSize, 0, YSize);
-        Position = UDim2.new(0.5, -XSize/2, 1, YSize + 10);  -- за экраном снизу
+        Position = UDim2.new(0.5, -XSize/2, 1, 0);  -- за экраном снизу (Y=1)
         ClipsDescendants = false;
         ZIndex = 100;
         Parent = NotificationArea;
     });
-    
-    -- Анимация выезда
-    local startPos = UDim2.new(0.5, -XSize/2, 1, YSize + 10)
-    local targetPos = UDim2.new(0.5, -XSize/2, 1, -YSize - 10) -- финальная позиция (над кнопками)
+
+    -- Анимация выезда из самого низа
+    local targetY = -Outer.AbsoluteSize.Y - 10  -- позиция над областью уведомлений
+    local startPos = UDim2.new(0.5, -XSize/2, 1, 0)       -- за нижней границей экрана
+    local targetPos = UDim2.new(0.5, -XSize/2, 1, targetY) -- выезд вверх
+
     Outer.Position = startPos
-    
+
     local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = targetPos })
     tweenIn:Play()
-    
+
     local Inner = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
         BorderColor3 = Library.OutlineColor;
@@ -2724,12 +2716,12 @@ function Library:Notify(Text, Time)
         ZIndex = 101;
         Parent = Outer;
     });
-    
+
     Library:AddToRegistry(Inner, {
         BackgroundColor3 = 'MainColor';
         BorderColor3 = 'OutlineColor';
     }, true);
-    
+
     local InnerFrame = Library:Create('Frame', {
         BackgroundColor3 = Color3.new(1, 1, 1);
         BorderSizePixel = 0;
@@ -2738,7 +2730,7 @@ function Library:Notify(Text, Time)
         ZIndex = 102;
         Parent = Inner;
     });
-    
+
     local Gradient = Library:Create('UIGradient', {
         Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
@@ -2747,7 +2739,7 @@ function Library:Notify(Text, Time)
         Rotation = -90;
         Parent = InnerFrame;
     });
-    
+
     Library:AddToRegistry(Gradient, {
         Color = function()
             return ColorSequence.new({
@@ -2756,7 +2748,7 @@ function Library:Notify(Text, Time)
             });
         end
     });
-    
+
     local Label = Library:CreateLabel({
         Position = UDim2.new(0, 8, 0, 0);
         Size = UDim2.new(1, -16, 1, 0);
@@ -2766,29 +2758,41 @@ function Library:Notify(Text, Time)
         ZIndex = 103;
         Parent = InnerFrame;
     });
-    
-    local ProgressBar = Library:Create('Frame', {
+
+    -- Двойной прогресс-бар (две полоски, идущие от краёв к центру)
+    local LeftBar = Library:Create('Frame', {
         BackgroundColor3 = Library.AccentColor;
         BorderSizePixel = 0;
+        Size = UDim2.new(0.5, 0, 0, 2);
         Position = UDim2.new(0, 0, 1, -2);
-        Size = UDim2.new(1, 0, 0, 2);
         ZIndex = 104;
         Parent = Outer;
     });
-    
-    Library:AddToRegistry(ProgressBar, {
-        BackgroundColor3 = 'AccentColor';
-    }, true);
-    
-    local ProgressTween = TweenService:Create(ProgressBar, TweenInfo.new(Time, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 2) });
-    ProgressTween:Play();
-    
-    task.wait(Time)
-    
-    local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = startPos })
-    tweenOut:Play()
-    tweenOut.Completed:Connect(function()
-        Outer:Destroy()
+
+    local RightBar = Library:Create('Frame', {
+        BackgroundColor3 = Library.AccentColor;
+        BorderSizePixel = 0;
+        Size = UDim2.new(0.5, 0, 0, 2);
+        Position = UDim2.new(1, 0, 1, -2);
+        AnchorPoint = Vector2.new(1, 0);
+        ZIndex = 104;
+        Parent = Outer;
+    });
+
+    -- Анимация полосок: они стягиваются к центру (уменьшаются до нуля ширины)
+    local leftTween = TweenService:Create(LeftBar, TweenInfo.new(Time, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 2) })
+    local rightTween = TweenService:Create(RightBar, TweenInfo.new(Time, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 2) })
+
+    leftTween:Play()
+    rightTween:Play()
+
+    -- Через Time уведомление уезжает обратно
+    task.delay(Time, function()
+        local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = startPos })
+        tweenOut:Play()
+        tweenOut.Completed:Connect(function()
+            Outer:Destroy()
+        end)
     end)
 end;
 
