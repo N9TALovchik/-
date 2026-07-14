@@ -1,4 +1,4 @@
--- LinoriaLib модифицированная (исправленные уведомления, звук, прогресс-бар)
+-- LinoriaLib модифицированная (сворачиваемые группы, исправленные уведомления, звук, прогресс-бар)
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -2617,15 +2617,21 @@ function Library:CreateWindow(...)
 
         function Tab:AddGroupbox(Info)
             local Groupbox = {};
+            
             local BoxOuter = Library:Create('Frame', {
                 BackgroundColor3 = Library.BackgroundColor;
                 BorderColor3 = Library.OutlineColor;
                 BorderMode = Enum.BorderMode.Inset;
-                Size = UDim2.new(1, 0, 0, 507 + 2);
+                Size = UDim2.new(1, 0, 0, 507 + 2);  -- временный размер, будет скорректирован
                 ZIndex = 2;
                 Parent = Info.Side == 1 and LeftSide or RightSide;
-            });
-            Library:AddToRegistry(BoxOuter, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor'; });
+            })
+            
+            Library:AddToRegistry(BoxOuter, {
+                BackgroundColor3 = 'BackgroundColor';
+                BorderColor3 = 'OutlineColor';
+            })
+            
             local BoxInner = Library:Create('Frame', {
                 BackgroundColor3 = Library.BackgroundColor;
                 BorderColor3 = Color3.new(0, 0, 0);
@@ -2633,52 +2639,163 @@ function Library:CreateWindow(...)
                 Position = UDim2.new(0, 1, 0, 1);
                 ZIndex = 4;
                 Parent = BoxOuter;
-            });
-            Library:AddToRegistry(BoxInner, { BackgroundColor3 = 'BackgroundColor'; });
+            })
+            
+            Library:AddToRegistry(BoxInner, {
+                BackgroundColor3 = 'BackgroundColor';
+            })
+            
             local Highlight = Library:Create('Frame', {
                 BackgroundColor3 = Library.AccentColor;
                 BorderSizePixel = 0;
                 Size = UDim2.new(1, 0, 0, 2);
                 ZIndex = 5;
                 Parent = BoxInner;
-            });
-            Library:AddToRegistry(Highlight, { BackgroundColor3 = 'AccentColor'; });
+            })
+            
+            Library:AddToRegistry(Highlight, {
+                BackgroundColor3 = 'AccentColor';
+            })
+            
+            -- Заголовок с кнопкой-стрелкой
+            local Header = Library:Create('Frame', {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -4, 0, 18),
+                Position = UDim2.new(0, 4, 0, 2),
+                ZIndex = 5,
+                Parent = BoxInner,
+            })
+            
             local GroupboxLabel = Library:CreateLabel({
-                Size = UDim2.new(1, 0, 0, 18);
-                Position = UDim2.new(0, 4, 0, 2);
+                Size = UDim2.new(1, -20, 1, 0),  -- оставляем место справа для стрелки
+                Position = UDim2.new(0, 0, 0, 0),
                 TextSize = 14;
                 Text = Info.Name;
                 TextXAlignment = Enum.TextXAlignment.Left;
                 ZIndex = 5;
-                Parent = BoxInner;
-            });
+                Parent = Header;
+            })
+            
+            -- Кнопка-стрелка (два фрейма)
+            local ToggleButton = Library:Create('Frame', {
+                BackgroundColor3 = Library.MainColor,
+                BorderColor3 = Library.OutlineColor,
+                Size = UDim2.new(0, 14, 0, 14),
+                Position = UDim2.new(1, -14, 0.5, -7),
+                ZIndex = 6,
+                Parent = Header,
+            })
+            
+            local ArrowUp = Library:Create('Frame', {
+                BackgroundColor3 = Library.FontColor,
+                BorderSizePixel = 0,
+                Size = UDim2.new(0, 8, 0, 2),
+                Position = UDim2.new(0.5, -4, 0, 4),
+                ZIndex = 7,
+                Parent = ToggleButton,
+            })
+            
+            local ArrowDown = Library:Create('Frame', {
+                BackgroundColor3 = Library.FontColor,
+                BorderSizePixel = 0,
+                Size = UDim2.new(0, 8, 0, 2),
+                Position = UDim2.new(0.5, -4, 0, 8),
+                ZIndex = 7,
+                Parent = ToggleButton,
+            })
+            
+            -- Контейнер содержимого
             local Container = Library:Create('Frame', {
                 BackgroundTransparency = 1;
                 Position = UDim2.new(0, 4, 0, 20);
                 Size = UDim2.new(1, -4, 1, -20);
                 ZIndex = 1;
                 Parent = BoxInner;
-            });
+            })
+            
             Library:Create('UIListLayout', {
                 FillDirection = Enum.FillDirection.Vertical;
                 SortOrder = Enum.SortOrder.LayoutOrder;
                 Parent = Container;
-            });
+            })
+            
+            local isCollapsed = false
+            local originalContainerSize = nil  -- запомним высоту, когда группа развёрнута
+            
+            -- Функция обновления размера всей группы (вызывается при изменении содержимого)
             function Groupbox:Resize()
-                local Size = 0;
-                for _, Element in next, Groupbox.Container:GetChildren() do
-                    if (not Element:IsA('UIListLayout')) and Element.Visible then
-                        Size = Size + Element.Size.Y.Offset;
-                    end;
-                end;
-                BoxOuter.Size = UDim2.new(1, 0, 0, 20 + Size + 2 + 2);
-            end;
-            Groupbox.Container = Container;
-            setmetatable(Groupbox, BaseGroupbox);
-            Groupbox:AddBlank(3);
-            Groupbox:Resize();
-            Tab.Groupboxes[Info.Name] = Groupbox;
-            return Groupbox;
+                if isCollapsed then
+                    -- В свёрнутом состоянии группа занимает только высоту заголовка
+                    BoxOuter.Size = UDim2.new(1, 0, 0, 20 + 2 + 2)  -- 20 = заголовок, 2+2 отступы
+                else
+                    local size = 0
+                    for _, elem in ipairs(Container:GetChildren()) do
+                        if (not elem:IsA('UIListLayout')) and elem.Visible then
+                            size = size + elem.Size.Y.Offset
+                        end
+                    end
+                    BoxOuter.Size = UDim2.new(1, 0, 0, 20 + size + 2 + 2)
+                end
+                -- Обновляем размер канваса родительского ScrollingFrame
+                local side = Info.Side == 1 and LeftSide or RightSide
+                side.CanvasSize = UDim2.new(0, 0, 0, side.UIListLayout.AbsoluteContentSize.Y)
+            end
+            
+            -- Переключение видимости
+            local function toggleCollapse()
+                isCollapsed = not isCollapsed
+                
+                if isCollapsed then
+                    -- Запоминаем текущую высоту контейнера и скрываем всё содержимое
+                    originalContainerSize = Container.Size
+                    Container.Size = UDim2.new(1, -4, 0, 0)
+                    for _, elem in ipairs(Container:GetChildren()) do
+                        if not elem:IsA('UIListLayout') then
+                            elem.Visible = false
+                        end
+                    end
+                    -- Поворачиваем стрелку: вниз (свёрнуто) -> вверх
+                    ArrowUp.Position = UDim2.new(0.5, -4, 0, 4)
+                    ArrowDown.Position = UDim2.new(0.5, -4, 0, 8)
+                    -- Можно добавить поворот, но проще переставить фреймы
+                    local tmp = ArrowUp.Position
+                    ArrowUp.Position = ArrowDown.Position
+                    ArrowDown.Position = tmp
+                else
+                    -- Восстанавливаем исходный размер контейнера
+                    if originalContainerSize then
+                        Container.Size = originalContainerSize
+                    end
+                    -- Показываем все дочерние элементы
+                    for _, elem in ipairs(Container:GetChildren()) do
+                        if not elem:IsA('UIListLayout') then
+                            elem.Visible = true
+                        end
+                    end
+                    -- Возвращаем стрелку в исходное положение
+                    ArrowUp.Position = UDim2.new(0.5, -4, 0, 4)
+                    ArrowDown.Position = UDim2.new(0.5, -4, 0, 8)
+                    originalContainerSize = nil
+                end
+                
+                Groupbox:Resize()
+            end
+            
+            ToggleButton.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    toggleCollapse()
+                end
+            end)
+            
+            -- Регистрируем начальный размер (вызываем Resize после первой вставки элементов)
+            Groupbox:AddBlank(3)  -- небольшой отступ сверху
+            Groupbox:Resize()
+            
+            Groupbox.Container = Container
+            setmetatable(Groupbox, BaseGroupbox)
+            
+            Tab.Groupboxes[Info.Name] = Groupbox
+            return Groupbox
         end;
 
         function Tab:AddLeftGroupbox(Name) return Tab:AddGroupbox({ Side = 1; Name = Name; }); end;
