@@ -1,4 +1,4 @@
--- ShopManager.lua (ранняя версия + Silent Aim без кликов, FOV у курсора, моды оружия без изменений)
+-- ShopManager.lua (Ранняя версия + Silent Aim без кликов, FOV у курсора)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -664,10 +664,11 @@ function ShopManager:Init(Window, Tabs)
     checkLoop()
 
     -- =====================================================
-    -- RAGE GROUP (Silent Aim + Auto Fire) – без кликов, FOV у курсора
+    -- RAGE GROUP (Silent Aim) – ИСПРАВЛЕНО: без кликов, FOV у курсора
     -- =====================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
+    -- Инициализация глобальных переменных
     _G.SilentAim_Enabled = false
     _G.SilentAim_Hitbox = "Head"
     _G.SilentAim_FOV = 180
@@ -793,7 +794,7 @@ function ShopManager:Init(Window, Tabs)
         fovCircle.Radius = radius
     end
 
-    -- Функция выбора цели (исправленный Visible Check)
+    -- Функция выбора цели
     local function getTarget()
         if not camera then return nil end
         local mousePos = uis:GetMouseLocation()
@@ -834,7 +835,7 @@ function ShopManager:Init(Window, Tabs)
                 rayParams.FilterDescendantsInstances = { player.Character, char }
                 local rayResult = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position).Unit * distance3D, rayParams)
                 if rayResult and rayResult.Instance and rayResult.Instance.Parent ~= char then
-                    continue -- препятствие
+                    continue
                 end
             end
 
@@ -880,23 +881,29 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- Авто‑огонь (зажимает кнопку, без кликов)
+    -- Авто‑огонь (удержание мыши, без кликов)
     local isMouseHeld = false
     local function updateAutoFire()
         if _G.SilentAim_AutoFire and _G.SilentAim_Enabled then
-            local target = getTarget()
+            local hasTarget = getTarget() ~= nil
             local character = player.Character
             local tool = character and character:FindFirstChildWhichIsA("Tool")
-            if target and tool and not isMouseHeld then
-                pcall(function() mouse1press() end)
-                isMouseHeld = true
-            elseif (not target or not tool) and isMouseHeld then
+            if hasTarget and tool then
+                if not isMouseHeld then
+                    pcall(function() mouse1press() end)
+                    isMouseHeld = true
+                end
+            else
+                if isMouseHeld then
+                    pcall(function() mouse1release() end)
+                    isMouseHeld = false
+                end
+            end
+        else
+            if isMouseHeld then
                 pcall(function() mouse1release() end)
                 isMouseHeld = false
             end
-        elseif isMouseHeld then
-            pcall(function() mouse1release() end)
-            isMouseHeld = false
         end
     end
 
