@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финальный + SurfaceGui на DriveSeat)
+-- ShopManager.lua (полный финальный + Silent Aim (Rage))
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -361,307 +361,561 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
     end)
 
--- =====================================================
--- ESP GROUP (Car ESP) – финальная версия
--- =====================================================
-local espGroup = shopTab:AddLeftGroupbox('ESP')
-local workspace = game:GetService("Workspace")
-local runService = game:GetService("RunService")
+    -- =====================================================
+    -- ESP GROUP (Car ESP) – финальная версия
+    -- =====================================================
+    local espGroup = shopTab:AddLeftGroupbox('ESP')
+    local workspace = game:GetService("Workspace")
+    local runService = game:GetService("RunService")
 
--- Car Highlight (главный тумблер)
-local carHighlightToggle = espGroup:AddToggle('CarHighlightToggle', {
-    Text = 'Car Highlight',
-    Default = false,
-    Tooltip = 'Включает подсветку и текст над машинами'
-})
-espGroup:AddLabel('Fill Color'):AddColorPicker('CarHighlightFillColor', { Default = Color3.fromRGB(255, 0, 0) })
-espGroup:AddLabel('Outline Color'):AddColorPicker('CarHighlightOutlineColor', { Default = Color3.fromRGB(255, 255, 255) })
-local fillTransSlider = espGroup:AddSlider('CarHighlightFillTrans', {
-    Text = 'Fill Transparency', Min = 0, Max = 1, Default = 0.5, Rounding = 2, Suffix = ''
-})
-local outlineTransSlider = espGroup:AddSlider('CarHighlightOutlineTrans', {
-    Text = 'Outline Transparency', Min = 0, Max = 1, Default = 0, Rounding = 2, Suffix = ''
-})
+    -- Car Highlight (главный тумблер)
+    local carHighlightToggle = espGroup:AddToggle('CarHighlightToggle', {
+        Text = 'Car Highlight',
+        Default = false,
+        Tooltip = 'Включает подсветку и текст над машинами'
+    })
+    espGroup:AddLabel('Fill Color'):AddColorPicker('CarHighlightFillColor', { Default = Color3.fromRGB(255, 0, 0) })
+    espGroup:AddLabel('Outline Color'):AddColorPicker('CarHighlightOutlineColor', { Default = Color3.fromRGB(255, 255, 255) })
+    local fillTransSlider = espGroup:AddSlider('CarHighlightFillTrans', {
+        Text = 'Fill Transparency', Min = 0, Max = 1, Default = 0.5, Rounding = 2, Suffix = ''
+    })
+    local outlineTransSlider = espGroup:AddSlider('CarHighlightOutlineTrans', {
+        Text = 'Outline Transparency', Min = 0, Max = 1, Default = 0, Rounding = 2, Suffix = ''
+    })
 
--- Car Info toggles
-local showOwnerToggle = espGroup:AddToggle('ShowOwnerToggle', { Text = 'Show Owner', Default = true })
-local showNameToggle = espGroup:AddToggle('ShowNameToggle', { Text = 'Show Name', Default = true })
-local showHPToggle = espGroup:AddToggle('ShowHPToggle', { Text = 'Show HP', Default = true })
-local strokeSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
-    Text = 'Stroke Size', Min = 8, Max = 48, Default = 8, Rounding = 0
-})
-espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
+    -- Car Info toggles
+    local showOwnerToggle = espGroup:AddToggle('ShowOwnerToggle', { Text = 'Show Owner', Default = true })
+    local showNameToggle = espGroup:AddToggle('ShowNameToggle', { Text = 'Show Name', Default = true })
+    local showHPToggle = espGroup:AddToggle('ShowHPToggle', { Text = 'Show HP', Default = true })
+    local strokeSizeSlider = espGroup:AddSlider('CarInfoTextSize', {
+        Text = 'Stroke Size', Min = 8, Max = 48, Default = 8, Rounding = 0
+    })
+    espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
 
--- Хранилища
-local carModels = {}
-local carDrawings = {}   -- [carModel] = { Owner, Name, HP }
-local ownerNames = {}
+    -- Хранилища
+    local carModels = {}
+    local carDrawings = {}   -- [carModel] = { Owner, Name, HP }
+    local ownerNames = {}
 
-local function getOwnerName(userId)
-    if not userId or userId == 0 then return "None" end
-    if not ownerNames[userId] then
-        local success, name = pcall(function()
-            return game.Players:GetNameFromUserIdAsync(userId)
+    local function getOwnerName(userId)
+        if not userId or userId == 0 then return "None" end
+        if not ownerNames[userId] then
+            local success, name = pcall(function()
+                return game.Players:GetNameFromUserIdAsync(userId)
+            end)
+            ownerNames[userId] = (success and name) or "?"
+        end
+        return ownerNames[userId]
+    end
+
+    -- Хайлайты
+    local function addCarHighlight(carModel)
+        local hl = Instance.new("Highlight")
+        hl.Name = "CarHighlight"
+        hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
+        hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
+        hl.FillTransparency = fillTransSlider.Value
+        hl.OutlineTransparency = outlineTransSlider.Value
+        hl.Parent = carModel
+    end
+    local function removeCarHighlight(carModel)
+        local hl = carModel:FindFirstChild("CarHighlight")
+        if hl then hl:Destroy() end
+    end
+    local function updateHighlight(carModel)
+        local hl = carModel:FindFirstChild("CarHighlight")
+        if not hl then return end
+        hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
+        hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
+        hl.FillTransparency = fillTransSlider.Value
+        hl.OutlineTransparency = outlineTransSlider.Value
+    end
+
+    -- Отрисовка текста (только если Highlight включён)
+    local function updateCarDrawings(carModel, camera)
+        local drawings = carDrawings[carModel]
+
+        -- Если Highlight выключен – удаляем все рисунки и выходим
+        if not carHighlightToggle.Value then
+            if drawings then
+                for _, d in pairs(drawings) do
+                    pcall(function() d:Remove() end)
+                end
+                carDrawings[carModel] = nil
+            end
+            return
+        end
+
+        local anyInfo = showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value
+        if not anyInfo then
+            if drawings then
+                for _, d in pairs(drawings) do
+                    pcall(function() d:Remove() end)
+                end
+                carDrawings[carModel] = nil
+            end
+            return
+        end
+
+        -- Определяем опорную точку
+        local primaryPart = carModel.PrimaryPart or carModel:FindFirstChild("DriveSeat") or carModel:FindFirstChildWhichIsA("BasePart")
+        if not primaryPart then
+            if drawings then
+                for _, d in pairs(drawings) do
+                    d.Visible = false
+                end
+            end
+            return
+        end
+
+        local modelSize = carModel:GetExtentsSize()
+        if modelSize.Magnitude == 0 then
+            modelSize = Vector3.new(4, 2, 4)
+        end
+
+        local centerPos = primaryPart.Position
+        local topPos = centerPos + Vector3.new(0, modelSize.Y * 0.5 + 1, 0)
+
+        local screenTop, onScreen = camera:WorldToViewportPoint(topPos)
+        local distance = (centerPos - camera.CFrame.Position).Magnitude
+        if distance > 1000 then onScreen = false end
+
+        if not onScreen then
+            if drawings then
+                for _, d in pairs(drawings) do
+                    d.Visible = false
+                end
+            end
+            return
+        end
+
+        if not drawings then
+            drawings = {
+                Owner = Drawing.new("Text"),
+                Name = Drawing.new("Text"),
+                HP = Drawing.new("Text")
+            }
+            for _, d in pairs(drawings) do
+                d.Visible = false
+                d.Center = true
+                d.Outline = true
+                d.Font = 2
+            end
+            carDrawings[carModel] = drawings
+        end
+
+        local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
+        local textSize = strokeSizeSlider.Value
+
+        local ownerText = showOwnerToggle.Value and getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0) or nil
+        local nameText = showNameToggle.Value and carModel.Name or nil
+        local hpValue = tonumber(carModel:GetAttribute("VehicleHP")) or 0
+        local maxHP = tonumber(carModel:GetAttribute("VehicleMaxHP")) or 1000
+        local hpPercent = (maxHP > 0) and math.floor((hpValue / maxHP) * 100) or 0
+        local hpText = showHPToggle.Value and (hpPercent .. "%") or nil
+
+        local lineHeight = textSize * 1.5
+        local startY = screenTop.Y - lineHeight
+
+        if ownerText then
+            drawings.Owner.Text = ownerText
+            drawings.Owner.Position = Vector2.new(screenTop.X, startY)
+            drawings.Owner.Color = textColor
+            drawings.Owner.Size = textSize
+            drawings.Owner.Visible = true
+        else
+            drawings.Owner.Visible = false
+        end
+
+        if nameText then
+            drawings.Name.Text = nameText
+            drawings.Name.Position = Vector2.new(screenTop.X, startY + lineHeight)
+            drawings.Name.Color = textColor
+            drawings.Name.Size = textSize
+            drawings.Name.Visible = true
+        else
+            drawings.Name.Visible = false
+        end
+
+        if hpText then
+            drawings.HP.Text = hpText
+            drawings.HP.Position = Vector2.new(screenTop.X, startY + lineHeight * 2)
+            drawings.HP.Color = textColor
+            drawings.HP.Size = textSize
+            drawings.HP.Visible = true
+        else
+            drawings.HP.Visible = false
+        end
+    end
+
+    local function removeCarDrawings(carModel)
+        local drawings = carDrawings[carModel]
+        if drawings then
+            for _, d in pairs(drawings) do
+                pcall(function() d:Remove() end)
+            end
+            carDrawings[carModel] = nil
+        end
+    end
+
+    -- Добавление/удаление машин
+    local function onCarAdded(car)
+        if not car:IsA("Model") then return end
+        table.insert(carModels, car)
+        if carHighlightToggle.Value then
+            addCarHighlight(car)
+        end
+
+        -- Автоматическое удаление только при Destroyed = true
+        car:GetAttributeChangedSignal("VehicleDestroyed"):Connect(function()
+            if car:GetAttribute("VehicleDestroyed") == true then
+                onCarRemoved(car)
+            end
         end)
-        ownerNames[userId] = (success and name) or "?"
-    end
-    return ownerNames[userId]
-end
-
--- Хайлайты
-local function addCarHighlight(carModel)
-    local hl = Instance.new("Highlight")
-    hl.Name = "CarHighlight"
-    hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
-    hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
-    hl.FillTransparency = fillTransSlider.Value
-    hl.OutlineTransparency = outlineTransSlider.Value
-    hl.Parent = carModel
-end
-local function removeCarHighlight(carModel)
-    local hl = carModel:FindFirstChild("CarHighlight")
-    if hl then hl:Destroy() end
-end
-local function updateHighlight(carModel)
-    local hl = carModel:FindFirstChild("CarHighlight")
-    if not hl then return end
-    hl.FillColor = Options.CarHighlightFillColor.Value or Color3.fromRGB(255, 0, 0)
-    hl.OutlineColor = Options.CarHighlightOutlineColor.Value or Color3.fromRGB(255, 255, 255)
-    hl.FillTransparency = fillTransSlider.Value
-    hl.OutlineTransparency = outlineTransSlider.Value
-end
-
--- Отрисовка текста (только если Highlight включён)
-local function updateCarDrawings(carModel, camera)
-    local drawings = carDrawings[carModel]
-
-    -- Если Highlight выключен – удаляем все рисунки и выходим
-    if not carHighlightToggle.Value then
-        if drawings then
-            for _, d in pairs(drawings) do
-                pcall(function() d:Remove() end)
-            end
-            carDrawings[carModel] = nil
-        end
-        return
-    end
-
-    local anyInfo = showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value
-    if not anyInfo then
-        if drawings then
-            for _, d in pairs(drawings) do
-                pcall(function() d:Remove() end)
-            end
-            carDrawings[carModel] = nil
-        end
-        return
-    end
-
-    -- Определяем опорную точку
-    local primaryPart = carModel.PrimaryPart or carModel:FindFirstChild("DriveSeat") or carModel:FindFirstChildWhichIsA("BasePart")
-    if not primaryPart then
-        if drawings then
-            for _, d in pairs(drawings) do
-                d.Visible = false
-            end
-        end
-        return
-    end
-
-    local modelSize = carModel:GetExtentsSize()
-    if modelSize.Magnitude == 0 then
-        modelSize = Vector3.new(4, 2, 4)
-    end
-
-    local centerPos = primaryPart.Position
-    local topPos = centerPos + Vector3.new(0, modelSize.Y * 0.5 + 1, 0)
-
-    local screenTop, onScreen = camera:WorldToViewportPoint(topPos)
-    local distance = (centerPos - camera.CFrame.Position).Magnitude
-    if distance > 1000 then onScreen = false end
-
-    if not onScreen then
-        if drawings then
-            for _, d in pairs(drawings) do
-                d.Visible = false
-            end
-        end
-        return
-    end
-
-    if not drawings then
-        drawings = {
-            Owner = Drawing.new("Text"),
-            Name = Drawing.new("Text"),
-            HP = Drawing.new("Text")
-        }
-        for _, d in pairs(drawings) do
-            d.Visible = false
-            d.Center = true
-            d.Outline = true
-            d.Font = 2
-        end
-        carDrawings[carModel] = drawings
-    end
-
-    local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
-    local textSize = strokeSizeSlider.Value
-
-    local ownerText = showOwnerToggle.Value and getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0) or nil
-    local nameText = showNameToggle.Value and carModel.Name or nil
-    local hpValue = tonumber(carModel:GetAttribute("VehicleHP")) or 0
-    local maxHP = tonumber(carModel:GetAttribute("VehicleMaxHP")) or 1000
-    local hpPercent = (maxHP > 0) and math.floor((hpValue / maxHP) * 100) or 0
-    local hpText = showHPToggle.Value and (hpPercent .. "%") or nil
-
-    local lineHeight = textSize * 1.5
-    local startY = screenTop.Y - lineHeight
-
-    if ownerText then
-        drawings.Owner.Text = ownerText
-        drawings.Owner.Position = Vector2.new(screenTop.X, startY)
-        drawings.Owner.Color = textColor
-        drawings.Owner.Size = textSize
-        drawings.Owner.Visible = true
-    else
-        drawings.Owner.Visible = false
-    end
-
-    if nameText then
-        drawings.Name.Text = nameText
-        drawings.Name.Position = Vector2.new(screenTop.X, startY + lineHeight)
-        drawings.Name.Color = textColor
-        drawings.Name.Size = textSize
-        drawings.Name.Visible = true
-    else
-        drawings.Name.Visible = false
-    end
-
-    if hpText then
-        drawings.HP.Text = hpText
-        drawings.HP.Position = Vector2.new(screenTop.X, startY + lineHeight * 2)
-        drawings.HP.Color = textColor
-        drawings.HP.Size = textSize
-        drawings.HP.Visible = true
-    else
-        drawings.HP.Visible = false
-    end
-end
-
-local function removeCarDrawings(carModel)
-    local drawings = carDrawings[carModel]
-    if drawings then
-        for _, d in pairs(drawings) do
-            pcall(function() d:Remove() end)
-        end
-        carDrawings[carModel] = nil
-    end
-end
-
--- Добавление/удаление машин
-local function onCarAdded(car)
-    if not car:IsA("Model") then return end
-    table.insert(carModels, car)
-    if carHighlightToggle.Value then
-        addCarHighlight(car)
-    end
-
-    -- Автоматическое удаление только при Destroyed = true
-    car:GetAttributeChangedSignal("VehicleDestroyed"):Connect(function()
+        -- Если уже уничтожена при добавлении
         if car:GetAttribute("VehicleDestroyed") == true then
             onCarRemoved(car)
         end
-    end)
-    -- Если уже уничтожена при добавлении
-    if car:GetAttribute("VehicleDestroyed") == true then
-        onCarRemoved(car)
     end
-end
 
-local function onCarRemoved(car)
-    for i, m in ipairs(carModels) do
-        if m == car then table.remove(carModels, i) break end
-    end
-    removeCarHighlight(car)
-    removeCarDrawings(car)
-end
-
-task.defer(function()
-    local liveCars = workspace:FindFirstChild("LiveCars")
-    if liveCars then
-        for _, child in ipairs(liveCars:GetChildren()) do
-            if child:IsA("Model") then onCarAdded(child) end
+    local function onCarRemoved(car)
+        for i, m in ipairs(carModels) do
+            if m == car then table.remove(carModels, i) break end
         end
-        liveCars.ChildAdded:Connect(function(c) if c:IsA("Model") then onCarAdded(c) end end)
-        liveCars.ChildRemoved:Connect(function(c) if c:IsA("Model") then onCarRemoved(c) end end)
+        removeCarHighlight(car)
+        removeCarDrawings(car)
     end
-end)
 
-local updateConnection = nil
-local function startUpdateLoop()
-    if updateConnection then return end
-    updateConnection = runService.RenderStepped:Connect(function()
+    task.defer(function()
+        local liveCars = workspace:FindFirstChild("LiveCars")
+        if liveCars then
+            for _, child in ipairs(liveCars:GetChildren()) do
+                if child:IsA("Model") then onCarAdded(child) end
+            end
+            liveCars.ChildAdded:Connect(function(c) if c:IsA("Model") then onCarAdded(c) end end)
+            liveCars.ChildRemoved:Connect(function(c) if c:IsA("Model") then onCarRemoved(c) end end)
+        end
+    end)
+
+    local updateConnection = nil
+    local function startUpdateLoop()
+        if updateConnection then return end
+        updateConnection = runService.RenderStepped:Connect(function()
+            local camera = workspace.CurrentCamera
+            if not camera then return end
+            for _, car in ipairs(carModels) do
+                pcall(updateCarDrawings, car, camera)
+            end
+        end)
+    end
+    local function stopUpdateLoop()
+        if updateConnection then
+            updateConnection:Disconnect()
+            updateConnection = nil
+        end
+    end
+
+    local function checkLoop()
+        if carHighlightToggle.Value and (showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value) then
+            startUpdateLoop()
+        else
+            stopUpdateLoop()
+        end
+    end
+
+    carHighlightToggle:OnChanged(function(enabled)
+        for _, car in ipairs(carModels) do
+            if enabled then
+                addCarHighlight(car)
+            else
+                removeCarHighlight(car)
+                removeCarDrawings(car)   -- при выключении хайлайта удаляем текст
+            end
+        end
+        checkLoop()
+    end)
+    showOwnerToggle:OnChanged(checkLoop)
+    showNameToggle:OnChanged(checkLoop)
+    showHPToggle:OnChanged(checkLoop)
+
+    local function redrawAll()
+        if not updateConnection then return end
         local camera = workspace.CurrentCamera
         if not camera then return end
         for _, car in ipairs(carModels) do
             pcall(updateCarDrawings, car, camera)
         end
-    end)
-end
-local function stopUpdateLoop()
-    if updateConnection then
-        updateConnection:Disconnect()
-        updateConnection = nil
     end
-end
+    strokeSizeSlider:OnChanged(redrawAll)
+    Options.CarInfoTextColor:OnChanged(redrawAll)
 
-local function checkLoop()
-    if carHighlightToggle.Value and (showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value) then
-        startUpdateLoop()
-    else
-        stopUpdateLoop()
-    end
-end
-
-carHighlightToggle:OnChanged(function(enabled)
-    for _, car in ipairs(carModels) do
-        if enabled then
-            addCarHighlight(car)
-        else
-            removeCarHighlight(car)
-            removeCarDrawings(car)   -- при выключении хайлайта удаляем текст
+    local function updateAllHighlights()
+        if carHighlightToggle.Value then
+            for _, car in ipairs(carModels) do
+                updateHighlight(car)
+            end
         end
     end
+    Options.CarHighlightFillColor:OnChanged(updateAllHighlights)
+    Options.CarHighlightOutlineColor:OnChanged(updateAllHighlights)
+    fillTransSlider:OnChanged(updateAllHighlights)
+    outlineTransSlider:OnChanged(updateAllHighlights)
+
     checkLoop()
-end)
-showOwnerToggle:OnChanged(checkLoop)
-showNameToggle:OnChanged(checkLoop)
-showHPToggle:OnChanged(checkLoop)
 
-local function redrawAll()
-    if not updateConnection then return end
+    -- =====================================================
+    -- RAGE GROUP (Silent Aim)
+    -- =====================================================
+    local rageGroup = shopTab:AddLeftGroupbox('Rage')
+
+    -- Инициализация глобальных переменных (значения по умолчанию)
+    _G.SilentAim_Enabled = false
+    _G.SilentAim_Hitbox = "Head"        -- "Head" или "Torso"
+    _G.SilentAim_FOV = 180              -- радиус в градусах (угол от центра экрана)
+    _G.SilentAim_ShowFOV = false
+    _G.SilentAim_MaxDistance = 1000
+    _G.SilentAim_AutoFire = false
+    _G.SilentAim_VisibleCheck = true
+    _G.SilentAim_DelayShot = 0          -- миллисекунды
+    _G.SilentAim_TeamCheck = false
+    _G.SilentAim_TargetPriority = "Crosshair"  -- "HP", "Distance", "Crosshair"
+
+    -- UI элементы
+    local enableToggle = rageGroup:AddToggle('SilentAimEnabled', {
+        Text = 'Enable Silent Aim',
+        Default = false,
+        Tooltip = 'Включает перенаправление пуль в цель'
+    })
+
+    local hitboxDropdown = rageGroup:AddDropdown('SilentAimHitbox', {
+        Text = 'Hitbox',
+        Values = {'Head', 'Torso'},
+        Default = 'Head',
+        Multi = false,
+        AllowNull = false,
+        Tooltip = 'Куда целиться'
+    })
+
+    local fovSlider = rageGroup:AddSlider('SilentAimFOV', {
+        Text = 'FOV',
+        Min = 0, Max = 360, Default = 180, Rounding = 0, Suffix = '°',
+        Tooltip = 'Радиус захвата в градусах'
+    })
+
+    local showFOVToggle = rageGroup:AddToggle('SilentAimShowFOV', {
+        Text = 'Show FOV Circle',
+        Default = false,
+        Tooltip = 'Рисовать круг FOV на экране'
+    })
+
+    local maxDistSlider = rageGroup:AddSlider('SilentAimMaxDistance', {
+        Text = 'Max Distance',
+        Min = 0, Max = 5000, Default = 1000, Rounding = 0, Suffix = ' studs',
+        Tooltip = 'Максимальная дистанция до цели'
+    })
+
+    local autoFireToggle = rageGroup:AddToggle('SilentAimAutoFire', {
+        Text = 'Auto Fire',
+        Default = false,
+        Tooltip = 'Автоматически стрелять при наведении'
+    })
+
+    local visibleCheckToggle = rageGroup:AddToggle('SilentAimVisibleCheck', {
+        Text = 'Visible Check',
+        Default = true,
+        Tooltip = 'Целиться только в видимых врагов (без препятствий)'
+    })
+
+    local delaySlider = rageGroup:AddSlider('SilentAimDelayShot', {
+        Text = 'Delay Shot',
+        Min = 0, Max = 1000, Default = 0, Rounding = 0, Suffix = ' ms',
+        Tooltip = 'Задержка перед выстрелом после захвата цели'
+    })
+
+    local teamCheckToggle = rageGroup:AddToggle('SilentAimTeamCheck', {
+        Text = 'Team Check',
+        Default = false,
+        Tooltip = 'Игнорировать игроков из своей команды'
+    })
+
+    local priorityDropdown = rageGroup:AddDropdown('SilentAimTargetPriority', {
+        Text = 'Target Priority',
+        Values = {'HP', 'Distance', 'Crosshair'},
+        Default = 'Crosshair',
+        Multi = false,
+        AllowNull = false,
+        Tooltip = 'Критерий выбора цели'
+    })
+
+    -- Обновление глобальных переменных при изменении UI
+    enableToggle:OnChanged(function(enabled) _G.SilentAim_Enabled = enabled end)
+    hitboxDropdown:OnChanged(function(value) _G.SilentAim_Hitbox = value end)
+    fovSlider:OnChanged(function(value) _G.SilentAim_FOV = value end)
+    showFOVToggle:OnChanged(function(value) _G.SilentAim_ShowFOV = value end)
+    maxDistSlider:OnChanged(function(value) _G.SilentAim_MaxDistance = value end)
+    autoFireToggle:OnChanged(function(value) _G.SilentAim_AutoFire = value end)
+    visibleCheckToggle:OnChanged(function(value) _G.SilentAim_VisibleCheck = value end)
+    delaySlider:OnChanged(function(value) _G.SilentAim_DelayShot = value end)
+    teamCheckToggle:OnChanged(function(value) _G.SilentAim_TeamCheck = value end)
+    priorityDropdown:OnChanged(function(value) _G.SilentAim_TargetPriority = value end)
+
+    -- =====================================================
+    -- ЛОГИКА SILENT AIM (перехват WeaponRaycast.fromScreen)
+    -- =====================================================
+    local player = game:GetService("Players").LocalPlayer
     local camera = workspace.CurrentCamera
-    if not camera then return end
-    for _, car in ipairs(carModels) do
-        pcall(updateCarDrawings, car, camera)
-    end
-end
-strokeSizeSlider:OnChanged(redrawAll)
-Options.CarInfoTextColor:OnChanged(redrawAll)
+    local repStorage = game:GetService("ReplicatedStorage")
 
-local function updateAllHighlights()
-    if carHighlightToggle.Value then
-        for _, car in ipairs(carModels) do
-            updateHighlight(car)
+    -- Отрисовка FOV-круга (Drawing)
+    local fovCircle = nil
+    local function updateFOVCircle()
+        if not _G.SilentAim_ShowFOV or not camera then
+            if fovCircle then
+                pcall(function() fovCircle:Remove() end)
+                fovCircle = nil
+            end
+            return
+        end
+
+        if not fovCircle then
+            fovCircle = Drawing.new("Circle")
+            fovCircle.Visible = true
+            fovCircle.Filled = false
+            fovCircle.Thickness = 1
+            fovCircle.Color = Color3.fromRGB(255, 255, 255)
+            fovCircle.Transparency = 0.8
+        end
+
+        local fov = _G.SilentAim_FOV or 180
+        local screenSize = camera.ViewportSize
+        local radius = (fov / 2) * (screenSize.Y / 70)  -- примерное преобразование градусов в пиксели
+        fovCircle.Position = Vector2.new(screenSize.X / 2, screenSize.Y / 2)
+        fovCircle.Radius = radius
+    end
+
+    -- Функция выбора цели
+    local function getTarget()
+        local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+        local bestTarget = nil
+        local bestScore = math.huge
+
+        for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
+            if otherPlayer == player then continue end
+            if _G.SilentAim_TeamCheck and otherPlayer.Team == player.Team then continue end
+
+            local char = otherPlayer.Character
+            if not char then continue end
+
+            local targetPart = nil
+            if _G.SilentAim_Hitbox == "Head" then
+                targetPart = char:FindFirstChild("Head")
+            elseif _G.SilentAim_Hitbox == "Torso" then
+                targetPart = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("HumanoidRootPart")
+            end
+            if not targetPart then continue end
+
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health <= 0 then continue end
+
+            local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+            if not onScreen then continue end
+
+            local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+
+            -- Преобразование градусного FOV в пиксели (приближённо)
+            local maxPixelDist = (_G.SilentAim_FOV / 2) * (camera.ViewportSize.Y / 70)
+            if dist > maxPixelDist then continue end
+
+            local distance3D = (targetPart.Position - camera.CFrame.Position).Magnitude
+            if _G.SilentAim_MaxDistance > 0 and distance3D > _G.SilentAim_MaxDistance then continue end
+
+            if _G.SilentAim_VisibleCheck then
+                local rayParams = RaycastParams.new()
+                rayParams.FilterType = Enum.RaycastFilterType.Exclude
+                rayParams.FilterDescendantsInstances = { player.Character, char }
+                local rayResult = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position).Unit * distance3D, rayParams)
+                if rayResult and rayResult.Instance and rayResult.Instance.Parent ~= char then
+                    continue -- препятствие
+                end
+            end
+
+            local score = 0
+            if _G.SilentAim_TargetPriority == "Crosshair" then
+                score = dist
+            elseif _G.SilentAim_TargetPriority == "Distance" then
+                score = distance3D
+            elseif _G.SilentAim_TargetPriority == "HP" then
+                if humanoid then
+                    score = humanoid.Health
+                else
+                    score = 0
+                end
+            end
+
+            if score < bestScore then
+                bestScore = score
+                bestTarget = targetPart
+            end
+        end
+
+        return bestTarget
+    end
+
+    -- Перехват WeaponRaycast
+    local weaponRaycastModule = repStorage:FindFirstChild("Modules"):FindFirstChild("WeaponRaycast")
+    local originalFromScreen = nil
+    if weaponRaycastModule then
+        local weaponRaycast = require(weaponRaycastModule)
+        originalFromScreen = weaponRaycast.fromScreen
+        weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
+            if _G.SilentAim_Enabled then
+                local target = getTarget()
+                if target then
+                    if _G.SilentAim_DelayShot > 0 then
+                        task.wait(_G.SilentAim_DelayShot / 1000)
+                    end
+                    return target.Position
+                end
+            end
+            return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
         end
     end
-end
-Options.CarHighlightFillColor:OnChanged(updateAllHighlights)
-Options.CarHighlightOutlineColor:OnChanged(updateAllHighlights)
-fillTransSlider:OnChanged(updateAllHighlights)
-outlineTransSlider:OnChanged(updateAllHighlights)
 
-checkLoop()
+    -- Авто‑огонь
+    local autoFireConnection = nil
+    local function updateAutoFire()
+        if _G.SilentAim_AutoFire and _G.SilentAim_Enabled then
+            local hasTarget = getTarget() ~= nil
+            local character = player.Character
+            local tool = character and character:FindFirstChildWhichIsA("Tool")
+            if hasTarget and tool then
+                if not autoFireConnection then
+                    autoFireConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                        pcall(function() mouse1press() end)
+                        task.wait(0.01)
+                        pcall(function() mouse1release() end)
+                    end)
+                end
+            else
+                if autoFireConnection then
+                    autoFireConnection:Disconnect()
+                    autoFireConnection = nil
+                end
+            end
+        else
+            if autoFireConnection then
+                autoFireConnection:Disconnect()
+                autoFireConnection = nil
+            end
+        end
+    end
+
+    -- Обновление FOV и авто‑огня каждый кадр
+    game:GetService("RunService").Heartbeat:Connect(function()
+        updateFOVCircle()
+        updateAutoFire()
+    end)
+
     -- =====================================================
     -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без lifesteal и tracer
     -- =====================================================
