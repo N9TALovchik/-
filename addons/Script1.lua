@@ -1,4 +1,4 @@
--- ShopManager.lua (ПОЛНЫЙ ФИНАЛЬНЫЙ КОД: ВСЕ функции, Silent Aim без хука require, моды оружия исправлены)
+-- ShopManager.lua (ПОЛНЫЙ ФИНАЛ: Silent Aim без хука require, все моды и функции на месте)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -664,7 +664,7 @@ function ShopManager:Init(Window, Tabs)
     checkLoop()
 
     -- =====================================================
-    -- RAGE GROUP (Silent Aim + Auto Fire) – БЕЗ ХУКА REQUIRE, СТАБИЛЬНО
+    -- RAGE GROUP (Silent Aim + Auto Fire) – БЕЗ ХУКА REQUIRE, БЕЗОПАСНО
     -- =====================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
@@ -854,23 +854,56 @@ function ShopManager:Init(Window, Tabs)
         return bestTarget
     end
 
-    -- Подмена fromScreen без хука require (ждём загрузки модуля)
-    local repStorage = game:GetService("ReplicatedStorage")
-    task.spawn(function()
-        local weaponRaycastModule = repStorage:WaitForChild("Modules"):WaitForChild("WeaponRaycast")
-        local weaponRaycast = require(weaponRaycastModule)
-        local originalFromScreen = weaponRaycast.fromScreen
-        weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-            if not _G.SilentAim_Enabled then
+    -- Безопасная подмена fromScreen: ждём появления модуля WeaponRaycast и патчим его
+    local function patchWeaponRaycast(moduleScript)
+        local weaponRaycast = require(moduleScript)
+        if weaponRaycast and weaponRaycast.fromScreen and not weaponRaycast._silentAimPatched then
+            weaponRaycast._silentAimPatched = true
+            local originalFromScreen = weaponRaycast.fromScreen
+            weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
+                if not _G.SilentAim_Enabled then
+                    return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
+                end
+                local target = getBestTarget()
+                if target then
+                    return target.Position
+                end
                 return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
             end
-            local target = getBestTarget()
-            if target then
-                return target.Position
-            end
-            return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
         end
-    end)
+    end
+
+    -- Проверяем, не загружен ли уже модуль
+    local repStorage = game:GetService("ReplicatedStorage")
+    local modules = repStorage:WaitForChild("Modules", 5)
+    if modules then
+        local weaponRaycastModule = modules:FindFirstChild("WeaponRaycast")
+        if weaponRaycastModule then
+            patchWeaponRaycast(weaponRaycastModule)
+        else
+            modules.ChildAdded:Connect(function(child)
+                if child.Name == "WeaponRaycast" and child:IsA("ModuleScript") then
+                    patchWeaponRaycast(child)
+                end
+            end)
+        end
+    else
+        -- Если Modules ещё нет, ждём его появления
+        repStorage.ChildAdded:Connect(function(child)
+            if child.Name == "Modules" then
+                local weaponRaycastModule = child:FindFirstChild("WeaponRaycast")
+                if weaponRaycastModule then
+                    patchWeaponRaycast(weaponRaycastModule)
+                else
+                    child.ChildAdded:Connect(function(subChild)
+                        if subChild.Name == "WeaponRaycast" and subChild:IsA("ModuleScript") then
+                            patchWeaponRaycast(subChild)
+                        end
+                    end)
+                end
+            end
+        end)
+    end
 
     -- Авто‑огонь (зажимает мышь, без кликов)
     local isMouseHeld = false
@@ -893,7 +926,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (исправлена, работает отдельно от Silent Aim)
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (отдельный хук require, активируется только при включении мода)
     -- =====================================================
     local activeMods = {
         rapidFire = false,
@@ -1115,9 +1148,7 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Радиус взрыва установлен на " .. (num and tostring(num) or "нет"), 2)
     end)
 
-    -- =====================================================
-    -- АВТО-БАЙ
-    -- =====================================================
+    -- ===== АВТО-БАЙ =====
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
