@@ -1,4 +1,5 @@
--- ShopManager.lua (ПОЛНЫЙ ФИНАЛ: Silent Aim без кликов, FOV у курсора, SafeZone, ForceField, Custom HitSound)
+-- ShopManager.lua (ПОЛНАЯ ВЕРСИЯ – исправлен ранний вызов функций HitSound)
+-- Input Custom HitSound перенесён после определения хуков, чтобы не было "call nil value"
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -359,35 +360,6 @@ function ShopManager:Init(Window, Tabs)
         end)
 
         Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
-    end)
-
-    -- ===== CUSTOM HIT SOUND (Textbox) =====
-    local customHitSoundInput = miscGroup:AddInput('CustomHitSoundID', {
-        Text = 'Custom Hit/HS Sound',
-        Default = '',
-        Placeholder = 'rbxassetid://1234567890',
-        Numeric = false,
-        Finished = true,
-        Tooltip = 'Заменяет все звуки попадания и хитмаркера на указанный ID (например, rbxassetid://5952120301)'
-    })
-    customHitSoundInput:OnChanged(function(value)
-        local id
-        local num = tonumber(value)
-        if num then
-            id = num
-        else
-            local match = string.match(value, "rbxassetid://(%d+)")
-            if match then
-                id = tonumber(match)
-            end
-        end
-        _G.CustomHitSoundID = id   -- nil если не распарсили
-        if requireHooked then
-            refreshAllWeapons()
-        else
-            ensureRequireHooked()
-            refreshAllWeapons()
-        end
     end)
 
     -- =====================================================
@@ -1060,7 +1032,7 @@ function ShopManager:Init(Window, Tabs)
             copy.ExplosionRadius = activeMods.explosionRadius
         end
 
-        -- КАСТОМНЫЙ ЗВУК ПОПАДАНИЯ
+        -- КАСТОМНЫЙ ЗВУК ПОПАДАНИЯ (только если задан)
         if _G.CustomHitSoundID then
             copy.HitCharSndIDs = {_G.CustomHitSoundID}
             copy.HitmarkerSoundID = {_G.CustomHitSoundID}
@@ -1129,7 +1101,7 @@ function ShopManager:Init(Window, Tabs)
         refreshAllWeapons()
     end
 
-    -- ===== Enable All Gun Mods =====
+    -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
     miscGroup:AddButton('Enable All Gun Mods', function()
         enableMod('rapidFire')
         enableMod('noSpread')
@@ -1170,7 +1142,6 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     miscGroup:AddDivider()
-    -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
     miscGroup:AddButton('Rapid Fire', function() enableMod('rapidFire') Library:Notify("Rapid Fire (FireRate=0) включён", 2) end)
     miscGroup:AddButton('No Spread', function() enableMod('noSpread') Library:Notify("No Spread (Recoil & Spread=0) включён", 2) end)
     miscGroup:AddButton('Insta Equip', function() enableMod('instaEquip') Library:Notify("Insta Equip (EquipTime=0) включён", 2) end)
@@ -1233,6 +1204,35 @@ function ShopManager:Init(Window, Tabs)
             ensureRequireHooked()
         end
         Library:Notify("Радиус взрыва установлен на " .. (num and tostring(num) or "нет"), 2)
+    end)
+
+    -- ===== CUSTOM HIT SOUND (Textbox) – теперь здесь, после определения ensureRequireHooked =====
+    local customHitSoundInput = miscGroup:AddInput('CustomHitSoundID', {
+        Text = 'Custom Hit/HS Sound',
+        Default = '',
+        Placeholder = 'rbxassetid://1234567890',
+        Numeric = false,
+        Finished = true,
+        Tooltip = 'Заменяет все звуки попадания и хитмаркера на указанный ID (например, rbxassetid://5952120301)'
+    })
+    customHitSoundInput:OnChanged(function(value)
+        local id
+        local num = tonumber(value)
+        if num then
+            id = num
+        else
+            local match = string.match(value, "rbxassetid://(%d+)")
+            if match then
+                id = tonumber(match)
+            end
+        end
+        _G.CustomHitSoundID = id   -- nil если не распарсили
+        -- Теперь ensureRequireHooked и refreshAllWeapons доступны
+        if requireHooked then
+            refreshAllWeapons()
+        else
+            ensureRequireHooked()
+        end
     end)
 
     -- ===== АВТО-БАЙ =====
