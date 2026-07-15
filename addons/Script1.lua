@@ -1,4 +1,4 @@
--- ShopManager.lua (ПОЛНЫЙ ФИНАЛЬНЫЙ КОД: Silent Aim исправлен, отложенный хук, FOV у курсора, AutoFire без кликов, все функции на месте)
+-- ShopManager.lua (полный финальный + Silent Aim (Rage) – без кликов, FOV у курсора, видимый чек исправлен)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- ESP GROUP (Car ESP) – полная версия
+    -- ESP GROUP (Car ESP) – финальная версия
     -- =====================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
@@ -664,7 +664,7 @@ function ShopManager:Init(Window, Tabs)
     checkLoop()
 
     -- =====================================================
-    -- RAGE GROUP (Silent Aim + Auto Fire) – ИСПРАВЛЕНО: отложенный хук, FOV у курсора, без кликов, Visible Check фикс
+    -- RAGE GROUP (Silent Aim + Auto Fire) – ИСПРАВЛЕНО ОКОНЧАТЕЛЬНО
     -- =====================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
@@ -740,7 +740,7 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Критерий выбора цели'
     })
 
-    -- Привязка UI → глобальные переменные
+    -- Привязка UI к глобальным переменным
     enableToggle:OnChanged(function(enabled) _G.SilentAim_Enabled = enabled end)
     hitboxDropdown:OnChanged(function(value) _G.SilentAim_Hitbox = value end)
     fovSlider:OnChanged(function(value) _G.SilentAim_FOV = value end)
@@ -755,7 +755,7 @@ function ShopManager:Init(Window, Tabs)
     local camera = workspace.CurrentCamera
     local uis = game:GetService("UserInputService")
 
-    -- Отрисовка FOV-круга (следует за курсором)
+    -- ===== ОТРИСОВКА FOV‑КРУГА У КУРСОРА =====
     local fovCircle = nil
     local function updateFOVCircle()
         if not _G.SilentAim_ShowFOV or not camera then
@@ -778,12 +778,12 @@ function ShopManager:Init(Window, Tabs)
         local mousePos = uis:GetMouseLocation()
         local fov = _G.SilentAim_FOV
         local screenSize = camera.ViewportSize
-        local radius = (fov / 2) * (screenSize.Y / 70)   -- примерное преобразование градусов в пиксели
+        local radius = (fov / 2) * (screenSize.Y / 70)
         fovCircle.Position = mousePos
         fovCircle.Radius = radius
     end
 
-    -- Функция выбора лучшей цели (исправленный Visible Check)
+    -- ===== ФУНКЦИЯ ВЫБОРА ЛУЧШЕЙ ЦЕЛИ (исправленный Visible Check) =====
     local function getBestTarget()
         if not camera then return nil end
         local mousePos = uis:GetMouseLocation()
@@ -850,46 +850,38 @@ function ShopManager:Init(Window, Tabs)
                 bestTarget = targetPart
             end
         end
-
         return bestTarget
     end
 
-    -- Отложенный хук require (не ломает игру)
-    local repStorage = game:GetService("ReplicatedStorage")
-    local weaponRaycastHooked = false
-    task.spawn(function()
-        repeat task.wait() until game:IsLoaded()
-        task.wait(2) -- дополнительная задержка для безопасности
-        local oldRequire = hookfunction(require, function(moduleScript)
-            local result = oldRequire(moduleScript)
-            if moduleScript.Name == "WeaponRaycast" and moduleScript:IsDescendantOf(repStorage) then
-                local weaponRaycast = result
-                if weaponRaycast and weaponRaycast.fromScreen and not weaponRaycast._silentAimHooked then
-                    weaponRaycast._silentAimHooked = true
-                    local originalFromScreen = weaponRaycast.fromScreen
-                    weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-                        if not _G.SilentAim_Enabled then
-                            return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-                        end
-                        local target = getBestTarget()
-                        if target then
-                            return target.Position
-                        end
+    -- ===== ПЕРЕХВАТ WeaponRaycast.fromScreen ЧЕРЕЗ HOOKFUNCTION =====
+    local oldRequire = hookfunction(require, function(moduleScript)
+        local result = oldRequire(moduleScript)
+        if moduleScript.Name == "WeaponRaycast" and moduleScript:IsDescendantOf(repStorage) then
+            local weaponRaycast = result
+            if weaponRaycast and weaponRaycast.fromScreen then
+                local originalFromScreen = weaponRaycast.fromScreen
+                weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
+                    if not _G.SilentAim_Enabled then
                         return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
                     end
+                    local target = getBestTarget()
+                    if target then
+                        return target.Position
+                    end
+                    return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
                 end
             end
-            return result
-        end)
-        weaponRaycastHooked = true
+        end
+        return result
     end)
 
-    -- Авто‑огонь (без кликов, зажимает кнопку)
+    -- ===== АВТООГОНЬ (ЗАЖИМ КНОПКИ, БЕЗ КЛИКОВ) =====
     local isMouseHeld = false
     game:GetService("RunService").Heartbeat:Connect(function()
         updateFOVCircle()
 
-        if _G.SilentAim_Enabled and _G.SilentAim_AutoFire and weaponRaycastHooked then
+        -- Авто‑огонь: зажимаем кнопку, если цель есть, иначе отпускаем
+        if _G.SilentAim_Enabled and _G.SilentAim_AutoFire then
             local target = getBestTarget()
             if target and not isMouseHeld then
                 pcall(function() mouse1press() end)
@@ -899,13 +891,14 @@ function ShopManager:Init(Window, Tabs)
                 isMouseHeld = false
             end
         elseif isMouseHeld then
+            -- Если выключили авто‑огонь или SA, отпускаем
             pcall(function() mouse1release() end)
             isMouseHeld = false
         end
     end)
 
     -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без изменений
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ)
     -- =====================================================
     local activeMods = {
         rapidFire = false,
@@ -991,6 +984,7 @@ function ShopManager:Init(Window, Tabs)
         if requireHooked then return end
         requireHooked = true
 
+        -- Хук require для модов оружия (только для ModuleScript "Setting")
         oldRequire = hookfunction(require, function(moduleScript)
             local result = oldRequire(moduleScript)
             if moduleScript:IsA("ModuleScript") and moduleScript.Name == "Setting" then
