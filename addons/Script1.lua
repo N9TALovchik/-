@@ -1,4 +1,4 @@
--- ShopManager.lua (ПОЛНЫЙ ФИНАЛ: Silent Aim без хука require, все моды и функции на месте)
+-- ShopManager.lua (ранняя версия + Silent Aim без кликов, FOV у курсора, моды оружия без изменений)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- ESP GROUP (Car ESP) – полная версия
+    -- ESP GROUP (Car ESP) – финальная версия (без изменений)
     -- =====================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
@@ -664,26 +664,26 @@ function ShopManager:Init(Window, Tabs)
     checkLoop()
 
     -- =====================================================
-    -- RAGE GROUP (Silent Aim + Auto Fire) – БЕЗ ХУКА REQUIRE, БЕЗОПАСНО
+    -- RAGE GROUP (Silent Aim + Auto Fire) – без кликов, FOV у курсора
     -- =====================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
-    -- Глобальные настройки
     _G.SilentAim_Enabled = false
-    _G.SilentAim_Hitbox = "Head"        -- "Head" или "Torso"
-    _G.SilentAim_FOV = 180              -- градусы
+    _G.SilentAim_Hitbox = "Head"
+    _G.SilentAim_FOV = 180
     _G.SilentAim_ShowFOV = false
-    _G.SilentAim_MaxDistance = 1000     -- 0 = без ограничения
+    _G.SilentAim_MaxDistance = 1000
     _G.SilentAim_AutoFire = false
     _G.SilentAim_VisibleCheck = true
+    _G.SilentAim_DelayShot = 0
     _G.SilentAim_TeamCheck = false
-    _G.SilentAim_TargetPriority = "Crosshair"  -- "HP", "Distance", "Crosshair"
+    _G.SilentAim_TargetPriority = "Crosshair"
 
     -- UI элементы
     local enableToggle = rageGroup:AddToggle('SilentAimEnabled', {
         Text = 'Enable Silent Aim',
         Default = false,
-        Tooltip = 'Перенаправляет пули в цель рядом с курсором'
+        Tooltip = 'Включает перенаправление пуль в цель'
     })
 
     local hitboxDropdown = rageGroup:AddDropdown('SilentAimHitbox', {
@@ -710,19 +710,25 @@ function ShopManager:Init(Window, Tabs)
     local maxDistSlider = rageGroup:AddSlider('SilentAimMaxDistance', {
         Text = 'Max Distance',
         Min = 0, Max = 5000, Default = 1000, Rounding = 0, Suffix = ' studs',
-        Tooltip = '0 = без ограничения'
+        Tooltip = 'Максимальная дистанция до цели'
     })
 
     local autoFireToggle = rageGroup:AddToggle('SilentAimAutoFire', {
         Text = 'Auto Fire',
         Default = false,
-        Tooltip = 'Автоматически зажимает огонь, если цель в FOV (рекомендуется включить All Auto мод)'
+        Tooltip = 'Автоматически зажимает огонь, если цель в FOV'
     })
 
     local visibleCheckToggle = rageGroup:AddToggle('SilentAimVisibleCheck', {
         Text = 'Visible Check',
         Default = true,
-        Tooltip = 'Игнорировать цели за стенами'
+        Tooltip = 'Целиться только в видимых врагов (без препятствий)'
+    })
+
+    local delaySlider = rageGroup:AddSlider('SilentAimDelayShot', {
+        Text = 'Delay Shot',
+        Min = 0, Max = 1000, Default = 0, Rounding = 0, Suffix = ' ms',
+        Tooltip = 'Задержка перед выстрелом после захвата цели'
     })
 
     local teamCheckToggle = rageGroup:AddToggle('SilentAimTeamCheck', {
@@ -740,7 +746,6 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Критерий выбора цели'
     })
 
-    -- Привязка UI → глобальные переменные
     enableToggle:OnChanged(function(enabled) _G.SilentAim_Enabled = enabled end)
     hitboxDropdown:OnChanged(function(value) _G.SilentAim_Hitbox = value end)
     fovSlider:OnChanged(function(value) _G.SilentAim_FOV = value end)
@@ -748,14 +753,19 @@ function ShopManager:Init(Window, Tabs)
     maxDistSlider:OnChanged(function(value) _G.SilentAim_MaxDistance = value end)
     autoFireToggle:OnChanged(function(value) _G.SilentAim_AutoFire = value end)
     visibleCheckToggle:OnChanged(function(value) _G.SilentAim_VisibleCheck = value end)
+    delaySlider:OnChanged(function(value) _G.SilentAim_DelayShot = value end)
     teamCheckToggle:OnChanged(function(value) _G.SilentAim_TeamCheck = value end)
     priorityDropdown:OnChanged(function(value) _G.SilentAim_TargetPriority = value end)
 
-    local player = game.Players.LocalPlayer
+    -- =====================================================
+    -- ЛОГИКА SILENT AIM
+    -- =====================================================
+    local player = game:GetService("Players").LocalPlayer
     local camera = workspace.CurrentCamera
+    local repStorage = game:GetService("ReplicatedStorage")
     local uis = game:GetService("UserInputService")
 
-    -- Отрисовка FOV-круга (следует за курсором)
+    -- FOV круг (следует за курсором)
     local fovCircle = nil
     local function updateFOVCircle()
         if not _G.SilentAim_ShowFOV or not camera then
@@ -776,15 +786,15 @@ function ShopManager:Init(Window, Tabs)
         end
 
         local mousePos = uis:GetMouseLocation()
-        local fov = _G.SilentAim_FOV
+        local fov = _G.SilentAim_FOV or 180
         local screenSize = camera.ViewportSize
-        local radius = (fov / 2) * (screenSize.Y / 70)   -- примерное преобразование градусов в пиксели
+        local radius = (fov / 2) * (screenSize.Y / 70)  -- примерное преобразование градусов в пиксели
         fovCircle.Position = mousePos
         fovCircle.Radius = radius
     end
 
-    -- Функция выбора лучшей цели (исправленный Visible Check)
-    local function getBestTarget()
+    -- Функция выбора цели (исправленный Visible Check)
+    local function getTarget()
         if not camera then return nil end
         local mousePos = uis:GetMouseLocation()
         local bestTarget = nil
@@ -818,17 +828,13 @@ function ShopManager:Init(Window, Tabs)
             local distance3D = (targetPart.Position - camera.CFrame.Position).Magnitude
             if _G.SilentAim_MaxDistance > 0 and distance3D > _G.SilentAim_MaxDistance then continue end
 
-            -- Visible Check: луч от камеры к цели
             if _G.SilentAim_VisibleCheck then
                 local rayParams = RaycastParams.new()
                 rayParams.FilterType = Enum.RaycastFilterType.Exclude
                 rayParams.FilterDescendantsInstances = { player.Character, char }
-                local ray = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position).Unit * distance3D, rayParams)
-                if ray then
-                    -- Если луч попал не в часть этого персонажа, значит препятствие
-                    if not ray.Instance:IsDescendantOf(char) then
-                        continue
-                    end
+                local rayResult = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position).Unit * distance3D, rayParams)
+                if rayResult and rayResult.Instance and rayResult.Instance.Parent ~= char then
+                    continue -- препятствие
                 end
             end
 
@@ -854,68 +860,37 @@ function ShopManager:Init(Window, Tabs)
         return bestTarget
     end
 
-    -- Безопасная подмена fromScreen: ждём появления модуля WeaponRaycast и патчим его
-    local function patchWeaponRaycast(moduleScript)
-        local weaponRaycast = require(moduleScript)
-        if weaponRaycast and weaponRaycast.fromScreen and not weaponRaycast._silentAimPatched then
-            weaponRaycast._silentAimPatched = true
-            local originalFromScreen = weaponRaycast.fromScreen
-            weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-                if not _G.SilentAim_Enabled then
-                    return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-                end
-                local target = getBestTarget()
+    -- Перехват WeaponRaycast
+    local weaponRaycastModule = repStorage:FindFirstChild("Modules"):FindFirstChild("WeaponRaycast")
+    local originalFromScreen = nil
+    if weaponRaycastModule then
+        local weaponRaycast = require(weaponRaycastModule)
+        originalFromScreen = weaponRaycast.fromScreen
+        weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
+            if _G.SilentAim_Enabled then
+                local target = getTarget()
                 if target then
+                    if _G.SilentAim_DelayShot > 0 then
+                        task.wait(_G.SilentAim_DelayShot / 1000)
+                    end
                     return target.Position
                 end
-                return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
             end
+            return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
         end
     end
 
-    -- Проверяем, не загружен ли уже модуль
-    local repStorage = game:GetService("ReplicatedStorage")
-    local modules = repStorage:WaitForChild("Modules", 5)
-    if modules then
-        local weaponRaycastModule = modules:FindFirstChild("WeaponRaycast")
-        if weaponRaycastModule then
-            patchWeaponRaycast(weaponRaycastModule)
-        else
-            modules.ChildAdded:Connect(function(child)
-                if child.Name == "WeaponRaycast" and child:IsA("ModuleScript") then
-                    patchWeaponRaycast(child)
-                end
-            end)
-        end
-    else
-        -- Если Modules ещё нет, ждём его появления
-        repStorage.ChildAdded:Connect(function(child)
-            if child.Name == "Modules" then
-                local weaponRaycastModule = child:FindFirstChild("WeaponRaycast")
-                if weaponRaycastModule then
-                    patchWeaponRaycast(weaponRaycastModule)
-                else
-                    child.ChildAdded:Connect(function(subChild)
-                        if subChild.Name == "WeaponRaycast" and subChild:IsA("ModuleScript") then
-                            patchWeaponRaycast(subChild)
-                        end
-                    end)
-                end
-            end
-        end)
-    end
-
-    -- Авто‑огонь (зажимает мышь, без кликов)
+    -- Авто‑огонь (зажимает кнопку, без кликов)
     local isMouseHeld = false
-    game:GetService("RunService").Heartbeat:Connect(function()
-        updateFOVCircle()
-
-        if _G.SilentAim_Enabled and _G.SilentAim_AutoFire then
-            local target = getBestTarget()
-            if target and not isMouseHeld then
+    local function updateAutoFire()
+        if _G.SilentAim_AutoFire and _G.SilentAim_Enabled then
+            local target = getTarget()
+            local character = player.Character
+            local tool = character and character:FindFirstChildWhichIsA("Tool")
+            if target and tool and not isMouseHeld then
                 pcall(function() mouse1press() end)
                 isMouseHeld = true
-            elseif not target and isMouseHeld then
+            elseif (not target or not tool) and isMouseHeld then
                 pcall(function() mouse1release() end)
                 isMouseHeld = false
             end
@@ -923,10 +898,16 @@ function ShopManager:Init(Window, Tabs)
             pcall(function() mouse1release() end)
             isMouseHeld = false
         end
+    end
+
+    -- Обновление FOV и авто‑огня каждый кадр
+    game:GetService("RunService").Heartbeat:Connect(function()
+        updateFOVCircle()
+        updateAutoFire()
     end)
 
     -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (отдельный хук require, активируется только при включении мода)
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без изменений
     -- =====================================================
     local activeMods = {
         rapidFire = false,
@@ -943,6 +924,7 @@ function ShopManager:Init(Window, Tabs)
 
     local originalSettingsCache = {}
     local requireHooked = false
+    local oldRequire = nil
 
     local function applyMods(original)
         local copy = {}
@@ -1012,14 +994,13 @@ function ShopManager:Init(Window, Tabs)
         if requireHooked then return end
         requireHooked = true
 
-        local oldRequire = hookfunction(require, function(moduleScript)
-            local result = oldRequire(moduleScript)
+        oldRequire = hookfunction(require, function(moduleScript)
             if moduleScript:IsA("ModuleScript") and moduleScript.Name == "Setting" then
                 local parent = moduleScript.Parent
                 while parent and not parent:IsA("Tool") do parent = parent.Parent end
                 if parent and parent:IsA("Tool") then
                     if not originalSettingsCache[moduleScript] then
-                        local original = result
+                        local original = oldRequire(moduleScript)
                         if type(original) == "table" then
                             originalSettingsCache[moduleScript] = original
                         end
@@ -1029,7 +1010,7 @@ function ShopManager:Init(Window, Tabs)
                     end
                 end
             end
-            return result
+            return oldRequire(moduleScript)
         end)
 
         refreshAllWeapons()
