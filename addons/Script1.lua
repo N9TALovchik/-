@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финальный + Silent Aim (Rage))
+-- ShopManager.lua (ПОЛНЫЙ ФИНАЛ: Silent Aim без кликов, FOV у курсора, SafeZone, ForceField, Custom HitSound)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -361,8 +361,37 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
     end)
 
+    -- ===== CUSTOM HIT SOUND (Textbox) =====
+    local customHitSoundInput = miscGroup:AddInput('CustomHitSoundID', {
+        Text = 'Custom Hit/HS Sound',
+        Default = '',
+        Placeholder = 'rbxassetid://1234567890',
+        Numeric = false,
+        Finished = true,
+        Tooltip = 'Заменяет все звуки попадания и хитмаркера на указанный ID (например, rbxassetid://5952120301)'
+    })
+    customHitSoundInput:OnChanged(function(value)
+        local id
+        local num = tonumber(value)
+        if num then
+            id = num
+        else
+            local match = string.match(value, "rbxassetid://(%d+)")
+            if match then
+                id = tonumber(match)
+            end
+        end
+        _G.CustomHitSoundID = id   -- nil если не распарсили
+        if requireHooked then
+            refreshAllWeapons()
+        else
+            ensureRequireHooked()
+            refreshAllWeapons()
+        end
+    end)
+
     -- =====================================================
-    -- ESP GROUP (Car ESP) – финальная версия
+    -- ESP GROUP (Car ESP) – финальная версия (без изменений)
     -- =====================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
@@ -978,7 +1007,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без изменений
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без lifesteal и tracer
     -- =====================================================
     local activeMods = {
         rapidFire = false,
@@ -1029,6 +1058,12 @@ function ShopManager:Init(Window, Tabs)
         end
         if type(activeMods.explosionRadius) == "number" then
             copy.ExplosionRadius = activeMods.explosionRadius
+        end
+
+        -- КАСТОМНЫЙ ЗВУК ПОПАДАНИЯ
+        if _G.CustomHitSoundID then
+            copy.HitCharSndIDs = {_G.CustomHitSoundID}
+            copy.HitmarkerSoundID = {_G.CustomHitSoundID}
         end
 
         return copy
