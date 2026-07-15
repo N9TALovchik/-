@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финал: ВСЕ функции, Silent Aim без кликов, FOV у курсора, SafeZone/ForceField)
+-- ShopManager.lua (полный финальный + Silent Aim (Rage))
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -362,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- ESP GROUP (Car ESP) – финальная версия (БЕЗ ИЗМЕНЕНИЙ, ПОЛНОСТЬЮ)
+    -- ESP GROUP (Car ESP) – финальная версия
     -- =====================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
@@ -668,17 +668,19 @@ function ShopManager:Init(Window, Tabs)
     -- =====================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
-    -- Инициализация глобальных переменных
+    -- Инициализация глобальных переменных (значения по умолчанию)
     _G.SilentAim_Enabled = false
-    _G.SilentAim_Hitbox = "Head"
-    _G.SilentAim_FOV = 180
+    _G.SilentAim_Hitbox = "Head"        -- "Head" или "Torso"
+    _G.SilentAim_FOV = 180              -- радиус в градусах (угол от центра экрана)
     _G.SilentAim_ShowFOV = false
     _G.SilentAim_MaxDistance = 1000
     _G.SilentAim_AutoFire = false
     _G.SilentAim_VisibleCheck = true
-    _G.SilentAim_DelayShot = 0
+    _G.SilentAim_DelayShot = 0          -- миллисекунды
     _G.SilentAim_TeamCheck = false
-    _G.SilentAim_TargetPriority = "Crosshair"
+    _G.SilentAim_TargetPriority = "Crosshair"  -- "HP", "Distance", "Crosshair"
+    _G.SilentAim_ForceFieldCheck = true
+    _G.SilentAim_SafeZoneCheck = true
 
     -- UI элементы
     local enableToggle = rageGroup:AddToggle('SilentAimEnabled', {
@@ -717,7 +719,7 @@ function ShopManager:Init(Window, Tabs)
     local autoFireToggle = rageGroup:AddToggle('SilentAimAutoFire', {
         Text = 'Auto Fire',
         Default = false,
-        Tooltip = 'Автоматически зажимает огонь, если цель в FOV'
+        Tooltip = 'Автоматически стрелять при наведении (зажимает кнопку)'
     })
 
     local visibleCheckToggle = rageGroup:AddToggle('SilentAimVisibleCheck', {
@@ -747,6 +749,19 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Критерий выбора цели'
     })
 
+    local forceFieldCheckToggle = rageGroup:AddToggle('SilentAimForceFieldCheck', {
+        Text = 'ForceField Check',
+        Default = true,
+        Tooltip = 'Игнорировать цели с активным ForceField'
+    })
+
+    local safeZoneCheckToggle = rageGroup:AddToggle('SilentAimSafeZoneCheck', {
+        Text = 'SafeZone Check',
+        Default = true,
+        Tooltip = 'Не стрелять в игроков в сейф‑зонах (если они не в бою)'
+    })
+
+    -- Обновление глобальных переменных при изменении UI
     enableToggle:OnChanged(function(enabled) _G.SilentAim_Enabled = enabled end)
     hitboxDropdown:OnChanged(function(value) _G.SilentAim_Hitbox = value end)
     fovSlider:OnChanged(function(value) _G.SilentAim_FOV = value end)
@@ -757,12 +772,18 @@ function ShopManager:Init(Window, Tabs)
     delaySlider:OnChanged(function(value) _G.SilentAim_DelayShot = value end)
     teamCheckToggle:OnChanged(function(value) _G.SilentAim_TeamCheck = value end)
     priorityDropdown:OnChanged(function(value) _G.SilentAim_TargetPriority = value end)
+    forceFieldCheckToggle:OnChanged(function(v) _G.SilentAim_ForceFieldCheck = v end)
+    safeZoneCheckToggle:OnChanged(function(v) _G.SilentAim_SafeZoneCheck = v end)
 
+    -- =====================================================
+    -- ЛОГИКА SILENT AIM (перехват WeaponRaycast.fromScreen)
+    -- =====================================================
     local player = game:GetService("Players").LocalPlayer
     local camera = workspace.CurrentCamera
+    local repStorage = game:GetService("ReplicatedStorage")
     local uis = game:GetService("UserInputService")
 
-    -- FOV круг (следует за курсором)
+    -- Отрисовка FOV-круга (у курсора)
     local fovCircle = nil
     local function updateFOVCircle()
         if not _G.SilentAim_ShowFOV or not camera then
@@ -790,15 +811,16 @@ function ShopManager:Init(Window, Tabs)
         fovCircle.Radius = radius
     end
 
-    -- Вспомогательная функция для проверки вхождения точки в зону (Part)
+    -- Проверка, находится ли точка внутри парта
     local function isInsidePart(part, pos)
         local relative = part.CFrame:PointToObjectSpace(pos)
         local size = part.Size
         return math.abs(relative.X) <= size.X/2 and math.abs(relative.Y) <= size.Y/2 and math.abs(relative.Z) <= size.Z/2
     end
 
-    -- Проверка, защищён ли игрок Safe-зоной
+    -- Проверка SafeZone
     local function isPlayerSafeZoneProtected(targetPlayer)
+        if not _G.SilentAim_SafeZoneCheck then return false end
         local char = targetPlayer.Character
         if not char then return false end
         local root = char:FindFirstChild("HumanoidRootPart")
@@ -809,24 +831,18 @@ function ShopManager:Init(Window, Tabs)
 
         for _, zone in ipairs(zonesFolder:GetChildren()) do
             if zone:IsA("BasePart") then
-                local inZone = isInsidePart(zone, root.Position)
-                if inZone then
+                if isInsidePart(zone, root.Position) then
                     local zoneName = zone.Name
-                    if zoneName == "All_Safe" then
-                        -- All_Safe защищает всех
-                        return true
-                    elseif zoneName == teamName .. "_Safe" then
-                        -- Зона для его команды
-                        return true
-                    end
+                    if zoneName == "All_Safe" then return true end
+                    if zoneName == teamName .. "_Safe" then return true end
                 end
             end
         end
         return false
     end
 
-    -- Получить лучшую цель с учётом ForceField, SafeZone, и улучшенным VisibleCheck
-    local function getBestTarget()
+    -- Функция выбора цели (с ForceField и SafeZone)
+    local function getTarget()
         if not camera then return nil end
         local mousePos = uis:GetMouseLocation()
         local bestTarget = nil
@@ -840,7 +856,7 @@ function ShopManager:Init(Window, Tabs)
             if not char then continue end
 
             -- ForceField check
-            if char:FindFirstChildWhichIsA("ForceField") then continue end
+            if _G.SilentAim_ForceFieldCheck and char:FindFirstChildWhichIsA("ForceField") then continue end
 
             local targetPart = nil
             if _G.SilentAim_Hitbox == "Head" then
@@ -853,7 +869,7 @@ function ShopManager:Init(Window, Tabs)
             local humanoid = char:FindFirstChildOfClass("Humanoid")
             if humanoid and humanoid.Health <= 0 then continue end
 
-            -- SafeZone check: если игрок в сейф-зоне и не в бою, пропускаем
+            -- SafeZone check: если в сейф‑зоне и не в бою, пропускаем
             if isPlayerSafeZoneProtected(otherPlayer) then
                 local inCombat = char:GetAttribute("InCombat")
                 if not inCombat then continue end
@@ -869,7 +885,6 @@ function ShopManager:Init(Window, Tabs)
             local distance3D = (targetPart.Position - camera.CFrame.Position).Magnitude
             if _G.SilentAim_MaxDistance > 0 and distance3D > _G.SilentAim_MaxDistance then continue end
 
-            -- Visible Check: улучшен, игнорирует не‑коллизионные/незакреплённые части (эффекты)
             if _G.SilentAim_VisibleCheck then
                 local rayParams = RaycastParams.new()
                 rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -877,16 +892,13 @@ function ShopManager:Init(Window, Tabs)
                 local rayResult = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position).Unit * distance3D, rayParams)
                 if rayResult and rayResult.Instance then
                     local hitInstance = rayResult.Instance
+                    -- Игнорируем мелкие неколлизионные объекты (эффекты)
                     if hitInstance:IsA("BasePart") then
                         if hitInstance.Anchored and hitInstance.CanCollide then
-                            if hitInstance.Parent ~= char then
-                                continue
-                            end
+                            if hitInstance.Parent ~= char then continue end
                         end
                     else
-                        if hitInstance.Parent ~= char then
-                            continue
-                        end
+                        if hitInstance.Parent ~= char then continue end
                     end
                 end
             end
@@ -913,15 +925,15 @@ function ShopManager:Init(Window, Tabs)
         return bestTarget
     end
 
-    -- Подмена WeaponRaycast (без изменений, работает)
-    local repStorage = game:GetService("ReplicatedStorage")
+    -- Перехват WeaponRaycast
     local weaponRaycastModule = repStorage:FindFirstChild("Modules"):FindFirstChild("WeaponRaycast")
+    local originalFromScreen = nil
     if weaponRaycastModule then
         local weaponRaycast = require(weaponRaycastModule)
-        local originalFromScreen = weaponRaycast.fromScreen
+        originalFromScreen = weaponRaycast.fromScreen
         weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
             if _G.SilentAim_Enabled then
-                local target = getBestTarget()
+                local target = getTarget()
                 if target then
                     if _G.SilentAim_DelayShot > 0 then
                         task.wait(_G.SilentAim_DelayShot / 1000)
@@ -933,11 +945,11 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- Авто‑огонь (удержание кнопки, без кликов)
+    -- Авто‑огонь (удержание кнопки)
     local isMouseHeld = false
     local function updateAutoFire()
         if _G.SilentAim_AutoFire and _G.SilentAim_Enabled then
-            local target = getBestTarget()
+            local target = getTarget() ~= nil
             local character = player.Character
             local tool = character and character:FindFirstChildWhichIsA("Tool")
             if target and tool then
