@@ -130,6 +130,70 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Инвентарь теперь всегда виден", 2)
     end)
 
+
+        -- ===== DEATH SPAWN (Respawn at death location) =====
+    local deathSpawnToggle = miscGroup:AddToggle('DeathSpawnToggle', {
+        Text = 'Death Spawn',
+        Default = false,
+        Tooltip = 'Возрождаться на том же месте, где умер'
+    })
+    local lastDeathPos = nil
+    local deathSpawnConnections = {}
+
+    local function enableDeathSpawn()
+        local player = game.Players.LocalPlayer
+        local charAddedConn = player.CharacterAdded:Connect(function(char)
+            -- Телепорт на сохранённую позицию, если она есть
+            if lastDeathPos then
+                local hrp = char:WaitForChild("HumanoidRootPart", 2)
+                if hrp then
+                    hrp.CFrame = CFrame.new(lastDeathPos)
+                end
+            end
+            -- Подписываемся на смерть нового персонажа
+            local humanoid = char:WaitForChild("Humanoid", 5)
+            if humanoid then
+                local diedConn = humanoid.Died:Connect(function()
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        lastDeathPos = root.Position
+                    end
+                end)
+                table.insert(deathSpawnConnections, diedConn)
+            end
+        end)
+        table.insert(deathSpawnConnections, charAddedConn)
+
+        -- Если персонаж уже существует, подписываемся на его смерть сейчас
+        if player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                local diedConn = humanoid.Died:Connect(function()
+                    local root = player.Character:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        lastDeathPos = root.Position
+                    end
+                end)
+                table.insert(deathSpawnConnections, diedConn)
+            end
+        end
+    end
+
+    local function disableDeathSpawn()
+        for _, conn in ipairs(deathSpawnConnections) do
+            conn:Disconnect()
+        end
+        deathSpawnConnections = {}
+        lastDeathPos = nil
+    end
+
+    deathSpawnToggle:OnChanged(function(enabled)
+        if enabled then
+            enableDeathSpawn()
+        else
+            disableDeathSpawn()
+        end
+    end)
     -- ===== AUTO UNCUFF =====
     local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
         Text = 'Auto UnCuff',
