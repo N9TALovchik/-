@@ -1,5 +1,4 @@
--- ShopManager.lua (ПОЛНАЯ ВЕРСИЯ – исправлен ранний вызов функций HitSound)
--- Input Custom HitSound перенесён после определения хуков, чтобы не было "call nil value"
+-- ShopManager.lua (полный финальный + Silent Aim (Rage))
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -363,7 +362,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- ESP GROUP (Car ESP) – финальная версия (без изменений)
+    -- ESP GROUP (Car ESP) – финальная версия
     -- =====================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
@@ -979,7 +978,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без lifesteal и tracer
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без изменений
     -- =====================================================
     local activeMods = {
         rapidFire = false,
@@ -1030,12 +1029,6 @@ function ShopManager:Init(Window, Tabs)
         end
         if type(activeMods.explosionRadius) == "number" then
             copy.ExplosionRadius = activeMods.explosionRadius
-        end
-
-        -- КАСТОМНЫЙ ЗВУК ПОПАДАНИЯ (только если задан)
-        if _G.CustomHitSoundID then
-            copy.HitCharSndIDs = {_G.CustomHitSoundID}
-            copy.HitmarkerSoundID = {_G.CustomHitSoundID}
         end
 
         return copy
@@ -1101,7 +1094,7 @@ function ShopManager:Init(Window, Tabs)
         refreshAllWeapons()
     end
 
-    -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
+    -- ===== Enable All Gun Mods =====
     miscGroup:AddButton('Enable All Gun Mods', function()
         enableMod('rapidFire')
         enableMod('noSpread')
@@ -1142,6 +1135,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     miscGroup:AddDivider()
+    -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
     miscGroup:AddButton('Rapid Fire', function() enableMod('rapidFire') Library:Notify("Rapid Fire (FireRate=0) включён", 2) end)
     miscGroup:AddButton('No Spread', function() enableMod('noSpread') Library:Notify("No Spread (Recoil & Spread=0) включён", 2) end)
     miscGroup:AddButton('Insta Equip', function() enableMod('instaEquip') Library:Notify("Insta Equip (EquipTime=0) включён", 2) end)
@@ -1204,35 +1198,6 @@ function ShopManager:Init(Window, Tabs)
             ensureRequireHooked()
         end
         Library:Notify("Радиус взрыва установлен на " .. (num and tostring(num) or "нет"), 2)
-    end)
-
-    -- ===== CUSTOM HIT SOUND (Textbox) – теперь здесь, после определения ensureRequireHooked =====
-    local customHitSoundInput = miscGroup:AddInput('CustomHitSoundID', {
-        Text = 'Custom Hit/HS Sound',
-        Default = '',
-        Placeholder = 'rbxassetid://1234567890',
-        Numeric = false,
-        Finished = true,
-        Tooltip = 'Заменяет все звуки попадания и хитмаркера на указанный ID (например, rbxassetid://5952120301)'
-    })
-    customHitSoundInput:OnChanged(function(value)
-        local id
-        local num = tonumber(value)
-        if num then
-            id = num
-        else
-            local match = string.match(value, "rbxassetid://(%d+)")
-            if match then
-                id = tonumber(match)
-            end
-        end
-        _G.CustomHitSoundID = id   -- nil если не распарсили
-        -- Теперь ensureRequireHooked и refreshAllWeapons доступны
-        if requireHooked then
-            refreshAllWeapons()
-        else
-            ensureRequireHooked()
-        end
     end)
 
     -- ===== АВТО-БАЙ =====
