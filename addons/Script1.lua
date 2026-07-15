@@ -1,4 +1,4 @@
--- ShopManager.lua (ПОЛНЫЙ ФИНАЛЬНЫЙ КОД: Silent Aim исправлен, отложенный хук, FOV у курсора, AutoFire без кликов, все функции на месте)
+-- ShopManager.lua (ПОЛНЫЙ ФИНАЛЬНЫЙ КОД: ВСЕ функции, Silent Aim без хука require, моды оружия исправлены)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -664,7 +664,7 @@ function ShopManager:Init(Window, Tabs)
     checkLoop()
 
     -- =====================================================
-    -- RAGE GROUP (Silent Aim + Auto Fire) – ИСПРАВЛЕНО: отложенный хук, FOV у курсора, без кликов, Visible Check фикс
+    -- RAGE GROUP (Silent Aim + Auto Fire) – БЕЗ ХУКА REQUIRE, СТАБИЛЬНО
     -- =====================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
@@ -854,42 +854,30 @@ function ShopManager:Init(Window, Tabs)
         return bestTarget
     end
 
-    -- Отложенный хук require (не ломает игру)
+    -- Подмена fromScreen без хука require (ждём загрузки модуля)
     local repStorage = game:GetService("ReplicatedStorage")
-    local weaponRaycastHooked = false
     task.spawn(function()
-        repeat task.wait() until game:IsLoaded()
-        task.wait(2) -- дополнительная задержка для безопасности
-        local oldRequire = hookfunction(require, function(moduleScript)
-            local result = oldRequire(moduleScript)
-            if moduleScript.Name == "WeaponRaycast" and moduleScript:IsDescendantOf(repStorage) then
-                local weaponRaycast = result
-                if weaponRaycast and weaponRaycast.fromScreen and not weaponRaycast._silentAimHooked then
-                    weaponRaycast._silentAimHooked = true
-                    local originalFromScreen = weaponRaycast.fromScreen
-                    weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-                        if not _G.SilentAim_Enabled then
-                            return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-                        end
-                        local target = getBestTarget()
-                        if target then
-                            return target.Position
-                        end
-                        return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-                    end
-                end
+        local weaponRaycastModule = repStorage:WaitForChild("Modules"):WaitForChild("WeaponRaycast")
+        local weaponRaycast = require(weaponRaycastModule)
+        local originalFromScreen = weaponRaycast.fromScreen
+        weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
+            if not _G.SilentAim_Enabled then
+                return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
             end
-            return result
-        end)
-        weaponRaycastHooked = true
+            local target = getBestTarget()
+            if target then
+                return target.Position
+            end
+            return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
+        end
     end)
 
-    -- Авто‑огонь (без кликов, зажимает кнопку)
+    -- Авто‑огонь (зажимает мышь, без кликов)
     local isMouseHeld = false
     game:GetService("RunService").Heartbeat:Connect(function()
         updateFOVCircle()
 
-        if _G.SilentAim_Enabled and _G.SilentAim_AutoFire and weaponRaycastHooked then
+        if _G.SilentAim_Enabled and _G.SilentAim_AutoFire then
             local target = getBestTarget()
             if target and not isMouseHeld then
                 pcall(function() mouse1press() end)
@@ -905,7 +893,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без изменений
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (исправлена, работает отдельно от Silent Aim)
     -- =====================================================
     local activeMods = {
         rapidFire = false,
@@ -991,7 +979,7 @@ function ShopManager:Init(Window, Tabs)
         if requireHooked then return end
         requireHooked = true
 
-        oldRequire = hookfunction(require, function(moduleScript)
+        local oldRequire = hookfunction(require, function(moduleScript)
             local result = oldRequire(moduleScript)
             if moduleScript:IsA("ModuleScript") and moduleScript.Name == "Setting" then
                 local parent = moduleScript.Parent
@@ -1127,7 +1115,9 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Радиус взрыва установлен на " .. (num and tostring(num) or "нет"), 2)
     end)
 
-    -- ===== АВТО-БАЙ =====
+    -- =====================================================
+    -- АВТО-БАЙ
+    -- =====================================================
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
