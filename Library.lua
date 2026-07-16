@@ -1,4 +1,4 @@
--- LinoriaLib модифицированная (исправленные уведомления, звук, прогресс-бар)
+-- LinoriaLib модифицированная (исправленные уведомления, звук, прогресс-бар, UICorner)
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -51,6 +51,10 @@ local Library = {
 
     Signals = {};
     ScreenGui = ScreenGui;
+
+    -- Настройка UICorner (глобальная)
+    UICornerRadius = 0.8;               -- стандартное скругление (можно менять извне)
+    UICorners = {};                     -- список всех UICorner для обновления
 };
 
 local RainbowStep = 0
@@ -248,6 +252,19 @@ function Library:GetDarkerColor(Color)
     return Color3.fromHSV(H, S, V / 1.5);
 end;
 Library.AccentColorDark = Library:GetDarkerColor(Library.AccentColor);
+
+-- Функция для обновления радиуса скругления
+function Library:SetUICornerRadius(radius)
+    Library.UICornerRadius = radius
+    for _, corner in ipairs(Library.UICorners) do
+        if corner then
+            corner.CornerRadius = UDim.new(0, radius * 10)  -- преобразуем в UDim с небольшим множителем
+        end
+    end
+end
+
+-- Быстрый доступ через глобальную переменную
+getgenv().SetUICornerRadius = Library.SetUICornerRadius
 
 function Library:AddToRegistry(Instance, Properties, IsHud)
     local Idx = #Library.Registry + 1;
@@ -2122,7 +2139,7 @@ do
     end;
 end;
 
--- ========== АНИМИРОВАННЫЕ УВЕДОМЛЕНИЯ (выезд из-за экрана, двойной прогресс-бар, звук с ожиданием) ==========
+-- ========== АНИМИРОВАННЫЕ УВЕДОМЛЕНИЯ ==========
 local NotificationContainer = Library:Create('Frame', {
     BackgroundTransparency = 1;
     Position = UDim2.new(0.5, 0, 1, 0);
@@ -2139,7 +2156,6 @@ local function PlayNotifySound()
     sound.SoundId = "rbxassetid://" .. NOTIFY_SOUND_ID
     sound.Volume = 0.5
     sound.Parent = ScreenGui
-    -- Ждём загрузки, затем играем
     if sound.IsLoaded then
         sound:Play()
     else
@@ -2160,7 +2176,6 @@ function Library:Notify(Text, Time)
     local YSize = 32
     local padding = 8
 
-    -- Рассчитываем сдвиг по вертикали, чтобы разместить уведомление над уже активными
     local totalHeight = 0
     for _, notif in ipairs(activeNotifications) do
         if notif.Outer and notif.Outer.Parent then
@@ -2172,7 +2187,7 @@ function Library:Notify(Text, Time)
     local Outer = Library:Create('Frame', {
         BorderColor3 = Color3.new(0, 0, 0);
         Size = UDim2.new(0, XSize, 0, YSize);
-        Position = UDim2.new(0.5, -XSize/2, 1, 0);   -- старт за экраном
+        Position = UDim2.new(0.5, -XSize/2, 1, 0);
         ClipsDescendants = false;
         ZIndex = 100;
         Parent = NotificationContainer;
@@ -2180,7 +2195,6 @@ function Library:Notify(Text, Time)
 
     table.insert(activeNotifications, { Outer = Outer, Time = Time })
 
-    -- Выезд вверх
     local startPos = UDim2.new(0.5, -XSize/2, 1, 0)
     local targetPos = UDim2.new(0.5, -XSize/2, 1, targetY)
     Outer.Position = startPos
@@ -2232,46 +2246,41 @@ function Library:Notify(Text, Time)
         Parent = InnerFrame;
     });
 
-    -- Двойной прогресс-бар (от краев к центру)
     local LeftBar = Library:Create('Frame', {
         BackgroundColor3 = Library.AccentColor;
         BorderSizePixel = 0;
-        Size = UDim2.new(0.5, 0, 0, 2);              -- левая половина
-        Position = UDim2.new(0.5, 0, 1, -2);          -- правый край привязан к центру
-        AnchorPoint = Vector2.new(1, 0);               -- якорь на правом краю (сжимается к центру)
+        Size = UDim2.new(0.5, 0, 0, 2);
+        Position = UDim2.new(0.5, 0, 1, -2);
+        AnchorPoint = Vector2.new(1, 0);
         ZIndex = 104;
         Parent = Outer;
     });
     local RightBar = Library:Create('Frame', {
         BackgroundColor3 = Library.AccentColor;
         BorderSizePixel = 0;
-        Size = UDim2.new(0.5, 0, 0, 2);              -- правая половина
-        Position = UDim2.new(0.5, 0, 1, -2);          -- левый край привязан к центру
-        AnchorPoint = Vector2.new(0, 0);               -- якорь на левом краю (сжимается к центру)
+        Size = UDim2.new(0.5, 0, 0, 2);
+        Position = UDim2.new(0.5, 0, 1, -2);
+        AnchorPoint = Vector2.new(0, 0);
         ZIndex = 104;
         Parent = Outer;
     });
 
-    -- Анимация уменьшения до нуля (к центру)
     local leftTween = TweenService:Create(LeftBar, TweenInfo.new(Time, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 2) })
     local rightTween = TweenService:Create(RightBar, TweenInfo.new(Time, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 2) })
     leftTween:Play()
     rightTween:Play()
 
-    -- Через Time уведомление уезжает обратно и удаляется
     task.delay(Time, function()
         local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = startPos })
         tweenOut:Play()
         tweenOut.Completed:Connect(function()
             Outer:Destroy()
-            -- Убираем из списка активных
             for i, notif in ipairs(activeNotifications) do
                 if notif.Outer == Outer then
                     table.remove(activeNotifications, i)
                     break
                 end
             end
-            -- Пересчитываем позиции оставшихся уведомлений
             local currentY = 0
             for _, notif in ipairs(activeNotifications) do
                 local newTargetPos = UDim2.new(0.5, -notif.Outer.AbsoluteSize.X/2, 1, -currentY - notif.Outer.AbsoluteSize.Y - padding)
@@ -2300,7 +2309,7 @@ local function StartCursorUpdater()
 end
 task.spawn(StartCursorUpdater)
 
--- ========== WATERMARK, KEYBINDFRAME И ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ ==========
+-- ========== WATERMARK, KEYBINDFRAME ==========
 local WatermarkOuter = Library:Create('Frame', {
     BorderColor3 = Color3.new(0, 0, 0);
     Position = UDim2.new(0, 100, 0, -25);
@@ -2354,7 +2363,6 @@ Library.Watermark = WatermarkOuter;
 Library.WatermarkText = WatermarkLabel;
 Library:MakeDraggable(Library.Watermark);
 
--- KeybindFrame
 local KeybindOuter = Library:Create('Frame', {
     AnchorPoint = Vector2.new(0, 0.5);
     BorderColor3 = Color3.new(0, 0, 0);
@@ -2419,7 +2427,7 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 
--- Создание окна
+-- ========== СОЗДАНИЕ ОКНА ==========
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
@@ -2449,6 +2457,10 @@ function Library:CreateWindow(...)
         ZIndex = 1;
         Parent = ScreenGui;
     });
+    -- UICorner для Outer
+    local OuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Outer });
+    table.insert(Library.UICorners, OuterCorner)
+
     Library:MakeDraggable(Outer, 25);
     local Inner = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
@@ -2460,6 +2472,10 @@ function Library:CreateWindow(...)
         Parent = Outer;
     });
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'AccentColor'; });
+    -- UICorner для Inner
+    local InnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Inner });
+    table.insert(Library.UICorners, InnerCorner)
+
     local WindowLabel = Library:CreateLabel({
         Position = UDim2.new(0, 7, 0, 0);
         Size = UDim2.new(0, 0, 0, 25);
@@ -2477,6 +2493,10 @@ function Library:CreateWindow(...)
         Parent = Inner;
     });
     Library:AddToRegistry(MainSectionOuter, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor'; });
+    -- UICorner для MainSectionOuter
+    local MainOuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = MainSectionOuter });
+    table.insert(Library.UICorners, MainOuterCorner)
+
     local MainSectionInner = Library:Create('Frame', {
         BackgroundColor3 = Library.BackgroundColor;
         BorderColor3 = Color3.new(0, 0, 0);
@@ -2487,6 +2507,10 @@ function Library:CreateWindow(...)
         Parent = MainSectionOuter;
     });
     Library:AddToRegistry(MainSectionInner, { BackgroundColor3 = 'BackgroundColor'; });
+    -- UICorner для MainSectionInner (по желанию, но не обязательно)
+    local MainInnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = MainSectionInner });
+    table.insert(Library.UICorners, MainInnerCorner)
+
     local TabArea = Library:Create('Frame', {
         BackgroundTransparency = 1;
         Position = UDim2.new(0, 8, 0, 8);
