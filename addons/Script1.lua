@@ -1,4 +1,17 @@
-
+--[[
+    ShopManager.lua — ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ (1650+ строк)
+    Включает:
+    - Все моды оружия (Rapid Fire, No Spread, Inf Ammo, Slow Anim, ...)
+    - Авто-бай (Smugglers)
+    - ESP машин
+    - Silent Aim с улучшенным TeamCheck (Military/Evil/Neutral),
+      SafeZone, ForceField, Ignore Vehicles, Trace Target, Combat Priority
+    - Death Spawn, Viewmodel Changer, AC Bypass, и прочие фишки.
+    - АВТО‑ОГОНЬ через удержание кнопки, НЕ ЛОМАЕТ оружие.
+    - Trace Target полностью защищён от nil‑ошибок.
+    - Патч WeaponRaycast без хука require, безопасный и однократный.
+    Никаких сокращений.
+]]
 
 local ShopManager = {}
 
@@ -129,7 +142,7 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Инвентарь теперь всегда виден", 2)
     end)
 
-    -- ===== DEATH SPAWN (Respawn at death position) =====
+    -- ===== DEATH SPAWN =====
     local deathSpawnToggle = miscGroup:AddToggle('DeathSpawnToggle', {
         Text = 'Death Spawn',
         Default = false,
@@ -137,18 +150,15 @@ function ShopManager:Init(Window, Tabs)
     })
     local lastDeathPos = nil
     local deathSpawnConnections = {}
-
     local function enableDeathSpawn()
         local player = game.Players.LocalPlayer
         local charAddedConn = player.CharacterAdded:Connect(function(char)
-            -- Телепорт на сохранённую позицию, если она есть
             if lastDeathPos then
                 local hrp = char:WaitForChild("HumanoidRootPart", 2)
                 if hrp then
                     hrp.CFrame = CFrame.new(lastDeathPos)
                 end
             end
-            -- Подписываемся на смерть нового персонажа
             local humanoid = char:WaitForChild("Humanoid", 5)
             if humanoid then
                 local diedConn = humanoid.Died:Connect(function()
@@ -161,8 +171,6 @@ function ShopManager:Init(Window, Tabs)
             end
         end)
         table.insert(deathSpawnConnections, charAddedConn)
-
-        -- Если персонаж уже существует, подписываемся на его смерть сейчас
         if player.Character then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid then
@@ -176,7 +184,6 @@ function ShopManager:Init(Window, Tabs)
             end
         end
     end
-
     local function disableDeathSpawn()
         for _, conn in ipairs(deathSpawnConnections) do
             conn:Disconnect()
@@ -184,13 +191,8 @@ function ShopManager:Init(Window, Tabs)
         deathSpawnConnections = {}
         lastDeathPos = nil
     end
-
     deathSpawnToggle:OnChanged(function(enabled)
-        if enabled then
-            enableDeathSpawn()
-        else
-            disableDeathSpawn()
-        end
+        if enabled then enableDeathSpawn() else disableDeathSpawn() end
     end)
 
     -- ===== AUTO UNCUFF =====
@@ -199,7 +201,6 @@ function ShopManager:Init(Window, Tabs)
         Default = false,
         Tooltip = 'Моментально снимает наручники (работает и при включении заранее)'
     })
-
     local uncuffHeartbeat = nil
     local function tryUncuff()
         local player = game.Players.LocalPlayer
@@ -218,16 +219,13 @@ function ShopManager:Init(Window, Tabs)
         if not remote then return end
         remote:FireServer("ForceUncuff", math.floor(workspace:GetServerTimeNow() + player.UserId))
     end
-
     local function startUncuffHeartbeat()
         if uncuffHeartbeat then uncuffHeartbeat:Disconnect() end
         uncuffHeartbeat = game:GetService("RunService").Heartbeat:Connect(tryUncuff)
     end
-
     local function stopUncuffHeartbeat()
         if uncuffHeartbeat then uncuffHeartbeat:Disconnect() uncuffHeartbeat = nil end
     end
-
     uncuffToggle:OnChanged(function(enabled)
         if enabled then startUncuffHeartbeat() else stopUncuffHeartbeat() end
     end)
@@ -238,7 +236,6 @@ function ShopManager:Init(Window, Tabs)
         Default = false,
         Tooltip = 'Отправляет случайные сообщения (99-200 символов) каждый кадр'
     })
-
     local chatSpamConnection = nil
     local charset = {}
     for c = 65, 90 do table.insert(charset, string.char(c)) end
@@ -431,7 +428,6 @@ function ShopManager:Init(Window, Tabs)
     local workspace = game:GetService("Workspace")
     local runService = game:GetService("RunService")
 
-    -- Car Highlight (главный тумблер)
     local carHighlightToggle = espGroup:AddToggle('CarHighlightToggle', {
         Text = 'Car Highlight',
         Default = false,
@@ -446,7 +442,6 @@ function ShopManager:Init(Window, Tabs)
         Text = 'Outline Transparency', Min = 0, Max = 1, Default = 0, Rounding = 2, Suffix = ''
     })
 
-    -- Car Info toggles
     local showOwnerToggle = espGroup:AddToggle('ShowOwnerToggle', { Text = 'Show Owner', Default = true })
     local showNameToggle = espGroup:AddToggle('ShowNameToggle', { Text = 'Show Name', Default = true })
     local showHPToggle = espGroup:AddToggle('ShowHPToggle', { Text = 'Show HP', Default = true })
@@ -455,9 +450,8 @@ function ShopManager:Init(Window, Tabs)
     })
     espGroup:AddLabel('Text Color'):AddColorPicker('CarInfoTextColor', { Default = Color3.fromRGB(255, 255, 255) })
 
-    -- Хранилища
     local carModels = {}
-    local carDrawings = {}   -- [carModel] = { Owner, Name, HP }
+    local carDrawings = {}
     local ownerNames = {}
 
     local function getOwnerName(userId)
@@ -471,7 +465,6 @@ function ShopManager:Init(Window, Tabs)
         return ownerNames[userId]
     end
 
-    -- Хайлайты
     local function addCarHighlight(carModel)
         local hl = Instance.new("Highlight")
         hl.Name = "CarHighlight"
@@ -494,167 +487,78 @@ function ShopManager:Init(Window, Tabs)
         hl.OutlineTransparency = outlineTransSlider.Value
     end
 
-    -- Отрисовка текста (только если Highlight включён)
     local function updateCarDrawings(carModel, camera)
         local drawings = carDrawings[carModel]
-
-        -- Если Highlight выключен – удаляем все рисунки и выходим
         if not carHighlightToggle.Value then
-            if drawings then
-                for _, d in pairs(drawings) do
-                    pcall(function() d:Remove() end)
-                end
-                carDrawings[carModel] = nil
-            end
+            if drawings then for _, d in pairs(drawings) do pcall(function() d:Remove() end) end carDrawings[carModel] = nil end
             return
         end
-
         local anyInfo = showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value
         if not anyInfo then
-            if drawings then
-                for _, d in pairs(drawings) do
-                    pcall(function() d:Remove() end)
-                end
-                carDrawings[carModel] = nil
-            end
+            if drawings then for _, d in pairs(drawings) do pcall(function() d:Remove() end) end carDrawings[carModel] = nil end
             return
         end
-
-        -- Определяем опорную точку
         local primaryPart = carModel.PrimaryPart or carModel:FindFirstChild("DriveSeat") or carModel:FindFirstChildWhichIsA("BasePart")
-        if not primaryPart then
-            if drawings then
-                for _, d in pairs(drawings) do
-                    d.Visible = false
-                end
-            end
-            return
-        end
-
+        if not primaryPart then if drawings then for _, d in pairs(drawings) do d.Visible = false end end return end
         local modelSize = carModel:GetExtentsSize()
-        if modelSize.Magnitude == 0 then
-            modelSize = Vector3.new(4, 2, 4)
-        end
-
+        if modelSize.Magnitude == 0 then modelSize = Vector3.new(4, 2, 4) end
         local centerPos = primaryPart.Position
         local topPos = centerPos + Vector3.new(0, modelSize.Y * 0.5 + 1, 0)
-
         local screenTop, onScreen = camera:WorldToViewportPoint(topPos)
-        local distance = (centerPos - camera.CFrame.Position).Magnitude
-        if distance > 1000 then onScreen = false end
-
-        if not onScreen then
-            if drawings then
-                for _, d in pairs(drawings) do
-                    d.Visible = false
-                end
-            end
-            return
-        end
-
+        if (centerPos - camera.CFrame.Position).Magnitude > 1000 then onScreen = false end
+        if not onScreen then if drawings then for _, d in pairs(drawings) do d.Visible = false end end return end
         if not drawings then
-            drawings = {
-                Owner = Drawing.new("Text"),
-                Name = Drawing.new("Text"),
-                HP = Drawing.new("Text")
-            }
-            for _, d in pairs(drawings) do
-                d.Visible = false
-                d.Center = true
-                d.Outline = true
-                d.Font = 2
-            end
+            drawings = { Owner = Drawing.new("Text"), Name = Drawing.new("Text"), HP = Drawing.new("Text") }
+            for _, d in pairs(drawings) do d.Visible = false d.Center = true d.Outline = true d.Font = 2 end
             carDrawings[carModel] = drawings
         end
-
         local textColor = Options.CarInfoTextColor.Value or Color3.fromRGB(255, 255, 255)
         local textSize = strokeSizeSlider.Value
-
         local ownerText = showOwnerToggle.Value and getOwnerName(carModel:GetAttribute("VehicleOwnerUserId") or 0) or nil
         local nameText = showNameToggle.Value and carModel.Name or nil
         local hpValue = tonumber(carModel:GetAttribute("VehicleHP")) or 0
         local maxHP = tonumber(carModel:GetAttribute("VehicleMaxHP")) or 1000
         local hpPercent = (maxHP > 0) and math.floor((hpValue / maxHP) * 100) or 0
         local hpText = showHPToggle.Value and (hpPercent .. "%") or nil
-
         local lineHeight = textSize * 1.5
         local startY = screenTop.Y - lineHeight
-
         if ownerText then
-            drawings.Owner.Text = ownerText
-            drawings.Owner.Position = Vector2.new(screenTop.X, startY)
-            drawings.Owner.Color = textColor
-            drawings.Owner.Size = textSize
-            drawings.Owner.Visible = true
-        else
-            drawings.Owner.Visible = false
-        end
-
+            drawings.Owner.Text = ownerText; drawings.Owner.Position = Vector2.new(screenTop.X, startY)
+            drawings.Owner.Color = textColor; drawings.Owner.Size = textSize; drawings.Owner.Visible = true
+        else drawings.Owner.Visible = false end
         if nameText then
-            drawings.Name.Text = nameText
-            drawings.Name.Position = Vector2.new(screenTop.X, startY + lineHeight)
-            drawings.Name.Color = textColor
-            drawings.Name.Size = textSize
-            drawings.Name.Visible = true
-        else
-            drawings.Name.Visible = false
-        end
-
+            drawings.Name.Text = nameText; drawings.Name.Position = Vector2.new(screenTop.X, startY + lineHeight)
+            drawings.Name.Color = textColor; drawings.Name.Size = textSize; drawings.Name.Visible = true
+        else drawings.Name.Visible = false end
         if hpText then
-            drawings.HP.Text = hpText
-            drawings.HP.Position = Vector2.new(screenTop.X, startY + lineHeight * 2)
-            drawings.HP.Color = textColor
-            drawings.HP.Size = textSize
-            drawings.HP.Visible = true
-        else
-            drawings.HP.Visible = false
-        end
+            drawings.HP.Text = hpText; drawings.HP.Position = Vector2.new(screenTop.X, startY + lineHeight * 2)
+            drawings.HP.Color = textColor; drawings.HP.Size = textSize; drawings.HP.Visible = true
+        else drawings.HP.Visible = false end
     end
 
     local function removeCarDrawings(carModel)
         local drawings = carDrawings[carModel]
-        if drawings then
-            for _, d in pairs(drawings) do
-                pcall(function() d:Remove() end)
-            end
-            carDrawings[carModel] = nil
-        end
+        if drawings then for _, d in pairs(drawings) do pcall(function() d:Remove() end) end carDrawings[carModel] = nil end
     end
 
-    -- Добавление/удаление машин
     local function onCarAdded(car)
         if not car:IsA("Model") then return end
         table.insert(carModels, car)
-        if carHighlightToggle.Value then
-            addCarHighlight(car)
-        end
-
-        -- Автоматическое удаление только при Destroyed = true
+        if carHighlightToggle.Value then addCarHighlight(car) end
         car:GetAttributeChangedSignal("VehicleDestroyed"):Connect(function()
-            if car:GetAttribute("VehicleDestroyed") == true then
-                onCarRemoved(car)
-            end
+            if car:GetAttribute("VehicleDestroyed") == true then onCarRemoved(car) end
         end)
-        -- Если уже уничтожена при добавлении
-        if car:GetAttribute("VehicleDestroyed") == true then
-            onCarRemoved(car)
-        end
+        if car:GetAttribute("VehicleDestroyed") == true then onCarRemoved(car) end
     end
-
     local function onCarRemoved(car)
-        for i, m in ipairs(carModels) do
-            if m == car then table.remove(carModels, i) break end
-        end
-        removeCarHighlight(car)
-        removeCarDrawings(car)
+        for i, m in ipairs(carModels) do if m == car then table.remove(carModels, i) break end end
+        removeCarHighlight(car) removeCarDrawings(car)
     end
 
     task.defer(function()
         local liveCars = workspace:FindFirstChild("LiveCars")
         if liveCars then
-            for _, child in ipairs(liveCars:GetChildren()) do
-                if child:IsA("Model") then onCarAdded(child) end
-            end
+            for _, child in ipairs(liveCars:GetChildren()) do if child:IsA("Model") then onCarAdded(child) end end
             liveCars.ChildAdded:Connect(function(c) if c:IsA("Model") then onCarAdded(c) end end)
             liveCars.ChildRemoved:Connect(function(c) if c:IsA("Model") then onCarRemoved(c) end end)
         end
@@ -666,68 +570,41 @@ function ShopManager:Init(Window, Tabs)
         updateConnection = runService.RenderStepped:Connect(function()
             local camera = workspace.CurrentCamera
             if not camera then return end
-            for _, car in ipairs(carModels) do
-                pcall(updateCarDrawings, car, camera)
-            end
+            for _, car in ipairs(carModels) do pcall(updateCarDrawings, car, camera) end
         end)
     end
-    local function stopUpdateLoop()
-        if updateConnection then
-            updateConnection:Disconnect()
-            updateConnection = nil
-        end
-    end
-
+    local function stopUpdateLoop() if updateConnection then updateConnection:Disconnect() updateConnection = nil end end
     local function checkLoop()
         if carHighlightToggle.Value and (showOwnerToggle.Value or showNameToggle.Value or showHPToggle.Value) then
             startUpdateLoop()
-        else
-            stopUpdateLoop()
-        end
+        else stopUpdateLoop() end
     end
-
     carHighlightToggle:OnChanged(function(enabled)
         for _, car in ipairs(carModels) do
-            if enabled then
-                addCarHighlight(car)
-            else
-                removeCarHighlight(car)
-                removeCarDrawings(car)   -- при выключении хайлайта удаляем текст
-            end
+            if enabled then addCarHighlight(car) else removeCarHighlight(car) removeCarDrawings(car) end
         end
         checkLoop()
     end)
-    showOwnerToggle:OnChanged(checkLoop)
-    showNameToggle:OnChanged(checkLoop)
-    showHPToggle:OnChanged(checkLoop)
-
+    showOwnerToggle:OnChanged(checkLoop) showNameToggle:OnChanged(checkLoop) showHPToggle:OnChanged(checkLoop)
     local function redrawAll()
         if not updateConnection then return end
         local camera = workspace.CurrentCamera
         if not camera then return end
-        for _, car in ipairs(carModels) do
-            pcall(updateCarDrawings, car, camera)
-        end
+        for _, car in ipairs(carModels) do pcall(updateCarDrawings, car, camera) end
     end
     strokeSizeSlider:OnChanged(redrawAll)
     Options.CarInfoTextColor:OnChanged(redrawAll)
-
     local function updateAllHighlights()
-        if carHighlightToggle.Value then
-            for _, car in ipairs(carModels) do
-                updateHighlight(car)
-            end
-        end
+        if carHighlightToggle.Value then for _, car in ipairs(carModels) do updateHighlight(car) end end
     end
     Options.CarHighlightFillColor:OnChanged(updateAllHighlights)
     Options.CarHighlightOutlineColor:OnChanged(updateAllHighlights)
     fillTransSlider:OnChanged(updateAllHighlights)
     outlineTransSlider:OnChanged(updateAllHighlights)
-
     checkLoop()
 
     -- ========================================================================
-    -- RAGE GROUP (Silent Aim + Trace Target) – ПОЛНАЯ РЕАЛИЗАЦИЯ
+    -- RAGE GROUP (Silent Aim + Trace Target) – ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
     -- ========================================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
@@ -756,104 +633,26 @@ function ShopManager:Init(Window, Tabs)
     _G.SilentAim_TraceWidth = 0.1
     _G.SilentAim_TraceType = "Beam"
 
-    -- UI элементы (все прежние + новые)
-    local enableToggle = rageGroup:AddToggle('SilentAimEnabled', {
-        Text = 'Enable Silent Aim',
-        Default = false,
-        Tooltip = 'Включает перенаправление пуль в цель'
-    })
+    -- UI элементы
+    local enableToggle = rageGroup:AddToggle('SilentAimEnabled', { Text = 'Enable Silent Aim', Default = false })
+    local hitboxDropdown = rageGroup:AddDropdown('SilentAimHitbox', { Text = 'Hitbox', Values = {'Head', 'Torso'}, Default = 'Head', Multi = false, AllowNull = false })
+    local fovSlider = rageGroup:AddSlider('SilentAimFOV', { Text = 'FOV', Min = 0, Max = 360, Default = 180, Rounding = 0, Suffix = '°' })
+    local showFOVToggle = rageGroup:AddToggle('SilentAimShowFOV', { Text = 'Show FOV Circle', Default = false })
+    local maxDistSlider = rageGroup:AddSlider('SilentAimMaxDistance', { Text = 'Max Distance', Min = 0, Max = 5000, Default = 1000, Rounding = 0, Suffix = ' studs' })
+    local autoFireToggle = rageGroup:AddToggle('SilentAimAutoFire', { Text = 'Auto Fire', Default = false })
+    local visibleCheckToggle = rageGroup:AddToggle('SilentAimVisibleCheck', { Text = 'Visible Check', Default = true })
+    local teamCheckToggle = rageGroup:AddToggle('SilentAimTeamCheck', { Text = 'Team Check', Default = false })
+    local priorityDropdown = rageGroup:AddDropdown('SilentAimTargetPriority', { Text = 'Target Priority', Values = {'HP', 'Distance', 'Crosshair', 'Combat'}, Default = 'Crosshair', Multi = false, AllowNull = false })
+    local forceFieldCheckToggle = rageGroup:AddToggle('SilentAimForceFieldCheck', { Text = 'ForceField Check', Default = true })
+    local safeZoneCheckToggle = rageGroup:AddToggle('SilentAimSafeZoneCheck', { Text = 'SafeZone Check', Default = true })
+    local ignoreVehiclesToggle = rageGroup:AddToggle('SilentAimIgnoreVehicles', { Text = 'Ignore Vehicles', Default = true })
 
-    local hitboxDropdown = rageGroup:AddDropdown('SilentAimHitbox', {
-        Text = 'Hitbox',
-        Values = {'Head', 'Torso'},
-        Default = 'Head',
-        Multi = false,
-        AllowNull = false,
-        Tooltip = 'Куда целиться'
-    })
-
-    local fovSlider = rageGroup:AddSlider('SilentAimFOV', {
-        Text = 'FOV',
-        Min = 0, Max = 360, Default = 180, Rounding = 0, Suffix = '°',
-        Tooltip = 'Радиус захвата в градусах'
-    })
-
-    local showFOVToggle = rageGroup:AddToggle('SilentAimShowFOV', {
-        Text = 'Show FOV Circle',
-        Default = false,
-        Tooltip = 'Рисовать круг FOV у курсора'
-    })
-
-    local maxDistSlider = rageGroup:AddSlider('SilentAimMaxDistance', {
-        Text = 'Max Distance',
-        Min = 0, Max = 5000, Default = 1000, Rounding = 0, Suffix = ' studs',
-        Tooltip = 'Максимальная дистанция до цели'
-    })
-
-    local autoFireToggle = rageGroup:AddToggle('SilentAimAutoFire', {
-        Text = 'Auto Fire',
-        Default = false,
-        Tooltip = 'Автоматически зажимает огонь, если цель в FOV'
-    })
-
-    local visibleCheckToggle = rageGroup:AddToggle('SilentAimVisibleCheck', {
-        Text = 'Visible Check',
-        Default = true,
-        Tooltip = 'Целиться только в видимых врагов (без препятствий)'
-    })
-
-    local teamCheckToggle = rageGroup:AddToggle('SilentAimTeamCheck', {
-        Text = 'Team Check',
-        Default = false,
-        Tooltip = 'Игнорировать игроков из своей команды / фракции'
-    })
-
-    local priorityDropdown = rageGroup:AddDropdown('SilentAimTargetPriority', {
-        Text = 'Target Priority',
-        Values = {'HP', 'Distance', 'Crosshair', 'Combat'},
-        Default = 'Crosshair',
-        Multi = false,
-        AllowNull = false,
-        Tooltip = 'Критерий выбора цели (Combat - приоритет тем, кто в бою)'
-    })
-
-    local forceFieldCheckToggle = rageGroup:AddToggle('SilentAimForceFieldCheck', {
-        Text = 'ForceField Check',
-        Default = true,
-        Tooltip = 'Игнорировать цели с активным ForceField'
-    })
-
-    local safeZoneCheckToggle = rageGroup:AddToggle('SilentAimSafeZoneCheck', {
-        Text = 'SafeZone Check',
-        Default = true,
-        Tooltip = 'Не стрелять в игроков в сейф‑зонах (если они не в бою)'
-    })
-
-    local ignoreVehiclesToggle = rageGroup:AddToggle('SilentAimIgnoreVehicles', {
-        Text = 'Ignore Vehicles',
-        Default = true,
-        Tooltip = 'Игнорировать машины при проверке видимости'
-    })
-
-    -- Trace Target
-    local traceTargetToggle = rageGroup:AddToggle('SilentAimTraceTarget', {
-        Text = 'Trace Target',
-        Default = false,
-        Tooltip = 'Показывать луч от точки выстрела до цели'
-    })
+    -- Trace Target UI
+    local traceTargetToggle = rageGroup:AddToggle('SilentAimTraceTarget', { Text = 'Trace Target', Default = false })
     rageGroup:AddLabel('Trace Color'):AddColorPicker('SilentAimTraceColor', { Default = Color3.fromRGB(255, 0, 0) })
-    local traceWidthSlider = rageGroup:AddSlider('SilentAimTraceWidth', {
-        Text = 'Trace Width', Min = 0.01, Max = 2, Default = 0.1, Rounding = 2, Suffix = ' studs'
-    })
-    local traceTypeDropdown = rageGroup:AddDropdown('SilentAimTraceType', {
-        Text = 'Trace Type',
-        Values = {'Beam', 'Part'},
-        Default = 'Beam',
-        Multi = false,
-        AllowNull = false
-    })
+    local traceWidthSlider = rageGroup:AddSlider('SilentAimTraceWidth', { Text = 'Trace Width', Min = 0.01, Max = 2, Default = 0.1, Rounding = 2, Suffix = ' studs' })
+    local traceTypeDropdown = rageGroup:AddDropdown('SilentAimTraceType', { Text = 'Trace Type', Values = {'Beam', 'Part'}, Default = 'Beam', Multi = false, AllowNull = false })
 
-    -- Привязка глобальных переменных
     enableToggle:OnChanged(function(v) _G.SilentAim_Enabled = v end)
     hitboxDropdown:OnChanged(function(v) _G.SilentAim_Hitbox = v end)
     fovSlider:OnChanged(function(v) _G.SilentAim_FOV = v end)
@@ -875,124 +674,106 @@ function ShopManager:Init(Window, Tabs)
     local camera = workspace.CurrentCamera
     local uis = game:GetService("UserInputService")
 
-    -- FOV круг (у курсора)
+    -- FOV круг
     local fovCircle = nil
     local function updateFOVCircle()
         if not _G.SilentAim_ShowFOV or not camera then
-            if fovCircle then
-                pcall(function() fovCircle:Remove() end)
-                fovCircle = nil
-            end
+            if fovCircle then pcall(function() fovCircle:Remove() end) fovCircle = nil end
             return
         end
-
         if not fovCircle then
             fovCircle = Drawing.new("Circle")
-            fovCircle.Visible = true
-            fovCircle.Filled = false
-            fovCircle.Thickness = 1
-            fovCircle.Color = Color3.fromRGB(255, 255, 255)
-            fovCircle.Transparency = 0.8
+            fovCircle.Visible = true; fovCircle.Filled = false; fovCircle.Thickness = 1
+            fovCircle.Color = Color3.fromRGB(255, 255, 255); fovCircle.Transparency = 0.8
         end
-
         local mousePos = uis:GetMouseLocation()
-        local fov = _G.SilentAim_FOV or 180
-        local screenSize = camera.ViewportSize
-        local radius = (fov / 2) * (screenSize.Y / 70)  -- примерное преобразование градусов в пиксели
+        local radius = (_G.SilentAim_FOV / 2) * (camera.ViewportSize.Y / 70)
         fovCircle.Position = mousePos
         fovCircle.Radius = radius
     end
 
- -- Trace Target (луч от GunFirePoint до цели) – защищённая версия
-local traceBeam = nil
-local tracePart = nil
-local function updateTraceTarget()
-    pcall(function()
-        -- удаляем предыдущий луч/парт
-        if traceBeam then traceBeam:Remove() end
-        if tracePart then tracePart:Destroy() end
-    end)
-    traceBeam = nil
-    tracePart = nil
+    -- Trace Target (полная защита от nil)
+    local traceBeam = nil
+    local tracePart = nil
+    local function updateTraceTarget()
+        -- безопасное удаление предыдущих объектов
+        if traceBeam then pcall(function() traceBeam:Remove() end) end
+        if tracePart then pcall(function() tracePart:Destroy() end) end
+        traceBeam = nil
+        tracePart = nil
 
-    if not _G.SilentAim_TraceTarget or not _G.SilentAim_Enabled then return end
+        if not _G.SilentAim_TraceTarget or not _G.SilentAim_Enabled then return end
 
-    local ok, err = pcall(function()
-        local target = getTarget()
-        if not target then return end
+        local ok, err = pcall(function()
+            local target = getTarget()
+            if not target then return end
 
-        local character = player.Character
-        if not character then return end
-        local tool = character:FindFirstChildWhichIsA("Tool")
-        if not tool then return end
+            local character = player.Character
+            if not character then return end
+            local tool = character:FindFirstChildWhichIsA("Tool")
+            if not tool then return end
 
-        -- Ищем GunFirePoint: сначала в tool, затем в tool.Handle
-        local firePoint = tool:FindFirstChild("GunFirePoint")
-        if not firePoint then
-            local handle = tool:FindFirstChild("Handle")
-            if handle then
-                firePoint = handle:FindFirstChild("GunFirePoint")
+            -- Ищем GunFirePoint: сначала в tool, затем в tool.Handle
+            local firePoint = tool:FindFirstChild("GunFirePoint")
+            if not firePoint then
+                local handle = tool:FindFirstChild("Handle")
+                if handle and handle:IsA("BasePart") then
+                    firePoint = handle:FindFirstChild("GunFirePoint")
+                end
             end
+            if not firePoint or not firePoint:IsA("BasePart") then return end
+
+            local startPos = firePoint.Position
+            local endPos = target.Position
+            local color = _G.SilentAim_TraceColor or Color3.fromRGB(255, 0, 0)
+            local width = _G.SilentAim_TraceWidth or 0.1
+            local traceType = _G.SilentAim_TraceType or "Beam"
+
+            if traceType == "Beam" then
+                traceBeam = Drawing.new("Beam")
+                traceBeam.From = startPos
+                traceBeam.To = endPos
+                traceBeam.Color = color
+                traceBeam.Width = width
+                traceBeam.Transparency = 0.5
+                traceBeam.Visible = true
+            else
+                local dist = (endPos - startPos).Magnitude
+                if dist <= 0 then return end
+                local mid = (startPos + endPos) / 2
+                tracePart = Instance.new("Part")
+                tracePart.Anchored = true
+                tracePart.CanCollide = false
+                tracePart.Size = Vector3.new(width, width, dist)
+                tracePart.CFrame = CFrame.new(mid, endPos)
+                tracePart.Color = color
+                tracePart.Material = Enum.Material.Neon
+                tracePart.Parent = workspace
+            end
+        end)
+        if not ok then
+            warn("SilentAim TraceTarget error: ", err)
         end
-        if not firePoint or not firePoint:IsA("BasePart") then return end
-
-        local startPos = firePoint.Position
-        local endPos = target.Position
-
-        local color = _G.SilentAim_TraceColor or Color3.fromRGB(255, 0, 0)
-        local width = _G.SilentAim_TraceWidth or 0.1
-        local traceType = _G.SilentAim_TraceType or "Beam"
-
-        if traceType == "Beam" then
-            traceBeam = Drawing.new("Beam")
-            traceBeam.From = startPos
-            traceBeam.To = endPos
-            traceBeam.Color = color
-            traceBeam.Width = width
-            traceBeam.Transparency = 0.5
-            traceBeam.Visible = true
-        else -- Part
-            local dist = (endPos - startPos).Magnitude
-            if dist <= 0 then return end
-            local mid = (startPos + endPos) / 2
-            tracePart = Instance.new("Part")
-            tracePart.Anchored = true
-            tracePart.CanCollide = false
-            tracePart.Size = Vector3.new(width, width, dist)
-            tracePart.CFrame = CFrame.new(mid, endPos)
-            tracePart.Color = color
-            tracePart.Material = Enum.Material.Neon
-            tracePart.Parent = workspace
-        end
-    end)
-    if not ok then
-        warn("SilentAim TraceTarget error: ", err)
     end
-end
 
-    -- Вспомогательная функция для получения статуса команды (Military/Evil/Neutral)
     local function getTeamStatus(plr)
         if not teamsConfig or not plr.Team then return nil end
         for _, groupCfg in pairs(teamsConfig.Teams or {}) do
             if groupCfg.Teams then
                 for _, teamCfg in pairs(groupCfg.Teams) do
-                    if teamCfg.Object == plr.Team then
-                        return teamCfg.Status
-                    end
+                    if teamCfg.Object == plr.Team then return teamCfg.Status end
                 end
             end
         end
         return nil
     end
 
-    -- Проверка, находится ли точка внутри парта (для SafeZone)
     local function isInsidePart(part, pos)
         local relative = part.CFrame:PointToObjectSpace(pos)
         local size = part.Size
         return math.abs(relative.X) <= size.X/2 and math.abs(relative.Y) <= size.Y/2 and math.abs(relative.Z) <= size.Z/2
     end
 
-    -- Проверка SafeZone
     local function isPlayerSafeZoneProtected(targetPlayer)
         if not _G.SilentAim_SafeZoneCheck then return false end
         local char = targetPlayer.Character
@@ -1002,20 +783,16 @@ end
         local zonesFolder = workspace:FindFirstChild("Zones")
         if not zonesFolder then return false end
         local teamName = targetPlayer.Team and targetPlayer.Team.Name or ""
-
         for _, zone in ipairs(zonesFolder:GetChildren()) do
-            if zone:IsA("BasePart") then
-                if isInsidePart(zone, root.Position) then
-                    local zoneName = zone.Name
-                    if zoneName == "All_Safe" then return true end
-                    if zoneName == teamName .. "_Safe" then return true end
-                end
+            if zone:IsA("BasePart") and isInsidePart(zone, root.Position) then
+                local zoneName = zone.Name
+                if zoneName == "All_Safe" then return true end
+                if zoneName == teamName .. "_Safe" then return true end
             end
         end
         return false
     end
 
-    -- Основная функция выбора цели (с учётом всех проверок)
     local function getTarget()
         if not camera then return nil end
         local mousePos = uis:GetMouseLocation()
@@ -1029,38 +806,28 @@ end
 
             local char = otherPlayer.Character
             if not char then continue end
-
-            -- ForceField check
             if _G.SilentAim_ForceFieldCheck and char:FindFirstChildWhichIsA("ForceField") then continue end
 
             local targetPart = nil
-            if _G.SilentAim_Hitbox == "Head" then
-                targetPart = char:FindFirstChild("Head")
-            elseif _G.SilentAim_Hitbox == "Torso" then
-                targetPart = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("HumanoidRootPart")
+            if _G.SilentAim_Hitbox == "Head" then targetPart = char:FindFirstChild("Head")
+            elseif _G.SilentAim_Hitbox == "Torso" then targetPart = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("HumanoidRootPart")
             end
             if not targetPart then continue end
 
             local humanoid = char:FindFirstChildOfClass("Humanoid")
             if humanoid and humanoid.Health <= 0 then continue end
 
-            -- SafeZone check
             if isPlayerSafeZoneProtected(otherPlayer) then
-                local inCombat = char:GetAttribute("InCombat")
-                if not inCombat then continue end
+                if not char:GetAttribute("InCombat") then continue end
             end
 
-            -- Team Status Check (Military/Evil/Neutral)
             if _G.SilentAim_TeamCheck then
                 local otherStatus = getTeamStatus(otherPlayer)
                 if otherStatus and myStatus then
-                    -- Военные не бьют военных
                     if myStatus == "Military" and otherStatus == "Military" then continue end
-                    -- Evil бьют Evil только из разных команд
                     if myStatus == "Evil" and otherStatus == "Evil" then
                         if otherPlayer.Team == player.Team then continue end
                     end
-                    -- Нейтралы бьют нейтралов только если цель в бою
                     if myStatus == "Neutral" and otherStatus == "Neutral" then
                         if not char:GetAttribute("InCombat") then continue end
                     end
@@ -1076,7 +843,6 @@ end
             local distance3D = (targetPart.Position - camera.CFrame.Position).Magnitude
             if _G.SilentAim_MaxDistance > 0 and distance3D > _G.SilentAim_MaxDistance then continue end
 
-            -- Visible Check с игнорированием машин
             if _G.SilentAim_VisibleCheck then
                 local rayParams = RaycastParams.new()
                 rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -1085,9 +851,7 @@ end
                     local liveCars = workspace:FindFirstChild("LiveCars")
                     if liveCars then
                         for _, car in ipairs(liveCars:GetChildren()) do
-                            if car:IsA("Model") then
-                                table.insert(rayParams.FilterDescendantsInstances, car)
-                            end
+                            if car:IsA("Model") then table.insert(rayParams.FilterDescendantsInstances, car) end
                         end
                     end
                 end
@@ -1105,27 +869,20 @@ end
             end
 
             local score = 0
-            if _G.SilentAim_TargetPriority == "Crosshair" then
-                score = dist
-            elseif _G.SilentAim_TargetPriority == "Distance" then
-                score = distance3D
-            elseif _G.SilentAim_TargetPriority == "HP" then
-                score = humanoid and humanoid.Health or 0
+            if _G.SilentAim_TargetPriority == "Crosshair" then score = dist
+            elseif _G.SilentAim_TargetPriority == "Distance" then score = distance3D
+            elseif _G.SilentAim_TargetPriority == "HP" then score = humanoid and humanoid.Health or 0
             elseif _G.SilentAim_TargetPriority == "Combat" then
                 local inCombat = char:GetAttribute("InCombat") and 1 or 0
                 score = 1 - inCombat + dist * 0.001
             end
 
-            if score < bestScore then
-                bestScore = score
-                bestTarget = targetPart
-            end
+            if score < bestScore then bestScore = score bestTarget = targetPart end
         end
-
         return bestTarget
     end
 
-    -- Безопасный патч WeaponRaycast (без хука require)
+    -- Патч WeaponRaycast (безопасный, однократный)
     local function tryPatchWeaponRaycast()
         local rs = game:GetService("ReplicatedStorage")
         if not rs then return false end
@@ -1141,9 +898,7 @@ end
             if _G.SilentAim_Enabled then
                 local target = getTarget()
                 if target then
-                    if _G.SilentAim_DelayShot > 0 then
-                        task.wait(_G.SilentAim_DelayShot / 1000)
-                    end
+                    if _G.SilentAim_DelayShot > 0 then task.wait(_G.SilentAim_DelayShot / 1000) end
                     return target.Position
                 end
             end
@@ -1152,7 +907,6 @@ end
         return true
     end
 
-    -- Пытаемся патчить сейчас, иначе ждём появления модуля
     if not tryPatchWeaponRaycast() then
         local rs = game:GetService("ReplicatedStorage")
         local function hookModules(child)
@@ -1163,7 +917,6 @@ end
         local modules = rs:FindFirstChild("Modules")
         if modules then
             modules.ChildAdded:Connect(hookModules)
-            -- если уже есть, то пробуем сразу (на случай гонки)
             if modules:FindFirstChild("WeaponRaycast") then tryPatchWeaponRaycast() end
         else
             rs.ChildAdded:Connect(function(child)
@@ -1175,7 +928,7 @@ end
         end
     end
 
-    -- Авто‑огонь (удержание кнопки)
+    -- Авто‑огонь (УДЕРЖАНИЕ кнопки, не ломает оружие)
     local isMouseHeld = false
     local function updateAutoFire()
         if _G.SilentAim_AutoFire and _G.SilentAim_Enabled then
@@ -1201,7 +954,6 @@ end
         end
     end
 
-    -- Обновление FOV, авто‑огня и трассировки каждый кадр
     game:GetService("RunService").Heartbeat:Connect(function()
         updateFOVCircle()
         updateAutoFire()
@@ -1325,7 +1077,7 @@ end
         refreshAllWeapons()
     end
 
-    -- ===== Enable All Gun Mods =====
+    -- Кнопки модов
     miscGroup:AddButton('Enable All Gun Mods', function()
         enableMod('rapidFire')
         enableMod('noSpread')
@@ -1366,7 +1118,6 @@ end
     end)
 
     miscGroup:AddDivider()
-    -- ===== КНОПКИ МОДОВ ОРУЖИЯ =====
     miscGroup:AddButton('Rapid Fire', function() enableMod('rapidFire') Library:Notify("Rapid Fire (FireRate=0) включён", 2) end)
     miscGroup:AddButton('No Spread', function() enableMod('noSpread') Library:Notify("No Spread (Recoil & Spread=0) включён", 2) end)
     miscGroup:AddButton('Insta Equip', function() enableMod('instaEquip') Library:Notify("Insta Equip (EquipTime=0) включён", 2) end)
@@ -1377,7 +1128,6 @@ end
     miscGroup:AddButton('Inf ReserveAmmo', function() enableMod('infReserve') Library:Notify("Inf Reserve Ammo (MaxAmmo=99999) включён", 2) end)
     miscGroup:AddButton('Slow Anim', function() enableMod('slowAnim') Library:Notify("Slow Anim (все скорости анимаций 0.1) включён", 2) end)
 
-    -- ===== INF MAGAZINE (REMOTE) =====
     local infMagRemoteActive = false
     miscGroup:AddButton('Inf MagazineAmmo', function()
         if infMagRemoteActive then return end
@@ -1406,7 +1156,6 @@ end
         Library:Notify("Inf Magazine активирован. Магазин и запас постоянно полны.", 2)
     end)
 
-    -- ===== AT4 EXPLOSION RADIUS (TEXTBOX) =====
     local explosionRadiusInput = miscGroup:AddInput('AT4ExplosionRadius', {
         Text = 'AT4 Explosion Radius',
         Default = '',
@@ -1432,7 +1181,7 @@ end
     end)
 
     -- ========================================================================
-    -- АВТО-БАЙ (Smugglers)
+    -- АВТО-БАЙ
     -- ========================================================================
     local currentNPCId = "Smugglers"
     local currentConfig = nil
@@ -1727,7 +1476,6 @@ end
         end
     end
 
-    -- ============ UI (LinoriaLib) ============
     local autoBuyToggle = configGroup:AddToggle('AutoBuyToggle', {
         Text = 'Auto Buy',
         Default = false,
