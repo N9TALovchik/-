@@ -1,17 +1,31 @@
--- ShopManager.lua (ПОЛНЫЙ ФИНАЛ + исправление WeaponRaycast)
+--[[
+    ShopManager.lua — ПОЛНАЯ ВЕРСИЯ (1600+ строк)
+    Включает:
+    - Все моды оружия (Rapid Fire, No Spread, Inf Ammo, Slow Anim, ...)
+    - Авто-бай (Smugglers)
+    - ESP машин
+    - Silent Aim с улучшенным TeamCheck (Military/Evil/Neutral),
+      SafeZone, ForceField, Ignore Vehicles, Trace Target, Combat Priority
+    - Death Spawn, Viewmodel Changer, AC Bypass, и прочие фишки.
+
+    Никаких сокращений — сохранены все комментарии и структура.
+]]
+
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
     assert(Window, "ShopManager: Window is required")
     assert(Library, "Library must be loaded before ShopManager")
-    
+
     local shopTab = Window:AddTab('Arrp')
     Tabs.Shop = shopTab
-    
+
     local configGroup = shopTab:AddLeftGroupbox('Auto Buy Settings')
     local itemsGroup = shopTab:AddRightGroupbox('Shop Items')
-    
-    -- ========== ГРУППА MISC ==========
+
+    -- ========================================================================
+    -- ГРУППА MISC (Все вспомогательные функции)
+    -- ========================================================================
     local miscGroup = shopTab:AddLeftGroupbox('Misc')
     miscGroup:AddLabel('30 minute needed')
     miscGroup:AddButton('AutoPromocode', function()
@@ -31,7 +45,6 @@ function ShopManager:Init(Window, Tabs)
         Default = false,
         Tooltip = 'Стамина всегда 450 (не тратится)'
     })
-
     local infStaminaConnection = nil
     local function startInfStamina()
         if infStaminaConnection then infStaminaConnection:Disconnect() end
@@ -42,12 +55,9 @@ function ShopManager:Init(Window, Tabs)
             player:SetAttribute("currentStamina", 450)
         end)
     end
-
     infStaminaToggle:OnChanged(function()
         if infStaminaToggle.Value then startInfStamina()
-        else
-            if infStaminaConnection then infStaminaConnection:Disconnect() infStaminaConnection = nil end
-        end
+        else if infStaminaConnection then infStaminaConnection:Disconnect() infStaminaConnection = nil end end
     end)
 
     -- ===== AC BYPASS =====
@@ -130,7 +140,7 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Инвентарь теперь всегда виден", 2)
     end)
 
-    -- ===== DEATH SPAWN =====
+    -- ===== DEATH SPAWN (Respawn at death position) =====
     local deathSpawnToggle = miscGroup:AddToggle('DeathSpawnToggle', {
         Text = 'Death Spawn',
         Default = false,
@@ -138,15 +148,18 @@ function ShopManager:Init(Window, Tabs)
     })
     local lastDeathPos = nil
     local deathSpawnConnections = {}
+
     local function enableDeathSpawn()
         local player = game.Players.LocalPlayer
         local charAddedConn = player.CharacterAdded:Connect(function(char)
+            -- Телепорт на сохранённую позицию, если она есть
             if lastDeathPos then
                 local hrp = char:WaitForChild("HumanoidRootPart", 2)
                 if hrp then
                     hrp.CFrame = CFrame.new(lastDeathPos)
                 end
             end
+            -- Подписываемся на смерть нового персонажа
             local humanoid = char:WaitForChild("Humanoid", 5)
             if humanoid then
                 local diedConn = humanoid.Died:Connect(function()
@@ -159,6 +172,8 @@ function ShopManager:Init(Window, Tabs)
             end
         end)
         table.insert(deathSpawnConnections, charAddedConn)
+
+        -- Если персонаж уже существует, подписываемся на его смерть сейчас
         if player.Character then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid then
@@ -172,6 +187,7 @@ function ShopManager:Init(Window, Tabs)
             end
         end
     end
+
     local function disableDeathSpawn()
         for _, conn in ipairs(deathSpawnConnections) do
             conn:Disconnect()
@@ -179,8 +195,13 @@ function ShopManager:Init(Window, Tabs)
         deathSpawnConnections = {}
         lastDeathPos = nil
     end
+
     deathSpawnToggle:OnChanged(function(enabled)
-        if enabled then enableDeathSpawn() else disableDeathSpawn() end
+        if enabled then
+            enableDeathSpawn()
+        else
+            disableDeathSpawn()
+        end
     end)
 
     -- ===== AUTO UNCUFF =====
@@ -414,9 +435,9 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
     end)
 
-    -- =====================================================
-    -- ESP GROUP (Car ESP) – финальная версия
-    -- =====================================================
+    -- ========================================================================
+    -- ESP GROUP (Car ESP)
+    -- ========================================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
     local runService = game:GetService("RunService")
@@ -716,18 +737,16 @@ function ShopManager:Init(Window, Tabs)
 
     checkLoop()
 
-    -- =====================================================
-    -- RAGE GROUP (Silent Aim + Trace Target) – ИСПРАВЛЕНО
-    -- =====================================================
+    -- ========================================================================
+    -- RAGE GROUP (Silent Aim + Trace Target) – ПОЛНАЯ РЕАЛИЗАЦИЯ
+    -- ========================================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
     -- Загрузка конфигурации команд
     local teamsConfig = nil
     pcall(function()
-        local teamsGroups = replicatedStorage:FindFirstChild("Data"):FindFirstChild("Gameplay"):FindFirstChild("Teams"):FindFirstChild("Groups")
-        if teamsGroups then
-            teamsConfig = require(teamsGroups)
-        end
+        local teamsGroups = game:GetService("ReplicatedStorage"):FindFirstChild("Data"):FindFirstChild("Gameplay"):FindFirstChild("Teams"):FindFirstChild("Groups")
+        if teamsGroups then teamsConfig = require(teamsGroups) end
     end)
 
     -- Глобальные настройки
@@ -748,7 +767,7 @@ function ShopManager:Init(Window, Tabs)
     _G.SilentAim_TraceWidth = 0.1
     _G.SilentAim_TraceType = "Beam"
 
-    -- UI элементы
+    -- UI элементы (все прежние + новые)
     local enableToggle = rageGroup:AddToggle('SilentAimEnabled', {
         Text = 'Enable Silent Aim',
         Default = false,
@@ -827,7 +846,7 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Игнорировать машины при проверке видимости'
     })
 
-    -- Trace Target UI
+    -- Trace Target
     local traceTargetToggle = rageGroup:AddToggle('SilentAimTraceTarget', {
         Text = 'Trace Target',
         Default = false,
@@ -890,12 +909,12 @@ function ShopManager:Init(Window, Tabs)
         local mousePos = uis:GetMouseLocation()
         local fov = _G.SilentAim_FOV or 180
         local screenSize = camera.ViewportSize
-        local radius = (fov / 2) * (screenSize.Y / 70)
+        local radius = (fov / 2) * (screenSize.Y / 70)  -- примерное преобразование градусов в пиксели
         fovCircle.Position = mousePos
         fovCircle.Radius = radius
     end
 
-    -- Trace Target (луч)
+    -- Trace Target (луч от GunFirePoint до цели)
     local traceBeam = nil
     local tracePart = nil
     local function updateTraceTarget()
@@ -911,7 +930,7 @@ function ShopManager:Init(Window, Tabs)
 
         if not _G.SilentAim_TraceTarget or not _G.SilentAim_Enabled then return end
 
-        local target = getTarget()
+        local target = getTarget()  -- используем ту же функцию, что и для аима
         if not target then return end
 
         local character = player.Character
@@ -950,7 +969,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- Вспомогательная функция для получения статуса команды
+    -- Вспомогательная функция для получения статуса команды (Military/Evil/Neutral)
     local function getTeamStatus(plr)
         if not teamsConfig or not plr.Team then return nil end
         for _, groupCfg in pairs(teamsConfig.Teams or {}) do
@@ -965,7 +984,7 @@ function ShopManager:Init(Window, Tabs)
         return nil
     end
 
-    -- Проверка, находится ли точка внутри парта
+    -- Проверка, находится ли точка внутри парта (для SafeZone)
     local function isInsidePart(part, pos)
         local relative = part.CFrame:PointToObjectSpace(pos)
         local size = part.Size
@@ -995,7 +1014,7 @@ function ShopManager:Init(Window, Tabs)
         return false
     end
 
-    -- Основная функция выбора цели
+    -- Основная функция выбора цели (с учётом всех проверок)
     local function getTarget()
         if not camera then return nil end
         local mousePos = uis:GetMouseLocation()
@@ -1030,7 +1049,7 @@ function ShopManager:Init(Window, Tabs)
                 if not inCombat then continue end
             end
 
-            -- Team Status Check
+            -- Team Status Check (Military/Evil/Neutral)
             if _G.SilentAim_TeamCheck then
                 local otherStatus = getTeamStatus(otherPlayer)
                 if otherStatus and myStatus then
@@ -1105,14 +1124,16 @@ function ShopManager:Init(Window, Tabs)
         return bestTarget
     end
 
-    -- Перехват WeaponRaycast (безопасное получение модуля)
-    local function patchWeaponRaycast()
-        local modulesFolder = repStorage:FindFirstChild("Modules")
-        if not modulesFolder then return end
+    -- Безопасный патч WeaponRaycast (без хука require)
+    local function tryPatchWeaponRaycast()
+        local rs = game:GetService("ReplicatedStorage")
+        if not rs then return false end
+        local modulesFolder = rs:FindFirstChild("Modules")
+        if not modulesFolder then return false end
         local weaponRaycastModule = modulesFolder:FindFirstChild("WeaponRaycast")
-        if not weaponRaycastModule then return end
+        if not weaponRaycastModule then return false end
         local success, weaponRaycast = pcall(require, weaponRaycastModule)
-        if not success or not weaponRaycast or weaponRaycast._silentAimPatched then return end
+        if not success or not weaponRaycast or weaponRaycast._silentAimPatched then return false end
         weaponRaycast._silentAimPatched = true
         local originalFromScreen = weaponRaycast.fromScreen
         weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
@@ -1127,29 +1148,30 @@ function ShopManager:Init(Window, Tabs)
             end
             return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
         end
+        return true
     end
-    patchWeaponRaycast()
-    -- на случай, если модуль появится позже
-    if repStorage:FindFirstChild("Modules") then
-        repStorage.Modules.ChildAdded:Connect(function(child)
+
+    -- Пытаемся патчить сейчас, иначе ждём появления модуля
+    if not tryPatchWeaponRaycast() then
+        local rs = game:GetService("ReplicatedStorage")
+        local function hookModules(child)
             if child.Name == "WeaponRaycast" and child:IsA("ModuleScript") then
-                patchWeaponRaycast()
+                tryPatchWeaponRaycast()
             end
-        end)
-    else
-        repStorage.ChildAdded:Connect(function(child)
-            if child.Name == "Modules" then
-                local weaponRaycastModule = child:FindFirstChild("WeaponRaycast")
-                if weaponRaycastModule then
-                    patchWeaponRaycast()
+        end
+        local modules = rs:FindFirstChild("Modules")
+        if modules then
+            modules.ChildAdded:Connect(hookModules)
+            -- если уже есть, то пробуем сразу (на случай гонки)
+            if modules:FindFirstChild("WeaponRaycast") then tryPatchWeaponRaycast() end
+        else
+            rs.ChildAdded:Connect(function(child)
+                if child.Name == "Modules" then
+                    if child:FindFirstChild("WeaponRaycast") then tryPatchWeaponRaycast() end
+                    child.ChildAdded:Connect(hookModules)
                 end
-                child.ChildAdded:Connect(function(subChild)
-                    if subChild.Name == "WeaponRaycast" and subChild:IsA("ModuleScript") then
-                        patchWeaponRaycast()
-                    end
-                end)
-            end
-        end)
+            end)
+        end
     end
 
     -- Авто‑огонь (удержание кнопки)
@@ -1185,9 +1207,9 @@ function ShopManager:Init(Window, Tabs)
         updateTraceTarget()
     end)
 
-    -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без изменений
-    -- =====================================================
+    -- ========================================================================
+    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ)
+    -- ========================================================================
     local activeMods = {
         rapidFire = false,
         noSpread = false,
@@ -1313,7 +1335,7 @@ function ShopManager:Init(Window, Tabs)
         enableMod('infBulletSpeed')
         enableMod('infReserve')
         enableMod('slowAnim')
-        
+
         if not infMagRemoteActive then
             infMagRemoteActive = true
             local player = game.Players.LocalPlayer
@@ -1338,7 +1360,7 @@ function ShopManager:Init(Window, Tabs)
                 end
             end)
         end
-        
+
         Library:Notify("All gun mods enabled!", 2)
     end)
 
@@ -1408,18 +1430,20 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Радиус взрыва установлен на " .. (num and tostring(num) or "нет"), 2)
     end)
 
-    -- ===== АВТО-БАЙ =====
+    -- ========================================================================
+    -- АВТО-БАЙ (Smugglers)
+    -- ========================================================================
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
     local remoteEvent = nil
     local uiElements = {}
-    
+
     local autoBuyEnabled = false
     local selectedItems = {}
     local autoBuyConnection = nil
     local itemMappings = {}
-    
+
     local function getRemoteEvent()
         if remoteEvent then return remoteEvent end
         local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -1432,11 +1456,11 @@ function ShopManager:Init(Window, Tabs)
         end
         return remoteEvent
     end
-    
+
     local function findRealToolName(shopName)
         local player = game.Players.LocalPlayer
         local containers = { player.Character, player:FindFirstChild("Backpack") }
-        
+
         local shopLower = string.lower(shopName)
         for _, container in ipairs(containers) do
             if container then
@@ -1452,7 +1476,7 @@ function ShopManager:Init(Window, Tabs)
         end
         return nil
     end
-    
+
     local function updateMappingsFromInventory()
         for shopName, _ in pairs(selectedItems) do
             if not itemMappings[shopName] then
@@ -1464,26 +1488,26 @@ function ShopManager:Init(Window, Tabs)
             end
         end
     end
-    
+
     local function getRealItemName(shopName)
         return itemMappings[shopName] or shopName
     end
-    
+
     local function hasItem(shopName)
         local realName = getRealItemName(shopName)
         local player = game.Players.LocalPlayer
         if not player then return false end
-        
+
         local character = player.Character
         if character and character:FindFirstChild(realName) then
             return true
         end
-        
+
         local backpack = player:FindFirstChild("Backpack")
         if backpack and backpack:FindFirstChild(realName) then
             return true
         end
-        
+
         if not itemMappings[shopName] then
             local found = findRealToolName(shopName)
             if found then
@@ -1492,15 +1516,15 @@ function ShopManager:Init(Window, Tabs)
                 return true
             end
         end
-        
+
         return false
     end
-    
+
     local function waitForNewItem(shopName, timeout)
         local player = game.Players.LocalPlayer
         local startTime = tick()
         local shopLower = string.lower(shopName)
-        
+
         local existingTools = {}
         local function collectTools(container)
             if not container then return end
@@ -1512,7 +1536,7 @@ function ShopManager:Init(Window, Tabs)
         end
         collectTools(player.Character)
         collectTools(player:FindFirstChild("Backpack"))
-        
+
         while tick() - startTime < timeout do
             local function findNewMatchingTool()
                 for _, container in ipairs({ player.Character, player:FindFirstChild("Backpack") }) do
@@ -1529,7 +1553,7 @@ function ShopManager:Init(Window, Tabs)
                 end
                 return nil
             end
-            
+
             local newName = findNewMatchingTool()
             if newName then
                 if newName ~= shopName then
@@ -1542,7 +1566,7 @@ function ShopManager:Init(Window, Tabs)
         end
         return nil
     end
-    
+
     local function purchaseItem(shopName, data)
         local player = game.Players.LocalPlayer
         local leaderstats = player:FindFirstChild("leaderstats")
@@ -1551,7 +1575,7 @@ function ShopManager:Init(Window, Tabs)
             Library:Notify("Cash stat not found", 3)
             return false
         end
-        
+
         local price = data.Price or 0
         if cashStat.Value >= price then
             local remote = getRemoteEvent()
@@ -1571,14 +1595,14 @@ function ShopManager:Init(Window, Tabs)
             return false
         end
     end
-    
+
     local function startAutoBuy()
         if autoBuyConnection then
             autoBuyConnection:Disconnect()
             autoBuyConnection = nil
         end
         if not autoBuyEnabled then return end
-        
+
         autoBuyConnection = game:GetService("RunService").Stepped:Connect(function()
             if not autoBuyEnabled then return end
             for shopName, isSelected in pairs(selectedItems) do
@@ -1591,7 +1615,7 @@ function ShopManager:Init(Window, Tabs)
             end
         end)
     end
-    
+
     local function loadConfig()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local data = replicatedStorage:FindFirstChild("Data")
@@ -1609,39 +1633,39 @@ function ShopManager:Init(Window, Tabs)
             Library:Notify("NPC folder not found", 3)
             return false
         end
-        
+
         local npcModule = npcFolder:FindFirstChild(currentNPCId)
         if not npcModule then
             Library:Notify("NPC not found: " .. currentNPCId, 3)
             return false
         end
-        
+
         local configScript = npcModule:FindFirstChild("Config") or npcModule:FindFirstChild("ShopConfig")
         if not configScript then
             Library:Notify("Config not found in NPC", 3)
             return false
         end
-        
+
         local success, config = pcall(require, configScript)
         if not success then
             Library:Notify("Failed to load config: " .. tostring(config), 3)
             return false
         end
-        
+
         currentConfig = config
         local sourceProducts = config.Products or (config.Data and config.Data.Products) or {}
-        
+
         products = {}
         for name, data in pairs(sourceProducts) do
             if data.Price then
                 products[name] = data
             end
         end
-        
+
         local count = 0
         for _ in pairs(products) do count = count + 1 end
         Library:Notify("Loaded NPC: " .. (config.Visuals and config.Visuals.DisplayName or currentNPCId) .. " | Items: " .. count, 2)
-        
+
         local itemNames = {}
         for name in pairs(products) do
             table.insert(itemNames, name)
@@ -1649,33 +1673,33 @@ function ShopManager:Init(Window, Tabs)
         if Options.ItemsDropdown then
             Options.ItemsDropdown:SetValues(itemNames)
         end
-        
+
         return true
     end
-    
+
     local function rebuildItemsUI()
         for _, element in ipairs(uiElements) do
             pcall(function() element:Destroy() end)
         end
         uiElements = {}
-        
+
         if not currentConfig or next(products) == nil then
             local noItemsLabel = itemsGroup:AddLabel("No items found.")
             table.insert(uiElements, noItemsLabel)
             return
         end
-        
+
         local LocalPlayer = game.Players.LocalPlayer
-        
+
         for shopName, data in pairs(products) do
             local priceText = "Price: " .. tostring(data.Price) .. " Cash"
             if data.CurrencyType == "Event" then
                 priceText = "Price: " .. tostring(data.Price) .. " Event"
             end
-            
+
             local priceLabel = itemsGroup:AddLabel(priceText)
             table.insert(uiElements, priceLabel)
-            
+
             local btn = itemsGroup:AddButton({
                 Text = shopName,
                 Func = function()
@@ -1701,14 +1725,14 @@ function ShopManager:Init(Window, Tabs)
             table.insert(uiElements, btn)
         end
     end
-    
+
     -- ============ UI (LinoriaLib) ============
     local autoBuyToggle = configGroup:AddToggle('AutoBuyToggle', {
         Text = 'Auto Buy',
         Default = false,
         Tooltip = 'Automatically buy selected items if not owned'
     })
-    
+
     local itemsDropdown = configGroup:AddDropdown('ItemsDropdown', {
         Text = 'Items to Auto Buy',
         Values = {},
@@ -1716,7 +1740,7 @@ function ShopManager:Init(Window, Tabs)
         Default = {},
         Tooltip = 'Select items to auto-buy'
     })
-    
+
     autoBuyToggle:OnChanged(function()
         autoBuyEnabled = autoBuyToggle.Value
         if autoBuyEnabled then
@@ -1729,14 +1753,14 @@ function ShopManager:Init(Window, Tabs)
             end
         end
     end)
-    
+
     itemsDropdown:OnChanged(function()
         selectedItems = itemsDropdown.Value
         if autoBuyEnabled then
             updateMappingsFromInventory()
         end
     end)
-    
+
     task.spawn(function()
         task.wait(1)
         if loadConfig() then
@@ -1744,7 +1768,7 @@ function ShopManager:Init(Window, Tabs)
             selectedItems = {}
         end
     end)
-    
+
     Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
 end
 
