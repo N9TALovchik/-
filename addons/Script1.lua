@@ -903,61 +903,70 @@ function ShopManager:Init(Window, Tabs)
         fovCircle.Radius = radius
     end
 
-    -- Trace Target (луч от точки выстрела до цели)
+ -- Trace Target (луч от GunFirePoint до цели) – защищённая версия
 local traceBeam = nil
 local tracePart = nil
 local function updateTraceTarget()
-    -- удаляем предыдущий луч/парт
-    if traceBeam then pcall(function() traceBeam:Remove() end) traceBeam = nil end
-    if tracePart then pcall(function() tracePart:Destroy() end) tracePart = nil end
+    pcall(function()
+        -- удаляем предыдущий луч/парт
+        if traceBeam then traceBeam:Remove() end
+        if tracePart then tracePart:Destroy() end
+    end)
+    traceBeam = nil
+    tracePart = nil
 
     if not _G.SilentAim_TraceTarget or not _G.SilentAim_Enabled then return end
 
-    local target = getTarget()
-    if not target then return end
+    local ok, err = pcall(function()
+        local target = getTarget()
+        if not target then return end
 
-    local character = player.Character
-    if not character then return end
-    local tool = character:FindFirstChildWhichIsA("Tool")
-    if not tool then return end
+        local character = player.Character
+        if not character then return end
+        local tool = character:FindFirstChildWhichIsA("Tool")
+        if not tool then return end
 
-    -- Ищем GunFirePoint: сначала в tool, затем в tool.Handle
-    local firePoint = tool:FindFirstChild("GunFirePoint")
-    if not firePoint then
-        local handle = tool:FindFirstChild("Handle")
-        if handle then
-            firePoint = handle:FindFirstChild("GunFirePoint")
+        -- Ищем GunFirePoint: сначала в tool, затем в tool.Handle
+        local firePoint = tool:FindFirstChild("GunFirePoint")
+        if not firePoint then
+            local handle = tool:FindFirstChild("Handle")
+            if handle then
+                firePoint = handle:FindFirstChild("GunFirePoint")
+            end
         end
-    end
-    if not firePoint or not firePoint:IsA("BasePart") then return end  -- это должен быть Part/MeshPart
+        if not firePoint or not firePoint:IsA("BasePart") then return end
 
-    local startPos = firePoint.Position  -- WorldPosition не всегда доступно, используем Position
-    local endPos = target.Position
+        local startPos = firePoint.Position
+        local endPos = target.Position
 
-    local color = _G.SilentAim_TraceColor or Color3.fromRGB(255, 0, 0)
-    local width = _G.SilentAim_TraceWidth or 0.1
-    local traceType = _G.SilentAim_TraceType or "Beam"
+        local color = _G.SilentAim_TraceColor or Color3.fromRGB(255, 0, 0)
+        local width = _G.SilentAim_TraceWidth or 0.1
+        local traceType = _G.SilentAim_TraceType or "Beam"
 
-    if traceType == "Beam" then
-        traceBeam = Drawing.new("Beam")
-        traceBeam.From = startPos
-        traceBeam.To = endPos
-        traceBeam.Color = color
-        traceBeam.Width = width
-        traceBeam.Transparency = 0.5
-        traceBeam.Visible = true
-    else -- Part
-        local dist = (endPos - startPos).Magnitude
-        if dist <= 0 then return end
-        local mid = (startPos + endPos) / 2
-        tracePart = Instance.new("Part")
-        tracePart.Anchored = true
-        tracePart.CanCollide = false
-        tracePart.Size = Vector3.new(width, width, dist)
-        tracePart.CFrame = CFrame.new(mid, endPos)
-        tracePart.Color = color
-        tracePart.Material = Enum.Material.Neon
-        tracePart.Parent = workspace
+        if traceType == "Beam" then
+            traceBeam = Drawing.new("Beam")
+            traceBeam.From = startPos
+            traceBeam.To = endPos
+            traceBeam.Color = color
+            traceBeam.Width = width
+            traceBeam.Transparency = 0.5
+            traceBeam.Visible = true
+        else -- Part
+            local dist = (endPos - startPos).Magnitude
+            if dist <= 0 then return end
+            local mid = (startPos + endPos) / 2
+            tracePart = Instance.new("Part")
+            tracePart.Anchored = true
+            tracePart.CanCollide = false
+            tracePart.Size = Vector3.new(width, width, dist)
+            tracePart.CFrame = CFrame.new(mid, endPos)
+            tracePart.Color = color
+            tracePart.Material = Enum.Material.Neon
+            tracePart.Parent = workspace
+        end
+    end)
+    if not ok then
+        warn("SilentAim TraceTarget error: ", err)
     end
 end
 
