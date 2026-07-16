@@ -1603,3 +1603,5 @@ end)
     
     Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
 end
+
+return ShopManager
