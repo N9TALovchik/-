@@ -1,4 +1,4 @@
--- ShopManager.lua (ПОЛНЫЙ ФИНАЛ + Trace Target + улучшенный TeamCheck + Combat Priority + Ignore Vehicles)
+-- ShopManager.lua (ПОЛНЫЙ ФИНАЛ + исправление WeaponRaycast)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -717,7 +717,7 @@ function ShopManager:Init(Window, Tabs)
     checkLoop()
 
     -- =====================================================
-    -- RAGE GROUP (Silent Aim + Trace Target) – ПОЛНАЯ ОБНОВА
+    -- RAGE GROUP (Silent Aim + Trace Target) – ИСПРАВЛЕНО
     -- =====================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
@@ -911,7 +911,7 @@ function ShopManager:Init(Window, Tabs)
 
         if not _G.SilentAim_TraceTarget or not _G.SilentAim_Enabled then return end
 
-        local target = getTarget()  -- используем ту же функцию, что и для аима
+        local target = getTarget()
         if not target then return end
 
         local character = player.Character
@@ -1105,12 +1105,16 @@ function ShopManager:Init(Window, Tabs)
         return bestTarget
     end
 
-    -- Перехват WeaponRaycast
-    local weaponRaycastModule = repStorage:FindFirstChild("Modules"):FindFirstChild("WeaponRaycast")
-    local originalFromScreen = nil
-    if weaponRaycastModule then
-        local weaponRaycast = require(weaponRaycastModule)
-        originalFromScreen = weaponRaycast.fromScreen
+    -- Перехват WeaponRaycast (безопасное получение модуля)
+    local function patchWeaponRaycast()
+        local modulesFolder = repStorage:FindFirstChild("Modules")
+        if not modulesFolder then return end
+        local weaponRaycastModule = modulesFolder:FindFirstChild("WeaponRaycast")
+        if not weaponRaycastModule then return end
+        local success, weaponRaycast = pcall(require, weaponRaycastModule)
+        if not success or not weaponRaycast or weaponRaycast._silentAimPatched then return end
+        weaponRaycast._silentAimPatched = true
+        local originalFromScreen = weaponRaycast.fromScreen
         weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
             if _G.SilentAim_Enabled then
                 local target = getTarget()
@@ -1123,6 +1127,29 @@ function ShopManager:Init(Window, Tabs)
             end
             return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
         end
+    end
+    patchWeaponRaycast()
+    -- на случай, если модуль появится позже
+    if repStorage:FindFirstChild("Modules") then
+        repStorage.Modules.ChildAdded:Connect(function(child)
+            if child.Name == "WeaponRaycast" and child:IsA("ModuleScript") then
+                patchWeaponRaycast()
+            end
+        end)
+    else
+        repStorage.ChildAdded:Connect(function(child)
+            if child.Name == "Modules" then
+                local weaponRaycastModule = child:FindFirstChild("WeaponRaycast")
+                if weaponRaycastModule then
+                    patchWeaponRaycast()
+                end
+                child.ChildAdded:Connect(function(subChild)
+                    if subChild.Name == "WeaponRaycast" and subChild:IsA("ModuleScript") then
+                        patchWeaponRaycast()
+                    end
+                end)
+            end
+        end)
     end
 
     -- Авто‑огонь (удержание кнопки)
