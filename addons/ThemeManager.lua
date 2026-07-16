@@ -1,4 +1,4 @@
--- ThemeManager.lua (исправлен: UICornerRadius, автоочистка клик-эффекта при Unload)
+-- ThemeManager.lua (финальный: поддержка UICornerRadius, исправленный слайдер, автоочистка клик-эффекта)
 local httpService = game:GetService('HttpService')
 local UserInputService = game:GetService('UserInputService')
 local TweenService = game:GetService('TweenService')
@@ -92,7 +92,7 @@ local ThemeManager = {} do
 
 		local targetSize = UDim2.new(0, CLICK_EFFECT_MAX_SIZE*2, 0, CLICK_EFFECT_MAX_SIZE*2)
 		TweenService:Create(circle, TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = targetSize}):Play()
-		corner.Parent = nil -- отцепляем, чтобы не мешал анимации
+		corner.Parent = nil
 		local fadeTweenInfo = TweenInfo.new(CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Linear)
 		TweenService:Create(circle, fadeTweenInfo, {BackgroundTransparency = 1}):Play()
 		task.delay(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME + 0.1, function()
@@ -125,7 +125,7 @@ local ThemeManager = {} do
 		end
 		if Options.ClickEffectColor then Options.ClickEffectColor:SetValueRGB(self.Library.ClickEffectColor) end
 
-		-- Радиус скругления (только если опция существует и значение есть)
+		-- Радиус скругления (только если опция существует)
 		if themeData.UICornerRadius and Options.UICornerRadius then
 			Options.UICornerRadius:SetValue(tonumber(themeData.UICornerRadius) or 0.8)
 		end
@@ -196,10 +196,14 @@ local ThemeManager = {} do
 
 		-- UICorner Radius
 		groupbox:AddDivider()
-		groupbox:AddLabel('UI Corner Radius'):AddSlider('UICornerRadius', {
+		groupbox:AddLabel('UI Corner Radius')
+		groupbox:AddSlider('UICornerRadius', {
 			Text = 'Corner radius',
-			Min = 0, Max = 3, Default = self.Library.UICornerRadius or 0.8,
-			Rounding = 2, Suffix = ''
+			Min = 0,
+			Max = 3,
+			Default = self.Library.UICornerRadius or 0.8,
+			Rounding = 2,
+			Suffix = ''
 		})
 		Options.UICornerRadius:OnChanged(function()
 			self.Library.UICornerRadius = Options.UICornerRadius.Value
@@ -320,7 +324,7 @@ local ThemeManager = {} do
 		self.Library = lib
 		self:LoadClickSound()
 		self:InitClickEffect()
-		-- Автоочистка при выгрузке
+		-- Автоочистка при выгрузке чита
 		if lib.OnUnload then
 			lib:OnUnload(function() self:CleanupClickEffect() end)
 		end
