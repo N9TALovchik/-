@@ -1,15 +1,4 @@
---[[
-    ShopManager.lua — ПОЛНАЯ ВЕРСИЯ (1600+ строк)
-    Включает:
-    - Все моды оружия (Rapid Fire, No Spread, Inf Ammo, Slow Anim, ...)
-    - Авто-бай (Smugglers)
-    - ESP машин
-    - Silent Aim с улучшенным TeamCheck (Military/Evil/Neutral),
-      SafeZone, ForceField, Ignore Vehicles, Trace Target, Combat Priority
-    - Death Spawn, Viewmodel Changer, AC Bypass, и прочие фишки.
 
-    Никаких сокращений — сохранены все комментарии и структура.
-]]
 
 local ShopManager = {}
 
