@@ -1,3 +1,4 @@
+-- ThemeManager.lua (с поддержкой UICorner Radius и авто‑очисткой при выгрузке)
 local httpService = game:GetService('HttpService')
 local UserInputService = game:GetService('UserInputService')
 local TweenService = game:GetService('TweenService')
@@ -24,13 +25,12 @@ local ThemeManager = {} do
 	local DEBOUNCE_TIME = 0.00000000001
 
 	local clickEffectGui = nil
-	local clickSoundId = ""        -- текущий ID звука (может меняться через GUI)
-	local savedClickSound = ""     -- загруженный из файла ID
+	local clickSoundId = ""
+	local savedClickSound = ""
 	local clickEffectEnabled = true
 	local inputConnection = nil
 	local lastClickTime = 0
 
-	-- Инициализация GUI (CoreGui)
 	function ThemeManager:InitClickEffect()
 		if inputConnection then
 			inputConnection:Disconnect()
@@ -62,7 +62,6 @@ local ThemeManager = {} do
 			local mousePos = UserInputService:GetMouseLocation()
 			self:CreateClickEffect(mousePos.X, mousePos.Y)
 
-			-- Звук в Workspace
 			if clickSoundId and clickSoundId ~= "" then
 				local soundId = clickSoundId
 				if not soundId:find("rbxassetid://") then
@@ -80,7 +79,6 @@ local ThemeManager = {} do
 		end)
 	end
 
-	-- Создание одного круга
 	function ThemeManager:CreateClickEffect(x, y)
 		if not self.Library then return end
 
@@ -123,7 +121,7 @@ local ThemeManager = {} do
 		local themeData = customThemeData or scheme
 
 		for idx, col in next, themeData do
-			if idx ~= 'ClickEffectColor' then
+			if idx ~= 'ClickEffectColor' and idx ~= 'UICornerRadius' then
 				self.Library[idx] = Color3.fromHex(col)
 				if Options[idx] then
 					Options[idx]:SetValueRGB(Color3.fromHex(col))
@@ -131,7 +129,7 @@ local ThemeManager = {} do
 			end
 		end
 
-		-- Устанавливаем цвет клика: если задан явно — используем его, иначе берём цвет фона
+		-- Устанавливаем цвет клика
 		if themeData.ClickEffectColor then
 			self.Library.ClickEffectColor = Color3.fromHex(themeData.ClickEffectColor)
 		elseif themeData.BackgroundColor then
@@ -141,6 +139,11 @@ local ThemeManager = {} do
 		end
 		if Options.ClickEffectColor then
 			Options.ClickEffectColor:SetValueRGB(self.Library.ClickEffectColor)
+		end
+
+		-- Устанавливаем радиус скругления
+		if themeData.UICornerRadius and Options.UICornerRadius then
+			Options.UICornerRadius:SetValue(tonumber(themeData.UICornerRadius) or 0.8)
 		end
 
 		self:ThemeUpdate()
@@ -156,6 +159,11 @@ local ThemeManager = {} do
 
 		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor)
 		self.Library:UpdateColorsUsingRegistry()
+
+		-- Применяем радиус
+		if Options.UICornerRadius then
+			self.Library:SetUICornerRadius(Options.UICornerRadius.Value)
+		end
 	end
 
 	function ThemeManager:LoadDefault()		
@@ -185,7 +193,6 @@ local ThemeManager = {} do
 		writefile(self.Folder .. '/themes/default.txt', theme)
 	end
 
-	-- Загрузка сохранённого ID звука
 	function ThemeManager:LoadClickSound()
 		local path = self.Folder .. '/click_sound.txt'
 		if isfile(path) then
@@ -196,7 +203,6 @@ local ThemeManager = {} do
 		clickSoundId = savedClickSound
 	end
 
-	-- Сохранение ID звука
 	function ThemeManager:SaveClickSound(id)
 		local path = self.Folder .. '/click_sound.txt'
 		writefile(path, id)
@@ -215,10 +221,25 @@ local ThemeManager = {} do
 		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = self.Library.FontColor })
 		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = self.Library.ClickEffectColor or self.Library.BackgroundColor or Color3.fromRGB(255, 255, 255) })
 		
+		-- UICorner Radius
+		groupbox:AddDivider()
+		groupbox:AddLabel('UI Corner Radius'):AddSlider('UICornerRadius', {
+			Text = 'Corner radius',
+			Min = 0,
+			Max = 3,
+			Default = self.Library.UICornerRadius or 0.8,
+			Rounding = 2,
+			Suffix = ''
+		})
+		Options.UICornerRadius:OnChanged(function()
+			self.Library.UICornerRadius = Options.UICornerRadius.Value
+			self.Library:SetUICornerRadius(self.Library.UICornerRadius)
+		end)
+		-- Загружаем радиус из сохранённого файла (если был отдельно сохранён)
+		-- (Можно добавить отдельный save/load, но пока используем тему)
+
 		groupbox:AddDivider()
 		groupbox:AddInput('ClickSoundId', { Text = 'Click Sound ID (rbxassetid://...)', Default = savedClickSound })
-		
-		-- Если Options уже есть, сразу устанавливаем загруженное значение
 		if Options.ClickSoundId then
 			Options.ClickSoundId:SetValue(savedClickSound)
 		end
@@ -230,7 +251,7 @@ local ThemeManager = {} do
 				Options.ClickSoundId:SetValue(id)
 			end
 			clickSoundId = id
-			self:SaveClickSound(id)   -- Сохраняем при каждом изменении
+			self:SaveClickSound(id)
 		end)
 
 		local ThemesArray = {}
@@ -286,6 +307,7 @@ local ThemeManager = {} do
 		Options.OutlineColor:OnChanged(UpdateTheme)
 		Options.FontColor:OnChanged(UpdateTheme)
 		Options.ClickEffectColor:OnChanged(UpdateTheme)
+		-- UICornerRadius уже имеет свой OnChanged выше, который сразу применяет.
 	end
 
 	function ThemeManager:GetCustomTheme(file)
@@ -302,11 +324,14 @@ local ThemeManager = {} do
 			return self.Library:Notify('Invalid file name for theme (empty)', 3)
 		end
 		local theme = {}
-		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
+		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "UICornerRadius" }
 		for _, field in next, fields do
-			theme[field] = Options[field].Value:ToHex()
+			if field == "UICornerRadius" then
+				theme[field] = Options.UICornerRadius.Value
+			else
+				theme[field] = Options[field].Value:ToHex()
+			end
 		end
-		-- Сохраняем текущий цвет эффекта клика
 		theme.ClickEffectColor = Options.ClickEffectColor.Value:ToHex()
 		writefile(self.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
 		self.Library:Notify(string.format('Theme "%s" saved', file))
@@ -332,7 +357,7 @@ local ThemeManager = {} do
 		return out
 	end
 
-	-- ===== ФУНКЦИЯ ОЧИСТКИ ЭФФЕКТА КЛИКА =====
+	-- ===== ОЧИСТКА ЭФФЕКТА КЛИКА =====
 	function ThemeManager:CleanupClickEffect()
 		if inputConnection then
 			inputConnection:Disconnect()
@@ -342,7 +367,6 @@ local ThemeManager = {} do
 			pcall(function() clickEffectGui:Destroy() end)
 			clickEffectGui = nil
 		end
-		-- Сбрасываем флаги и переменные
 		clickEffectEnabled = false
 		clickSoundId = ""
 		savedClickSound = ""
@@ -352,8 +376,15 @@ local ThemeManager = {} do
 
 	function ThemeManager:SetLibrary(lib)
 		self.Library = lib
-		self:LoadClickSound()   -- Загружаем сохранённый звук
+		self:LoadClickSound()
 		self:InitClickEffect()
+
+		-- Автоматическая очистка при выгрузке чита (Library:Unload)
+		if lib.OnUnload then
+			lib:OnUnload(function()
+				self:CleanupClickEffect()
+			end)
+		end
 	end
 
 	function ThemeManager:BuildFolderTree()
