@@ -131,20 +131,20 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 
--- ===== SPINBOT (с остановкой при сидении) =====
+-- ===== SPINBOT (прямой поворот CFrame, без моторов) =====
 _G.SpinbotEnabled = false
 _G.SpinbotSpeed = 180  -- градусов в секунду
 
 local spinbotToggle = miscGroup:AddToggle('SpinbotToggle', {
     Text = 'Spinbot',
     Default = false,
-    Tooltip = 'Вращает персонажа (останавливается, если сел в машину/на стул)'
+    Tooltip = 'Вращает персонажа (чистый CFrame). Может мешать движению.'
 })
 
 local spinbotSpeedSlider = miscGroup:AddSlider('SpinbotSpeed', {
     Text = 'Spin Speed',
     Min = 10,
-    Max = 1000,
+    Max = 3000,
     Default = 180,
     Rounding = 0,
     Suffix = '°/s',
@@ -152,11 +152,28 @@ local spinbotSpeedSlider = miscGroup:AddSlider('SpinbotSpeed', {
 })
 
 local spinbotConnection = nil
+local savedAutoRotate = nil
+
+local function setAutoRotate(enabled)
+    local char = game.Players.LocalPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.AutoRotate = enabled
+    end
+end
+
 local function toggleSpinbot()
     if spinbotConnection then
         spinbotConnection:Disconnect()
         spinbotConnection = nil
     end
+    -- Восстанавливаем AutoRotate при выключении
+    if savedAutoRotate ~= nil then
+        setAutoRotate(savedAutoRotate)
+        savedAutoRotate = nil
+    end
+
     if not _G.SpinbotEnabled then return end
 
     local player = game.Players.LocalPlayer
@@ -165,11 +182,25 @@ local function toggleSpinbot()
         if not char then return end
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         if not humanoid then return end
-        -- Если сидит (в машине, на стуле) – не вращаем
-        if humanoid.SeatPart ~= nil then return end
-
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
+
+        -- Если сидит — приостанавливаем вращение и включаем AutoRotate
+        if humanoid.SeatPart then
+            if savedAutoRotate ~= nil then
+                setAutoRotate(savedAutoRotate)
+                savedAutoRotate = nil
+            end
+            return
+        end
+
+        -- Если ещё не сохранили AutoRotate — сохраняем и отключаем
+        if savedAutoRotate == nil then
+            savedAutoRotate = humanoid.AutoRotate
+            humanoid.AutoRotate = false
+        end
+
+        -- Вращаем
         local angle = math.rad(_G.SpinbotSpeed * dt)
         root.CFrame = root.CFrame * CFrame.Angles(0, angle, 0)
     end)
