@@ -131,6 +131,60 @@ function ShopManager:Init(Window, Tabs)
     end)
 
 
+-- ===== SPINBOT (с остановкой при сидении) =====
+_G.SpinbotEnabled = false
+_G.SpinbotSpeed = 180  -- градусов в секунду
+
+local spinbotToggle = miscGroup:AddToggle('SpinbotToggle', {
+    Text = 'Spinbot',
+    Default = false,
+    Tooltip = 'Вращает персонажа (останавливается, если сел в машину/на стул)'
+})
+
+local spinbotSpeedSlider = miscGroup:AddSlider('SpinbotSpeed', {
+    Text = 'Spin Speed',
+    Min = 10,
+    Max = 1000,
+    Default = 180,
+    Rounding = 0,
+    Suffix = '°/s',
+    Tooltip = 'Скорость вращения (градусов в секунду)'
+})
+
+local spinbotConnection = nil
+local function toggleSpinbot()
+    if spinbotConnection then
+        spinbotConnection:Disconnect()
+        spinbotConnection = nil
+    end
+    if not _G.SpinbotEnabled then return end
+
+    local player = game.Players.LocalPlayer
+    spinbotConnection = game:GetService("RunService").Heartbeat:Connect(function(dt)
+        local char = player.Character
+        if not char then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        -- Если сидит (в машине, на стуле) – не вращаем
+        if humanoid.SeatPart ~= nil then return end
+
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        local angle = math.rad(_G.SpinbotSpeed * dt)
+        root.CFrame = root.CFrame * CFrame.Angles(0, angle, 0)
+    end)
+end
+
+spinbotToggle:OnChanged(function(enabled)
+    _G.SpinbotEnabled = enabled
+    toggleSpinbot()
+end)
+
+spinbotSpeedSlider:OnChanged(function(value)
+    _G.SpinbotSpeed = value
+end)
+
+    
     -- ===== DEATH SPAWN (Respawn at last death location) =====
 local deathSpawnToggle = miscGroup:AddToggle('DeathSpawnToggle', {
     Text = 'Death Spawn',
