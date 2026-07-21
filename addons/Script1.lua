@@ -998,37 +998,35 @@ ignoreVehiclesToggle:OnChanged(function(v) _G.SilentAim_IgnoreVehicles = v end)
     end
 
 
-    -- Функция выбора цели (исправленная Visible Check, FOV в градусах мира)
+-- ====================== НОВАЯ getTarget (без Team Status) ======================
 local function getTarget()
     if not camera then return nil end
 
     local character = player.Character
-    if not character then return nil end
+    if not character then return end
 
-    -- Определяем точку старта луча видимости
-    local camMode = player.CameraMode
+    -- Определяем точку старта луча видимости (и выстрела при проверке)
     local rayOrigin = nil
-    local gunFirePoint = nil
     local tool = character:FindFirstChildWhichIsA("Tool")
-    if tool then
-        gunFirePoint = tool:FindFirstChild("GunFirePoint")
-    end
-    if camMode == Enum.CameraMode.LockFirstPerson then
+    local gunFirePoint = tool and tool:FindFirstChild("GunFirePoint")
+
+    if player.CameraMode == Enum.CameraMode.LockFirstPerson then
         rayOrigin = camera.CFrame.Position   -- от камеры в первом лице
     else
-        -- В третьем лице используем позицию головы (или GunFirePoint, если есть)
-        local head = character:FindFirstChild("Head")
-        rayOrigin = head and head.Position or character:FindFirstChild("HumanoidRootPart").Position
-        -- Если оружие имеет точку выстрела, лучше использовать её (более точное начало)
+        -- В третьем лице: предпочитаем GunFirePoint, иначе голова, иначе HumanoidRootPart
         if gunFirePoint then
             rayOrigin = gunFirePoint.WorldPosition
+        else
+            local head = character:FindFirstChild("Head")
+            rayOrigin = head and head.Position or (character:FindFirstChild("HumanoidRootPart") and character.HumanoidRootPart.Position)
         end
     end
+    -- если rayOrigin так и не удалось определить – просто камера (запасной вариант)
+    if not rayOrigin then rayOrigin = camera.CFrame.Position end
 
     local bestTarget = nil
-    local bestAngle = math.huge   -- ищем цель с минимальным углом от центра экрана (или приоритет по другой метрике)
-    local fovHalf = _G.SilentAim_FOV / 2
-    local myStatus = getTeamStatus(player)   -- если есть функция getTeamStatus, оставьте; если нет – уберите проверку статуса
+    local bestScore = math.huge
+    local fovHalf = _G.SilentAim_FOV / 2   -- половина угла в градусах
 
     for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
         if otherPlayer == player then continue end
@@ -1051,31 +1049,30 @@ local function getTarget()
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         if humanoid and humanoid.Health <= 0 then continue end
 
-        -- SafeZone check (если есть)
-        if isPlayerSafeZoneProtected and isPlayerSafeZoneProtected(otherPlayer) then
+        -- SafeZone check
+        if _G.SilentAim_SafeZoneCheck and isPlayerSafeZoneProtected and isPlayerSafeZoneProtected(otherPlayer) then
             local inCombat = char:GetAttribute("InCombat")
             if not inCombat then continue end
         end
 
-        -- Проверка FOV: вычисляем угол между направлением взгляда камеры и направлением на цель
+        -- Угол между направлением камеры и направлением на цель (FOV в градусах)
         local cameraLook = camera.CFrame.LookVector
         local targetDir = (targetPart.Position - camera.CFrame.Position).Unit
         local dot = cameraLook:Dot(targetDir)
         local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
+        if angle > fovHalf then continue end   -- цель вне FOV
 
-        if angle > fovHalf then continue end   -- цель вне FOV в градусах
-
-        -- Расстояние до цели (может использоваться для Max Distance и визуальной проверки)
+        -- Дистанция от точки выстрела (или камеры) до цели
         local distance = (targetPart.Position - rayOrigin).Magnitude
         if _G.SilentAim_MaxDistance > 0 and distance > _G.SilentAim_MaxDistance then continue end
 
-        -- Visible Check: луч от rayOrigin к цели
+        -- Visible Check (луч от rayOrigin к targetPart)
         if _G.SilentAim_VisibleCheck then
             local rayParams = RaycastParams.new()
             rayParams.FilterType = Enum.RaycastFilterType.Exclude
-            rayParams.FilterDescendantsInstances = { character, char }  -- игнорируем своего и целевого персонажа
+            rayParams.FilterDescendantsInstances = { character, char }  -- игнорируем своего и чужого персонажа
 
-            -- Добавляем все машины из LiveCars в игнор-лист
+            -- Игнорируем все машины
             if _G.SilentAim_IgnoreVehicles then
                 local liveCars = workspace:FindFirstChild("LiveCars")
                 if liveCars then
@@ -1090,80 +1087,32 @@ local function getTarget()
             local rayResult = workspace:Raycast(rayOrigin, (targetPart.Position - rayOrigin).Unit * distance, rayParams)
             if rayResult and rayResult.Instance then
                 local hit = rayResult.Instance
-                -- Если попадание не в самого целевого персонажа (и не в игнорируемую машину), цель не видна
+                -- Если попадание не в целевого персонажа – цель не видна
                 if not hit:IsDescendantOf(char) then
                     continue
                 end
             end
         end
 
-        -- Приоритет: по умолчанию ближайший к центру экрана (по углу)
-        local score = angle
+        -- Приоритет
+        local score = angle   -- по умолчанию ближайший к центру экрана (наименьший угол)
         if _G.SilentAim_TargetPriority == "Distance" then
             score = distance
         elseif _G.SilentAim_TargetPriority == "HP" then
             score = humanoid and humanoid.Health or 0
+        elseif _G.SilentAim_TargetPriority == "Combat" then
+            local inCombat = char:GetAttribute("InCombat") and 1 or 0
+            score = 1 - inCombat + angle * 0.001
         end
 
-        if score < bestAngle then
-            bestAngle = score
+        if score < bestScore then
+            bestScore = score
             bestTarget = targetPart
         end
     end
 
     return bestTarget
 end
-    -- Перехват WeaponRaycast
-    local weaponRaycastModule = repStorage:FindFirstChild("Modules"):FindFirstChild("WeaponRaycast")
-    local originalFromScreen = nil
-    if weaponRaycastModule then
-        local weaponRaycast = require(weaponRaycastModule)
-        originalFromScreen = weaponRaycast.fromScreen
-        weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-            if _G.SilentAim_Enabled then
-                local target = getTarget()
-                if target then
-                    if _G.SilentAim_DelayShot > 0 then
-                        task.wait(_G.SilentAim_DelayShot / 1000)
-                    end
-                    return target.Position
-                end
-            end
-            return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
-        end
-    end
-
-    -- Авто‑огонь (удержание кнопки)
-    local isMouseHeld = false
-    local function updateAutoFire()
-        if _G.SilentAim_AutoFire and _G.SilentAim_Enabled then
-            local target = getTarget() ~= nil
-            local character = player.Character
-            local tool = character and character:FindFirstChildWhichIsA("Tool")
-            if target and tool then
-                if not isMouseHeld then
-                    pcall(function() mouse1press() end)
-                    isMouseHeld = true
-                end
-            else
-                if isMouseHeld then
-                    pcall(function() mouse1release() end)
-                    isMouseHeld = false
-                end
-            end
-        else
-            if isMouseHeld then
-                pcall(function() mouse1release() end)
-                isMouseHeld = false
-            end
-        end
-    end
-
-    -- Обновление FOV и авто‑огня каждый кадр
-    game:GetService("RunService").Heartbeat:Connect(function()
-        updateFOVCircle()
-        updateAutoFire()
-    end)
 
     -- =====================================================
     -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без изменений
