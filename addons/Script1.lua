@@ -910,6 +910,13 @@ end)
         Tooltip = 'Не стрелять в игроков в сейф‑зонах (если они не в бою)'
     })
 
+local ignoreVehiclesToggle = rageGroup:AddToggle('SilentAimIgnoreVehicles', {
+    Text = 'Ignore Cars',
+    Default = true,
+    Tooltip = 'Игнорировать машины при проверке видимости'
+})
+ignoreVehiclesToggle:OnChanged(function(v) _G.SilentAim_IgnoreVehicles = v end)
+    
     -- Обновление глобальных переменных при изменении UI
     enableToggle:OnChanged(function(enabled) _G.SilentAim_Enabled = enabled end)
     hitboxDropdown:OnChanged(function(value) _G.SilentAim_Hitbox = value end)
@@ -990,90 +997,122 @@ end)
         return false
     end
 
-    -- Функция выбора цели (с ForceField и SafeZone)
-    local function getTarget()
-        if not camera then return nil end
-        local mousePos = uis:GetMouseLocation()
-        local bestTarget = nil
-        local bestScore = math.huge
 
-        for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
-            if otherPlayer == player then continue end
-            if _G.SilentAim_TeamCheck and otherPlayer.Team == player.Team then continue end
+    -- Функция выбора цели (исправленная Visible Check, FOV в градусах мира)
+local function getTarget()
+    if not camera then return nil end
 
-            local char = otherPlayer.Character
-            if not char then continue end
+    local character = player.Character
+    if not character then return nil end
 
-            -- ForceField check
-            if _G.SilentAim_ForceFieldCheck and char:FindFirstChildWhichIsA("ForceField") then continue end
+    -- Определяем точку старта луча видимости
+    local camMode = player.CameraMode
+    local rayOrigin = nil
+    local gunFirePoint = nil
+    local tool = character:FindFirstChildWhichIsA("Tool")
+    if tool then
+        gunFirePoint = tool:FindFirstChild("GunFirePoint")
+    end
+    if camMode == Enum.CameraMode.LockFirstPerson then
+        rayOrigin = camera.CFrame.Position   -- от камеры в первом лице
+    else
+        -- В третьем лице используем позицию головы (или GunFirePoint, если есть)
+        local head = character:FindFirstChild("Head")
+        rayOrigin = head and head.Position or character:FindFirstChild("HumanoidRootPart").Position
+        -- Если оружие имеет точку выстрела, лучше использовать её (более точное начало)
+        if gunFirePoint then
+            rayOrigin = gunFirePoint.WorldPosition
+        end
+    end
 
-            local targetPart = nil
-            if _G.SilentAim_Hitbox == "Head" then
-                targetPart = char:FindFirstChild("Head")
-            elseif _G.SilentAim_Hitbox == "Torso" then
-                targetPart = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("HumanoidRootPart")
-            end
-            if not targetPart then continue end
+    local bestTarget = nil
+    local bestAngle = math.huge   -- ищем цель с минимальным углом от центра экрана (или приоритет по другой метрике)
+    local fovHalf = _G.SilentAim_FOV / 2
+    local myStatus = getTeamStatus(player)   -- если есть функция getTeamStatus, оставьте; если нет – уберите проверку статуса
 
-            local humanoid = char:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health <= 0 then continue end
+    for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
+        if otherPlayer == player then continue end
+        if _G.SilentAim_TeamCheck and otherPlayer.Team == player.Team then continue end
 
-            -- SafeZone check: если в сейф‑зоне и не в бою, пропускаем
-            if isPlayerSafeZoneProtected(otherPlayer) then
-                local inCombat = char:GetAttribute("InCombat")
-                if not inCombat then continue end
-            end
+        local char = otherPlayer.Character
+        if not char then continue end
 
-            local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-            if not onScreen then continue end
+        -- ForceField check
+        if _G.SilentAim_ForceFieldCheck and char:FindFirstChildWhichIsA("ForceField") then continue end
 
-            local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-            local maxPixelDist = (_G.SilentAim_FOV / 2) * (camera.ViewportSize.Y / 70)
-            if dist > maxPixelDist then continue end
+        local targetPart = nil
+        if _G.SilentAim_Hitbox == "Head" then
+            targetPart = char:FindFirstChild("Head")
+        elseif _G.SilentAim_Hitbox == "Torso" then
+            targetPart = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("HumanoidRootPart")
+        end
+        if not targetPart then continue end
 
-            local distance3D = (targetPart.Position - camera.CFrame.Position).Magnitude
-            if _G.SilentAim_MaxDistance > 0 and distance3D > _G.SilentAim_MaxDistance then continue end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Health <= 0 then continue end
 
-            if _G.SilentAim_VisibleCheck then
-                local rayParams = RaycastParams.new()
-                rayParams.FilterType = Enum.RaycastFilterType.Exclude
-                rayParams.FilterDescendantsInstances = { player.Character, char }
-                local rayResult = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position).Unit * distance3D, rayParams)
-                if rayResult and rayResult.Instance then
-                    local hitInstance = rayResult.Instance
-                    -- Игнорируем мелкие неколлизионные объекты (эффекты)
-                    if hitInstance:IsA("BasePart") then
-                        if hitInstance.Anchored and hitInstance.CanCollide then
-                            if hitInstance.Parent ~= char then continue end
+        -- SafeZone check (если есть)
+        if isPlayerSafeZoneProtected and isPlayerSafeZoneProtected(otherPlayer) then
+            local inCombat = char:GetAttribute("InCombat")
+            if not inCombat then continue end
+        end
+
+        -- Проверка FOV: вычисляем угол между направлением взгляда камеры и направлением на цель
+        local cameraLook = camera.CFrame.LookVector
+        local targetDir = (targetPart.Position - camera.CFrame.Position).Unit
+        local dot = cameraLook:Dot(targetDir)
+        local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
+
+        if angle > fovHalf then continue end   -- цель вне FOV в градусах
+
+        -- Расстояние до цели (может использоваться для Max Distance и визуальной проверки)
+        local distance = (targetPart.Position - rayOrigin).Magnitude
+        if _G.SilentAim_MaxDistance > 0 and distance > _G.SilentAim_MaxDistance then continue end
+
+        -- Visible Check: луч от rayOrigin к цели
+        if _G.SilentAim_VisibleCheck then
+            local rayParams = RaycastParams.new()
+            rayParams.FilterType = Enum.RaycastFilterType.Exclude
+            rayParams.FilterDescendantsInstances = { character, char }  -- игнорируем своего и целевого персонажа
+
+            -- Добавляем все машины из LiveCars в игнор-лист
+            if _G.SilentAim_IgnoreVehicles then
+                local liveCars = workspace:FindFirstChild("LiveCars")
+                if liveCars then
+                    for _, car in ipairs(liveCars:GetChildren()) do
+                        if car:IsA("Model") then
+                            table.insert(rayParams.FilterDescendantsInstances, car)
                         end
-                    else
-                        if hitInstance.Parent ~= char then continue end
                     end
                 end
             end
 
-            local score = 0
-            if _G.SilentAim_TargetPriority == "Crosshair" then
-                score = dist
-            elseif _G.SilentAim_TargetPriority == "Distance" then
-                score = distance3D
-            elseif _G.SilentAim_TargetPriority == "HP" then
-                if humanoid then
-                    score = humanoid.Health
-                else
-                    score = 0
+            local rayResult = workspace:Raycast(rayOrigin, (targetPart.Position - rayOrigin).Unit * distance, rayParams)
+            if rayResult and rayResult.Instance then
+                local hit = rayResult.Instance
+                -- Если попадание не в самого целевого персонажа (и не в игнорируемую машину), цель не видна
+                if not hit:IsDescendantOf(char) then
+                    continue
                 end
-            end
-
-            if score < bestScore then
-                bestScore = score
-                bestTarget = targetPart
             end
         end
 
-        return bestTarget
+        -- Приоритет: по умолчанию ближайший к центру экрана (по углу)
+        local score = angle
+        if _G.SilentAim_TargetPriority == "Distance" then
+            score = distance
+        elseif _G.SilentAim_TargetPriority == "HP" then
+            score = humanoid and humanoid.Health or 0
+        end
+
+        if score < bestAngle then
+            bestAngle = score
+            bestTarget = targetPart
+        end
     end
 
+    return bestTarget
+end
     -- Перехват WeaponRaycast
     local weaponRaycastModule = repStorage:FindFirstChild("Modules"):FindFirstChild("WeaponRaycast")
     local originalFromScreen = nil
