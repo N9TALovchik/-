@@ -813,197 +813,136 @@ end)
     checkLoop()
 
     -- =====================================================
-    -- RAGE GROUP (Silent Aim) – ИСПРАВЛЕННАЯ ВЕРСИЯ
-    -- =====================================================
-    local rageGroup = shopTab:AddLeftGroupbox('Rage')
+-- RAGE GROUP (Silent Aim) – ИСПРАВЛЕННАЯ И ПОЛНАЯ ВЕРСИЯ
+-- =====================================================
+local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
-    -- Инициализация глобальных переменных (значения по умолчанию)
-    _G.SilentAim_Enabled = false
-    _G.SilentAim_Hitbox = "Head"        -- "Head" или "Torso"
-    _G.SilentAim_FOV = 180              -- радиус в градусах (угол от центра экрана)
-    _G.SilentAim_ShowFOV = false
-    _G.SilentAim_MaxDistance = 1000
-    _G.SilentAim_AutoFire = false
-    _G.SilentAim_VisibleCheck = true
-    _G.SilentAim_DelayShot = 0          -- миллисекунды
-    _G.SilentAim_TeamCheck = false
-    _G.SilentAim_TargetPriority = "Crosshair"  -- "HP", "Distance", "Crosshair"
-    _G.SilentAim_ForceFieldCheck = true
-    _G.SilentAim_SafeZoneCheck = true
+-- Инициализация глобальных переменных (значения по умолчанию)
+_G.SilentAim_Enabled = false
+_G.SilentAim_Hitbox = "Head"        -- "Head" или "Torso"
+_G.SilentAim_FOV = 180              -- угол в градусах
+_G.SilentAim_ShowFOV = false
+_G.SilentAim_MaxDistance = 1000
+_G.SilentAim_AutoFire = false
+_G.SilentAim_VisibleCheck = true
+_G.SilentAim_DelayShot = 0          -- миллисекунды (оставлено для совместимости, можно не использовать)
+_G.SilentAim_TeamCheck = false
+_G.SilentAim_TargetPriority = "Crosshair"  -- "HP", "Distance", "Crosshair", "Combat"
+_G.SilentAim_ForceFieldCheck = true
+_G.SilentAim_SafeZoneCheck = false  -- отключаем по умолчанию, т.к. требует внешней функции
+_G.SilentAim_IgnoreVehicles = true
 
-    -- UI элементы
-    local enableToggle = rageGroup:AddToggle('SilentAimEnabled', {
-        Text = 'Enable Silent Aim',
-        Default = false,
-        Tooltip = 'Включает перенаправление пуль в цель'
-    })
-
-    local hitboxDropdown = rageGroup:AddDropdown('SilentAimHitbox', {
-        Text = 'Hitbox',
-        Values = {'Head', 'Torso'},
-        Default = 'Head',
-        Multi = false,
-        AllowNull = false,
-        Tooltip = 'Куда целиться'
-    })
-
-    local fovSlider = rageGroup:AddSlider('SilentAimFOV', {
-        Text = 'FOV',
-        Min = 0, Max = 360, Default = 180, Rounding = 0, Suffix = '°',
-        Tooltip = 'Радиус захвата в градусах'
-    })
-
-    local showFOVToggle = rageGroup:AddToggle('SilentAimShowFOV', {
-        Text = 'Show FOV Circle',
-        Default = false,
-        Tooltip = 'Рисовать круг FOV у курсора'
-    })
-
-    local maxDistSlider = rageGroup:AddSlider('SilentAimMaxDistance', {
-        Text = 'Max Distance',
-        Min = 0, Max = 5000, Default = 1000, Rounding = 0, Suffix = ' studs',
-        Tooltip = 'Максимальная дистанция до цели'
-    })
-
-    local autoFireToggle = rageGroup:AddToggle('SilentAimAutoFire', {
-        Text = 'Auto Fire',
-        Default = false,
-        Tooltip = 'Автоматически стрелять при наведении (зажимает кнопку)'
-    })
-
-    local visibleCheckToggle = rageGroup:AddToggle('SilentAimVisibleCheck', {
-        Text = 'Visible Check',
-        Default = true,
-        Tooltip = 'Целиться только в видимых врагов (без препятствий)'
-    })
-
-    local delaySlider = rageGroup:AddSlider('SilentAimDelayShot', {
-        Text = 'Delay Shot',
-        Min = 0, Max = 1000, Default = 0, Rounding = 0, Suffix = ' ms',
-        Tooltip = 'Задержка перед выстрелом после захвата цели'
-    })
-
-    local teamCheckToggle = rageGroup:AddToggle('SilentAimTeamCheck', {
-        Text = 'Team Check',
-        Default = false,
-        Tooltip = 'Игнорировать игроков из своей команды'
-    })
-
-    local priorityDropdown = rageGroup:AddDropdown('SilentAimTargetPriority', {
-        Text = 'Target Priority',
-        Values = {'HP', 'Distance', 'Crosshair'},
-        Default = 'Crosshair',
-        Multi = false,
-        AllowNull = false,
-        Tooltip = 'Критерий выбора цели'
-    })
-
-    local forceFieldCheckToggle = rageGroup:AddToggle('SilentAimForceFieldCheck', {
-        Text = 'ForceField Check',
-        Default = true,
-        Tooltip = 'Игнорировать цели с активным ForceField'
-    })
-
-    local safeZoneCheckToggle = rageGroup:AddToggle('SilentAimSafeZoneCheck', {
-        Text = 'SafeZone Check',
-        Default = true,
-        Tooltip = 'Не стрелять в игроков в сейф‑зонах (если они не в бою)'
-    })
-
-local ignoreVehiclesToggle = rageGroup:AddToggle('SilentAimIgnoreVehicles', {
-    Text = 'Ignore Cars',
-    Default = true,
-    Tooltip = 'Игнорировать машины при проверке видимости'
+-- UI элементы (те же, что у вас были)
+local enableToggle = rageGroup:AddToggle('SilentAimEnabled', {
+    Text = 'Enable Silent Aim', Default = false, Tooltip = 'Включает перенаправление пуль в цель'
 })
+local hitboxDropdown = rageGroup:AddDropdown('SilentAimHitbox', {
+    Text = 'Hitbox', Values = {'Head', 'Torso'}, Default = 'Head', Multi = false, AllowNull = false
+})
+local fovSlider = rageGroup:AddSlider('SilentAimFOV', {
+    Text = 'FOV', Min = 0, Max = 360, Default = 180, Rounding = 0, Suffix = '°'
+})
+local showFOVToggle = rageGroup:AddToggle('SilentAimShowFOV', {
+    Text = 'Show FOV Circle', Default = false, Tooltip = 'Рисовать круг FOV у курсора'
+})
+local maxDistSlider = rageGroup:AddSlider('SilentAimMaxDistance', {
+    Text = 'Max Distance', Min = 0, Max = 5000, Default = 1000, Rounding = 0, Suffix = ' studs'
+})
+local autoFireToggle = rageGroup:AddToggle('SilentAimAutoFire', {
+    Text = 'Auto Fire', Default = false, Tooltip = 'Автоматически зажимает огонь, если цель в FOV'
+})
+local visibleCheckToggle = rageGroup:AddToggle('SilentAimVisibleCheck', {
+    Text = 'Visible Check', Default = true, Tooltip = 'Целиться только в видимых врагов (без препятствий)'
+})
+local teamCheckToggle = rageGroup:AddToggle('SilentAimTeamCheck', {
+    Text = 'Team Check', Default = false, Tooltip = 'Игнорировать игроков из своей команды'
+})
+local priorityDropdown = rageGroup:AddDropdown('SilentAimTargetPriority', {
+    Text = 'Target Priority',
+    Values = {'HP', 'Distance', 'Crosshair', 'Combat'},
+    Default = 'Crosshair', Multi = false, AllowNull = false
+})
+local forceFieldCheckToggle = rageGroup:AddToggle('SilentAimForceFieldCheck', {
+    Text = 'ForceField Check', Default = true, Tooltip = 'Игнорировать цели с активным ForceField'
+})
+local safeZoneCheckToggle = rageGroup:AddToggle('SilentAimSafeZoneCheck', {
+    Text = 'SafeZone Check', Default = false, Tooltip = 'Не стрелять в игроков в сейф‑зонах (требуется функция SafeZone)'
+})
+local ignoreVehiclesToggle = rageGroup:AddToggle('SilentAimIgnoreVehicles', {
+    Text = 'Ignore Vehicles', Default = true, Tooltip = 'Игнорировать машины при проверке видимости'
+})
+
+-- Привязка UI к глобальным переменным
+enableToggle:OnChanged(function(v) _G.SilentAim_Enabled = v end)
+hitboxDropdown:OnChanged(function(v) _G.SilentAim_Hitbox = v end)
+fovSlider:OnChanged(function(v) _G.SilentAim_FOV = v end)
+showFOVToggle:OnChanged(function(v) _G.SilentAim_ShowFOV = v end)
+maxDistSlider:OnChanged(function(v) _G.SilentAim_MaxDistance = v end)
+autoFireToggle:OnChanged(function(v) _G.SilentAim_AutoFire = v end)
+visibleCheckToggle:OnChanged(function(v) _G.SilentAim_VisibleCheck = v end)
+teamCheckToggle:OnChanged(function(v) _G.SilentAim_TeamCheck = v end)
+priorityDropdown:OnChanged(function(v) _G.SilentAim_TargetPriority = v end)
+forceFieldCheckToggle:OnChanged(function(v) _G.SilentAim_ForceFieldCheck = v end)
+safeZoneCheckToggle:OnChanged(function(v) _G.SilentAim_SafeZoneCheck = v end)
 ignoreVehiclesToggle:OnChanged(function(v) _G.SilentAim_IgnoreVehicles = v end)
-    
-    -- Обновление глобальных переменных при изменении UI
-    enableToggle:OnChanged(function(enabled) _G.SilentAim_Enabled = enabled end)
-    hitboxDropdown:OnChanged(function(value) _G.SilentAim_Hitbox = value end)
-    fovSlider:OnChanged(function(value) _G.SilentAim_FOV = value end)
-    showFOVToggle:OnChanged(function(value) _G.SilentAim_ShowFOV = value end)
-    maxDistSlider:OnChanged(function(value) _G.SilentAim_MaxDistance = value end)
-    autoFireToggle:OnChanged(function(value) _G.SilentAim_AutoFire = value end)
-    visibleCheckToggle:OnChanged(function(value) _G.SilentAim_VisibleCheck = value end)
-    delaySlider:OnChanged(function(value) _G.SilentAim_DelayShot = value end)
-    teamCheckToggle:OnChanged(function(value) _G.SilentAim_TeamCheck = value end)
-    priorityDropdown:OnChanged(function(value) _G.SilentAim_TargetPriority = value end)
-    forceFieldCheckToggle:OnChanged(function(v) _G.SilentAim_ForceFieldCheck = v end)
-    safeZoneCheckToggle:OnChanged(function(v) _G.SilentAim_SafeZoneCheck = v end)
 
-    -- =====================================================
-    -- ЛОГИКА SILENT AIM (перехват WeaponRaycast.fromScreen)
-    -- =====================================================
-    local player = game:GetService("Players").LocalPlayer
-    local camera = workspace.CurrentCamera
-    local repStorage = game:GetService("ReplicatedStorage")
-    local uis = game:GetService("UserInputService")
+-- =====================================================
+-- ЛОГИКА SILENT AIM (перехват WeaponRaycast.fromScreen)
+-- =====================================================
+local player = game:GetService("Players").LocalPlayer
+local camera = workspace.CurrentCamera
+local repStorage = game:GetService("ReplicatedStorage")
+local uis = game:GetService("UserInputService")
 
-    -- Отрисовка FOV-круга (у курсора)
-    local fovCircle = nil
-    local function updateFOVCircle()
-        if not _G.SilentAim_ShowFOV or not camera then
-            if fovCircle then
-                pcall(function() fovCircle:Remove() end)
-                fovCircle = nil
-            end
-            return
-        end
-
-        if not fovCircle then
-            fovCircle = Drawing.new("Circle")
-            fovCircle.Visible = true
-            fovCircle.Filled = false
-            fovCircle.Thickness = 1
-            fovCircle.Color = Color3.fromRGB(255, 255, 255)
-            fovCircle.Transparency = 0.8
-        end
-
-        local mousePos = uis:GetMouseLocation()
-        local fov = _G.SilentAim_FOV or 180
-        local screenSize = camera.ViewportSize
-        local radius = (fov / 2) * (screenSize.Y / 70)  -- примерное преобразование градусов в пиксели
-        fovCircle.Position = mousePos
-        fovCircle.Radius = radius
+-- Отрисовка FOV-круга (у курсора)
+local fovCircle = nil
+local function updateFOVCircle()
+    if not _G.SilentAim_ShowFOV or not camera then
+        if fovCircle then pcall(function() fovCircle:Remove() end) fovCircle = nil end
+        return
     end
-
-    -- Проверка, находится ли точка внутри парта
-    local function isInsidePart(part, pos)
-        local relative = part.CFrame:PointToObjectSpace(pos)
-        local size = part.Size
-        return math.abs(relative.X) <= size.X/2 and math.abs(relative.Y) <= size.Y/2 and math.abs(relative.Z) <= size.Z/2
+    if not fovCircle then
+        fovCircle = Drawing.new("Circle")
+        fovCircle.Visible = true fovCircle.Filled = false fovCircle.Thickness = 1
+        fovCircle.Color = Color3.fromRGB(255, 255, 255) fovCircle.Transparency = 0.8
     end
+    local mousePos = uis:GetMouseLocation()
+    local radius = (_G.SilentAim_FOV / 2) * (camera.ViewportSize.Y / 70)  -- грубое преобразование градусов в пиксели
+    fovCircle.Position = mousePos
+    fovCircle.Radius = radius
+end
 
-    -- Проверка SafeZone
-    local function isPlayerSafeZoneProtected(targetPlayer)
-        if not _G.SilentAim_SafeZoneCheck then return false end
-        local char = targetPlayer.Character
-        if not char then return false end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return false end
-        local zonesFolder = workspace:FindFirstChild("Zones")
-        if not zonesFolder then return false end
-        local teamName = targetPlayer.Team and targetPlayer.Team.Name or ""
+-- Функция проверки SafeZone (оставлена для совместимости, если понадобится)
+local function isInsidePart(part, pos)
+    local relative = part.CFrame:PointToObjectSpace(pos)
+    local size = part.Size
+    return math.abs(relative.X) <= size.X/2 and math.abs(relative.Y) <= size.Y/2 and math.abs(relative.Z) <= size.Z/2
+end
 
-        for _, zone in ipairs(zonesFolder:GetChildren()) do
-            if zone:IsA("BasePart") then
-                if isInsidePart(zone, root.Position) then
-                    local zoneName = zone.Name
-                    if zoneName == "All_Safe" then return true end
-                    if zoneName == teamName .. "_Safe" then return true end
-                end
-            end
+local function isPlayerSafeZoneProtected(targetPlayer)
+    if not _G.SilentAim_SafeZoneCheck then return false end
+    local char = targetPlayer.Character
+    if not char then return false end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+    local zonesFolder = workspace:FindFirstChild("Zones")
+    if not zonesFolder then return false end
+    local teamName = targetPlayer.Team and targetPlayer.Team.Name or ""
+    for _, zone in ipairs(zonesFolder:GetChildren()) do
+        if zone:IsA("BasePart") and isInsidePart(zone, root.Position) then
+            local zoneName = zone.Name
+            if zoneName == "All_Safe" then return true end
+            if zoneName == teamName .. "_Safe" then return true end
         end
-        return false
     end
+    return false
+end
 
-
--- ====================== НОВАЯ getTarget (без Team Status) ======================
+-- ОСНОВНАЯ ФУНКЦИЯ ВЫБОРА ЦЕЛИ (исправленная)
 local function getTarget()
     if not camera then return nil end
-
     local character = player.Character
-    if not character then return end
+    if not character then return nil end
 
     -- Определяем точку старта луча видимости (и выстрела при проверке)
     local rayOrigin = nil
@@ -1011,9 +950,8 @@ local function getTarget()
     local gunFirePoint = tool and tool:FindFirstChild("GunFirePoint")
 
     if player.CameraMode == Enum.CameraMode.LockFirstPerson then
-        rayOrigin = camera.CFrame.Position   -- от камеры в первом лице
+        rayOrigin = camera.CFrame.Position
     else
-        -- В третьем лице: предпочитаем GunFirePoint, иначе голова, иначе HumanoidRootPart
         if gunFirePoint then
             rayOrigin = gunFirePoint.WorldPosition
         else
@@ -1021,12 +959,11 @@ local function getTarget()
             rayOrigin = head and head.Position or (character:FindFirstChild("HumanoidRootPart") and character.HumanoidRootPart.Position)
         end
     end
-    -- если rayOrigin так и не удалось определить – просто камера (запасной вариант)
     if not rayOrigin then rayOrigin = camera.CFrame.Position end
 
     local bestTarget = nil
     local bestScore = math.huge
-    local fovHalf = _G.SilentAim_FOV / 2   -- половина угла в градусах
+    local fovHalf = _G.SilentAim_FOV / 2
 
     for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
         if otherPlayer == player then continue end
@@ -1049,20 +986,19 @@ local function getTarget()
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         if humanoid and humanoid.Health <= 0 then continue end
 
-        -- SafeZone check
-        if _G.SilentAim_SafeZoneCheck and isPlayerSafeZoneProtected and isPlayerSafeZoneProtected(otherPlayer) then
+        -- SafeZone check (если включено)
+        if isPlayerSafeZoneProtected(otherPlayer) then
             local inCombat = char:GetAttribute("InCombat")
             if not inCombat then continue end
         end
 
-        -- Угол между направлением камеры и направлением на цель (FOV в градусах)
-        local cameraLook = camera.CFrame.LookVector
+        -- FOV: угол между направлением камеры и направлением на цель
+        local camLook = camera.CFrame.LookVector
         local targetDir = (targetPart.Position - camera.CFrame.Position).Unit
-        local dot = cameraLook:Dot(targetDir)
-        local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
-        if angle > fovHalf then continue end   -- цель вне FOV
+        local angle = math.deg(math.acos(math.clamp(camLook:Dot(targetDir), -1, 1)))
+        if angle > fovHalf then continue end
 
-        -- Дистанция от точки выстрела (или камеры) до цели
+        -- Расстояние от точки выстрела до цели
         local distance = (targetPart.Position - rayOrigin).Magnitude
         if _G.SilentAim_MaxDistance > 0 and distance > _G.SilentAim_MaxDistance then continue end
 
@@ -1070,32 +1006,24 @@ local function getTarget()
         if _G.SilentAim_VisibleCheck then
             local rayParams = RaycastParams.new()
             rayParams.FilterType = Enum.RaycastFilterType.Exclude
-            rayParams.FilterDescendantsInstances = { character, char }  -- игнорируем своего и чужого персонажа
-
-            -- Игнорируем все машины
+            rayParams.FilterDescendantsInstances = { character, char }
+            -- Игнорируем машины
             if _G.SilentAim_IgnoreVehicles then
                 local liveCars = workspace:FindFirstChild("LiveCars")
                 if liveCars then
                     for _, car in ipairs(liveCars:GetChildren()) do
-                        if car:IsA("Model") then
-                            table.insert(rayParams.FilterDescendantsInstances, car)
-                        end
+                        if car:IsA("Model") then table.insert(rayParams.FilterDescendantsInstances, car) end
                     end
                 end
             end
-
             local rayResult = workspace:Raycast(rayOrigin, (targetPart.Position - rayOrigin).Unit * distance, rayParams)
-            if rayResult and rayResult.Instance then
-                local hit = rayResult.Instance
-                -- Если попадание не в целевого персонажа – цель не видна
-                if not hit:IsDescendantOf(char) then
-                    continue
-                end
+            if rayResult and rayResult.Instance and not rayResult.Instance:IsDescendantOf(char) then
+                continue
             end
         end
 
         -- Приоритет
-        local score = angle   -- по умолчанию ближайший к центру экрана (наименьший угол)
+        local score = angle   -- чем меньше угол, тем ближе к центру экрана
         if _G.SilentAim_TargetPriority == "Distance" then
             score = distance
         elseif _G.SilentAim_TargetPriority == "HP" then
@@ -1110,10 +1038,57 @@ local function getTarget()
             bestTarget = targetPart
         end
     end
-
     return bestTarget
 end
 
+-- Перехват WeaponRaycast (заново создаём правильный хук)
+local weaponRaycastModule = repStorage:FindFirstChild("Modules"):FindFirstChild("WeaponRaycast")
+if weaponRaycastModule then
+    local weaponRaycast = require(weaponRaycastModule)
+    local originalFromScreen = weaponRaycast.fromScreen
+    weaponRaycast.fromScreen = function(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
+        if _G.SilentAim_Enabled then
+            local target = getTarget()
+            if target then
+                if _G.SilentAim_DelayShot > 0 then task.wait(_G.SilentAim_DelayShot / 1000) end
+                return target.Position
+            end
+        end
+        return originalFromScreen(cam, screenPoint, rayRange, ignoreList, transparency, epsilon)
+    end
+end
+
+-- Авто‑огонь (удержание кнопки)
+local isMouseHeld = false
+local function updateAutoFire()
+    if _G.SilentAim_AutoFire and _G.SilentAim_Enabled then
+        local target = getTarget() ~= nil
+        local character = player.Character
+        local tool = character and character:FindFirstChildWhichIsA("Tool")
+        if target and tool then
+            if not isMouseHeld then
+                pcall(function() mouse1press() end)
+                isMouseHeld = true
+            end
+        else
+            if isMouseHeld then
+                pcall(function() mouse1release() end)
+                isMouseHeld = false
+            end
+        end
+    else
+        if isMouseHeld then
+            pcall(function() mouse1release() end)
+            isMouseHeld = false
+        end
+    end
+end
+
+-- Обновление FOV и авто‑огня каждый кадр
+game:GetService("RunService").Heartbeat:Connect(function()
+    updateFOVCircle()
+    updateAutoFire()
+end)
     -- =====================================================
     -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ (ОТЛОЖЕННЫЙ ПЕРЕХВАТ) – без изменений
     -- =====================================================
