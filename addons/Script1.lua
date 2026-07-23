@@ -813,7 +813,7 @@ end)
     checkLoop()
 
 -- =====================================================
--- RAGE GROUP (Silent Aim + Auto Fire) – финальная версия
+-- RAGE GROUP (Silent Aim + Auto Fire) – финальная рабочая версия
 -- =====================================================
 local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
@@ -848,7 +848,7 @@ local maxDistSlider = rageGroup:AddSlider('SilentAimMaxDistance', {
     Text = 'Max Distance', Min = 0, Max = 5000, Default = 1000, Rounding = 0, Suffix = ' studs'
 })
 local autoFireToggle = rageGroup:AddToggle('SilentAimAutoFire', {
-    Text = 'Auto Fire', Default = false, Tooltip = 'Автоматически стрелять при наведении'
+    Text = 'Auto Fire', Default = false, Tooltip = 'Автоматически зажимает кнопку мыши, если цель в FOV'
 })
 local visibleCheckToggle = rageGroup:AddToggle('SilentAimVisibleCheck', {
     Text = 'Visible Check', Default = true, Tooltip = 'Целиться только в видимых врагов (без препятствий)'
@@ -932,7 +932,7 @@ local function isPlayerSafeZoneProtected(targetPlayer)
     return false
 end
 
--- Основная функция выбора цели (исправленный Visible Check)
+-- Основная функция выбора цели (улучшенный Visible Check)
 local function getTarget()
     if not camera then return nil end
     local character = player.Character
@@ -1021,6 +1021,13 @@ local function getTarget()
                 if not hit:IsDescendantOf(char) then
                     continue
                 end
+                -- Дополнительно: проверяем, что попавшийся объект не является прозрачным или неколлизионным (аксессуары)
+                if hit:IsA("BasePart") then
+                    if hit.Transparency >= 0.9 or not hit.CanCollide then
+                        -- это визуальный аксессуар, пропускаем
+                        continue
+                    end
+                end
             end
         end
 
@@ -1056,9 +1063,8 @@ if weaponRaycastModule then
     end
 end
 
--- Авто‑огонь (с мышкой – одиночные клики)
+-- Авто‑огонь (зажимает ЛКМ, пока есть цель)
 local isMouseHeld = false
-local lastAutoFireTime = 0
 local function updateAutoFire()
     if not _G.SilentAim_AutoFire or not _G.SilentAim_Enabled then
         if isMouseHeld then pcall(function() mouse1release() end); isMouseHeld = false end
@@ -1070,20 +1076,9 @@ local function updateAutoFire()
     local tool = character and character:FindFirstChildWhichIsA("Tool")
 
     if target and tool then
-        local settingModule = tool:FindFirstChild("Setting")
-        local fireRate = 0.1  -- значение по умолчанию
-        if settingModule and settingModule:IsA("ModuleScript") then
-            local settings = require(settingModule)
-            fireRate = settings and settings.FireRate or 0.1
-        end
-        -- Стреляем только если прошло достаточно времени с последнего выстрела
-        if tick() - lastAutoFireTime >= fireRate then
-            -- Одиночный клик (нажать и сразу отпустить)
+        if not isMouseHeld then
             pcall(function() mouse1press() end)
-            task.wait(0.01)
-            pcall(function() mouse1release() end)
-            lastAutoFireTime = tick()
-            isMouseHeld = false
+            isMouseHeld = true
         end
     else
         if isMouseHeld then
