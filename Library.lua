@@ -2139,7 +2139,7 @@ do
     end;
 end;
 
--- ========== АНИМИРОВАННЫЕ УВЕДОМЛЕНИЯ ==========
+-- ========== АНИМИРОВАННЫЕ УВЕДОМЛЕНИЯ (с эффектом раскрытия из центра) ==========
 local NotificationContainer = Library:Create('Frame', {
     BackgroundTransparency = 1;
     Position = UDim2.new(0.5, 0, 1, 0);
@@ -2193,13 +2193,21 @@ function Library:Notify(Text, Time)
         Parent = NotificationContainer;
     });
 
+    -- UIScale для анимации раскрытия из центра
+    local UIScale = Instance.new("UIScale")
+    UIScale.Scale = 0
+    UIScale.Parent = Outer
+
     table.insert(activeNotifications, { Outer = Outer, Time = Time })
 
     local startPos = UDim2.new(0.5, -XSize/2, 1, 0)
     local targetPos = UDim2.new(0.5, -XSize/2, 1, targetY)
-    Outer.Position = startPos
-    local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = targetPos })
-    tweenIn:Play()
+
+    -- Анимация появления: позиция + масштаб
+    local tweenInPos = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = targetPos })
+    local tweenInScale = TweenService:Create(UIScale, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
+    tweenInPos:Play()
+    tweenInScale:Play()
 
     local Inner = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
@@ -2271,23 +2279,36 @@ function Library:Notify(Text, Time)
     rightTween:Play()
 
     task.delay(Time, function()
-        local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = startPos })
-        tweenOut:Play()
-        tweenOut.Completed:Connect(function()
-            Outer:Destroy()
-            for i, notif in ipairs(activeNotifications) do
-                if notif.Outer == Outer then
-                    table.remove(activeNotifications, i)
-                    break
+        -- Анимация исчезновения: позиция + масштаб
+        local tweenOutPos = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = startPos })
+        local tweenOutScale = TweenService:Create(UIScale, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0 })
+        tweenOutPos:Play()
+        tweenOutScale:Play()
+
+        local tweenOutCount = 0
+        local function onTweenEnd()
+            tweenOutCount = tweenOutCount + 1
+            if tweenOutCount == 2 then
+                Outer:Destroy()
+                for i, notif in ipairs(activeNotifications) do
+                    if notif.Outer == Outer then
+                        table.remove(activeNotifications, i)
+                        break
+                    end
+                end
+                local currentY = 0
+                for _, notif in ipairs(activeNotifications) do
+                    if notif.Outer and notif.Outer.Parent then
+                        local newTargetPos = UDim2.new(0.5, -notif.Outer.AbsoluteSize.X/2, 1, -currentY - notif.Outer.AbsoluteSize.Y - padding)
+                        local tween = TweenService:Create(notif.Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = newTargetPos })
+                        tween:Play()
+                        currentY = currentY + notif.Outer.AbsoluteSize.Y + padding
+                    end
                 end
             end
-            local currentY = 0
-            for _, notif in ipairs(activeNotifications) do
-                local newTargetPos = UDim2.new(0.5, -notif.Outer.AbsoluteSize.X/2, 1, -currentY - notif.Outer.AbsoluteSize.Y - padding)
-                notif.Outer:TweenPosition(newTargetPos, "Out", "Quad", NOTIFY_ANIMATION_SPEED)
-                currentY = currentY + notif.Outer.AbsoluteSize.Y + padding
-            end
-        end)
+        end
+        tweenOutPos.Completed:Connect(onTweenEnd)
+        tweenOutScale.Completed:Connect(onTweenEnd)
     end)
 end;
 
@@ -2507,7 +2528,6 @@ function Library:CreateWindow(...)
         Parent = MainSectionOuter;
     });
     Library:AddToRegistry(MainSectionInner, { BackgroundColor3 = 'BackgroundColor'; });
-    -- UICorner для MainSectionInner (по желанию, но не обязательно)
     local MainInnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = MainSectionInner });
     table.insert(Library.UICorners, MainInnerCorner)
 
