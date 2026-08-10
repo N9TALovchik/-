@@ -1,4 +1,4 @@
--- LinoriaLib модифицированная (исправленные уведомления, звук, прогресс-бар, UICorner)
+-- LinoriaLib модифицированная (исправленные уведомления, звук, прогресс-бар, UICorner, кастомные окна)
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -55,6 +55,10 @@ local Library = {
     -- Настройка UICorner (глобальная)
     UICornerRadius = 0.8;               -- стандартное скругление (можно менять извне)
     UICorners = {};                     -- список всех UICorner для обновления
+
+    -- Поддержка нескольких окон
+    Windows = {};                       -- список { Outer, FadeTime }
+    MainWindow = nil;                   -- основное окно, у которого есть Modal
 };
 
 local RainbowStep = 0
@@ -258,7 +262,7 @@ function Library:SetUICornerRadius(radius)
     Library.UICornerRadius = radius
     for _, corner in ipairs(Library.UICorners) do
         if corner then
-            corner.CornerRadius = UDim.new(0, radius * 10)  -- преобразуем в UDim с небольшим множителем
+            corner.CornerRadius = UDim.new(0, radius * 10)
         end
     end
 end
@@ -2427,7 +2431,114 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 
--- ========== СОЗДАНИЕ ОКНА ==========
+-- ========== РЕГИСТРАЦИЯ ОКОН И ГЛОБАЛЬНЫЙ TOGGLE ==========
+function Library:RegisterWindow(winData)
+    table.insert(self.Windows, winData)
+end
+
+function Library:FadeWindow(Outer, FadeTime, show)
+    if show then Outer.Visible = true end
+    for _, Desc in next, Outer:GetDescendants() do
+        local Properties = {};
+        if Desc:IsA('ImageLabel') then
+            table.insert(Properties, 'ImageTransparency'); table.insert(Properties, 'BackgroundTransparency');
+        elseif Desc:IsA('TextLabel') or Desc:IsA('TextBox') then
+            table.insert(Properties, 'TextTransparency');
+        elseif Desc:IsA('Frame') or Desc:IsA('ScrollingFrame') then
+            table.insert(Properties, 'BackgroundTransparency');
+        elseif Desc:IsA('UIStroke') then
+            table.insert(Properties, 'Transparency');
+        end;
+        local Cache = self.TransparencyCache[Desc];
+        if (not Cache) then Cache = {}; self.TransparencyCache[Desc] = Cache; end;
+        for _, Prop in next, Properties do
+            if not Cache[Prop] then Cache[Prop] = Desc[Prop]; end;
+            if Cache[Prop] == 1 then continue; end;
+            TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = show and Cache[Prop] or 1 }):Play();
+        end;
+    end
+    task.wait(FadeTime)
+    Outer.Visible = show
+end
+
+function Library:Toggle()
+    if self.Fading then return end
+    self.Fading = true
+    self.Toggled = not self.Toggled
+    local show = self.Toggled
+
+    if self.MainWindow and self.MainWindow.ModalElement then
+        self.MainWindow.ModalElement.Modal = show
+    end
+    if not show then
+        for frame, _ in pairs(self.OpenedFrames) do frame.Visible = false end
+        table.clear(self.OpenedFrames)
+    end
+
+    for _, win in ipairs(self.Windows) do
+        self:FadeWindow(win.Outer, win.FadeTime, show)
+    end
+
+    self.Fading = false
+end
+
+-- ========== СОЗДАНИЕ КАСТОМНОГО ОКНА (ESP) ==========
+function Library:CreateCustomWindow(Info)
+    local win = {}
+    local Outer = Library:Create('Frame', {
+        BackgroundColor3 = Color3.new(0,0,0);
+        BorderSizePixel = 0;
+        Position = Info.Position or UDim2.fromOffset(100, 100);
+        Size = Info.Size or UDim2.fromOffset(200, 150);
+        Visible = false;
+        ZIndex = 1;
+        Parent = ScreenGui;
+    })
+    local Inner = Library:Create('Frame', {
+        BackgroundColor3 = Library.MainColor;
+        BorderColor3 = Library.AccentColor;
+        BorderMode = Enum.BorderMode.Inset;
+        Position = UDim2.new(0,1,0,1);
+        Size = UDim2.new(1,-2,1,-2);
+        ZIndex = 1;
+        Parent = Outer;
+    })
+    Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'AccentColor'; })
+    local TitleLabel = Library:CreateLabel({
+        Position = UDim2.new(0,7,0,0);
+        Size = UDim2.new(0,0,0,25);
+        Text = Info.Title or 'Custom Window';
+        TextXAlignment = Enum.TextXAlignment.Left;
+        ZIndex = 1;
+        Parent = Inner;
+    })
+    local Container = Library:Create('Frame', {
+        BackgroundColor3 = Library.BackgroundColor;
+        BorderColor3 = Library.OutlineColor;
+        Position = UDim2.new(0,8,0,25);
+        Size = UDim2.new(1,-16,1,-33);
+        ZIndex = 1;
+        Parent = Inner;
+    })
+    Library:AddToRegistry(Container, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor'; })
+
+    -- Перетаскивание
+    Library:MakeDraggable(Outer, 25)
+
+    local windowData = {
+        Outer = Outer,
+        FadeTime = Info.FadeTime or 0.2,
+        Container = Container
+    }
+    Library:RegisterWindow(windowData)
+
+    win.Outer = Outer
+    win.Container = Container
+    win.SetTitle = function(newTitle) TitleLabel.Text = newTitle end
+    return win
+end
+
+-- ========== СОЗДАНИЕ ГЛАВНОГО ОКНА ==========
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
@@ -2457,7 +2568,6 @@ function Library:CreateWindow(...)
         ZIndex = 1;
         Parent = ScreenGui;
     });
-    -- UICorner для Outer
     local OuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Outer });
     table.insert(Library.UICorners, OuterCorner)
 
@@ -2472,7 +2582,6 @@ function Library:CreateWindow(...)
         Parent = Outer;
     });
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'AccentColor'; });
-    -- UICorner для Inner
     local InnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Inner });
     table.insert(Library.UICorners, InnerCorner)
 
@@ -2493,7 +2602,6 @@ function Library:CreateWindow(...)
         Parent = Inner;
     });
     Library:AddToRegistry(MainSectionOuter, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor'; });
-    -- UICorner для MainSectionOuter
     local MainOuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = MainSectionOuter });
     table.insert(Library.UICorners, MainOuterCorner)
 
@@ -2507,7 +2615,6 @@ function Library:CreateWindow(...)
         Parent = MainSectionOuter;
     });
     Library:AddToRegistry(MainSectionInner, { BackgroundColor3 = 'BackgroundColor'; });
-    -- UICorner для MainSectionInner (по желанию, но не обязательно)
     local MainInnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = MainSectionInner });
     table.insert(Library.UICorners, MainInnerCorner)
 
@@ -2857,53 +2964,29 @@ function Library:CreateWindow(...)
         Modal = false;
         Parent = ScreenGui;
     });
-    local TransparencyCache = {};
-    local Toggled = false;
-    local Fading = false;
-    function Library:Toggle()
-        if Fading then return; end;
-        local FadeTime = Config.MenuFadeTime;
-        Fading = true;
-        Toggled = (not Toggled);
-        ModalElement.Modal = Toggled;
-        if not Toggled then
-            for frame, _ in pairs(Library.OpenedFrames) do frame.Visible = false end
-            table.clear(Library.OpenedFrames)
-        end
-        if Toggled then Outer.Visible = true; end;
-        for _, Desc in next, Outer:GetDescendants() do
-            local Properties = {};
-            if Desc:IsA('ImageLabel') then
-                table.insert(Properties, 'ImageTransparency'); table.insert(Properties, 'BackgroundTransparency');
-            elseif Desc:IsA('TextLabel') or Desc:IsA('TextBox') then
-                table.insert(Properties, 'TextTransparency');
-            elseif Desc:IsA('Frame') or Desc:IsA('ScrollingFrame') then
-                table.insert(Properties, 'BackgroundTransparency');
-            elseif Desc:IsA('UIStroke') then
-                table.insert(Properties, 'Transparency');
-            end;
-            local Cache = TransparencyCache[Desc];
-            if (not Cache) then Cache = {}; TransparencyCache[Desc] = Cache; end;
-            for _, Prop in next, Properties do
-                if not Cache[Prop] then Cache[Prop] = Desc[Prop]; end;
-                if Cache[Prop] == 1 then continue; end;
-                TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = Toggled and Cache[Prop] or 1 }):Play();
-            end;
-        end;
-        task.wait(FadeTime);
-        Outer.Visible = Toggled;
-        Fading = false;
-    end
+
+    -- Регистрация главного окна
+    local mainWinData = {
+        Outer = Outer,
+        FadeTime = Config.MenuFadeTime,
+    }
+    Library:RegisterWindow(mainWinData)
+    Library.MainWindow = {
+        Outer = Outer,
+        ModalElement = ModalElement,
+    }
+
+    -- Глобальные бинды
     Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
         if type(Library.ToggleKeybind) == 'table' and Library.ToggleKeybind.Type == 'KeyPicker' then
             if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode.Name == Library.ToggleKeybind.Value then
-                task.spawn(Library.Toggle)
+                task.spawn(Library.Toggle, Library)
             end
         elseif Input.KeyCode == Enum.KeyCode.RightControl or (Input.KeyCode == Enum.KeyCode.RightShift and (not Processed)) then
-            task.spawn(Library.Toggle)
+            task.spawn(Library.Toggle, Library)
         end
     end))
-    if Config.AutoShow then task.spawn(Library.Toggle) end
+    if Config.AutoShow then task.spawn(Library.Toggle, Library) end
     Window.Holder = Outer;
     return Window;
 end;
