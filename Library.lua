@@ -2489,7 +2489,7 @@ function Create3DObjects()
     local Surface = Instance.new('SurfaceGui')
     Surface.Name = 'Linoria3DSurface'
     Surface.Face = Enum.NormalId.Front
-    Surface.Size = UDim2.new(1, 0, 1, 0)
+   
     Surface.PixelsPerStud = PPU
     Surface.AlwaysOnTop = true
     Surface.Parent = Part
