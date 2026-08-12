@@ -16,7 +16,6 @@ local THREED_DISTANCE = 5
 local ThreeDMode = false
 local Current3DPart = nil
 local Current3DBillboard = nil
-local ThreeDConnection = nil
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
@@ -65,6 +64,8 @@ local Library = {
 
     NotifySoundId = NOTIFY_SOUND_ID;
     CursorImageId = CURSOR_IMAGE_ID;
+
+    MainFrame = nil;
 };
 
 local RainbowStep = 0
@@ -1014,6 +1015,7 @@ do
                 end;
             end;
             Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 10, 210), 0, YSize + 23)
+            Library.KeybindFrame.Visible = true
         end;
 
         function KeyPicker:GetState()
@@ -2203,7 +2205,6 @@ function Library:Notify(Text, Time)
 
     table.insert(activeNotifications, { Outer = Outer, Time = Time })
 
-    local startPos = UDim2.new(0.5, -XSize/2, 1, 0)
     local targetPos = UDim2.new(0.5, -XSize/2, 1, targetY)
     local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = targetPos })
     tweenIn:Play()
@@ -2224,6 +2225,7 @@ function Library:Notify(Text, Time)
         Position = UDim2.new(0, 1, 0, 1);
         Size = UDim2.new(1, -2, 1, -2);
         ZIndex = 102;
+        ClipsDescendants = true;
         Parent = Inner;
     });
     local Gradient = Library:Create('UIGradient', {
@@ -2278,7 +2280,7 @@ function Library:Notify(Text, Time)
     rightTween:Play()
 
     task.delay(Time, function()
-        local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = startPos })
+        local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.new(0.5, -XSize/2, 1, 0) })
         tweenOut:Play()
         tweenOut.Completed:Connect(function()
             Outer:Destroy()
@@ -2446,11 +2448,10 @@ end;
 function Clear3DObjects()
     if Current3DPart then Current3DPart:Destroy() end
     if Current3DBillboard then Current3DBillboard:Destroy() end
-    if ThreeDConnection then ThreeDConnection:Disconnect(); ThreeDConnection = nil end
     Current3DPart = nil
     Current3DBillboard = nil
-    if Library.ScreenGui.Parent ~= CoreGui then
-        Library.ScreenGui.Parent = CoreGui
+    if Library.MainFrame and Library.MainFrame.Parent ~= ScreenGui then
+        Library.MainFrame.Parent = ScreenGui
     end
 end
 
@@ -2474,7 +2475,9 @@ function Create3DObjects()
     Billboard.Adornee = Part
     Billboard.Parent = Part
     Current3DBillboard = Billboard
-    Library.ScreenGui.Parent = Billboard
+    if Library.MainFrame then
+        Library.MainFrame.Parent = Billboard
+    end
 end
 
 function Library:CreateWindow(...)
@@ -2506,6 +2509,8 @@ function Library:CreateWindow(...)
         ZIndex = 1;
         Parent = ScreenGui;
     });
+    Library.MainFrame = Outer;
+
     local OuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Outer });
     table.insert(Library.UICorners, OuterCorner)
 
