@@ -1006,16 +1006,22 @@ do
             Library.RegistryMap[ContainerLabel].Properties.TextColor3 = State and 'AccentColor' or 'FontColor';
             local YSize = 0
             local XSize = 0
+            local hasVisible = false
             for _, Label in next, Library.KeybindContainer:GetChildren() do
                 if Label:IsA('TextLabel') and Label.Visible then
+                    hasVisible = true
                     YSize = YSize + 18;
                     if (Label.TextBounds.X > XSize) then
                         XSize = Label.TextBounds.X
                     end
                 end;
             end;
-            Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 10, 210), 0, YSize + 23)
-            Library.KeybindFrame.Visible = true
+            if hasVisible then
+                Library.KeybindFrame.Visible = true
+                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 10, 210), 0, YSize + 23)
+            else
+                Library.KeybindFrame.Visible = false
+            end
         end;
 
         function KeyPicker:GetState()
@@ -2450,8 +2456,13 @@ function Clear3DObjects()
     if Current3DBillboard then Current3DBillboard:Destroy() end
     Current3DPart = nil
     Current3DBillboard = nil
-    if Library.MainFrame and Library.MainFrame.Parent ~= ScreenGui then
-        Library.MainFrame.Parent = ScreenGui
+
+    if Library.MainFrame and Library.MainFrame.Parent then
+        pcall(function()
+            if Library.MainFrame.Parent ~= ScreenGui then
+                Library.MainFrame.Parent = ScreenGui
+            end
+        end)
     end
 end
 
@@ -2459,6 +2470,7 @@ function Create3DObjects()
     Clear3DObjects()
     local Camera = workspace.CurrentCamera
     if not Camera then return end
+
     local Part = Instance.new('Part')
     Part.Name = 'Linoria3DPart'
     Part.Size = Vector3.new(1, 1, 1)
@@ -2468,6 +2480,7 @@ function Create3DObjects()
     Part.CFrame = Camera.CFrame * CFrame.new(0, 0, -THREED_DISTANCE)
     Part.Parent = workspace
     Current3DPart = Part
+
     local Billboard = Instance.new('BillboardGui')
     Billboard.Name = 'Linoria3DBillboard'
     Billboard.Size = UDim2.new(0, 800, 0, 600)
@@ -2475,8 +2488,13 @@ function Create3DObjects()
     Billboard.Adornee = Part
     Billboard.Parent = Part
     Current3DBillboard = Billboard
-    if Library.MainFrame then
-        Library.MainFrame.Parent = Billboard
+
+    if Library.MainFrame and Library.MainFrame.Parent then
+        pcall(function()
+            if Library.MainFrame.Parent ~= Billboard then
+                Library.MainFrame.Parent = Billboard
+            end
+        end)
     end
 end
 
@@ -2962,6 +2980,7 @@ function Library:CreateWindow(...)
             if Toggled then
                 Library:Toggle()
             end
+            Create3DObjects()
         else
             Clear3DObjects()
         end
