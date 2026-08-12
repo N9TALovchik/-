@@ -2975,16 +2975,26 @@ function Library:CreateWindow(...)
     Library.ToggleMenu = Library.Toggle
 
     function Library:Set3DEnabled(enabled)
-        ThreeDMode = enabled
-        if enabled then
-            if Toggled then
-                Library:Toggle()
-            end
-            Create3DObjects()
-        else
-            Clear3DObjects()
-        end
+    if enabled == ThreeDMode then return end
+    ThreeDMode = enabled
+
+    if enabled then
+        -- Создаём 3D-объекты и переносим меню в BillboardGui
+        Create3DObjects()
+
+        -- Делаем меню видимым (оно теперь в 3D)
+        Outer.Visible = true
+        ModalElement.Modal = true
+        Toggled = true
+    else
+        -- Убираем 3D и возвращаем меню в обычный ScreenGui
+        Clear3DObjects()
+
+        -- Показываем или скрываем меню в зависимости от предыдущего состояния
+        Outer.Visible = Toggled
+        ModalElement.Modal = Toggled
     end
+end
     getgenv().Set3DEnabled = Library.Set3DEnabled
 
     Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
