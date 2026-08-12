@@ -1,4 +1,3 @@
--- LinoriaLib модифицированная (исправленные уведомления, звук, прогресс-бар, UICorner)
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -10,19 +9,28 @@ local RenderStepped = RunService.RenderStepped;
 local LocalPlayer = Players.LocalPlayer;
 local Mouse = LocalPlayer:GetMouse();
 loadstring(game:HttpGet("https://raw.githubusercontent.com/N9TALovchik/-/refs/heads/main/addons/NOTALovchik.lua"))()
--- ========== НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ==========
-local CURSOR_IMAGE_ID = "18392993708"   -- ID изображения для кастомного курсора
-local NOTIFY_SOUND_ID = "132463144859699"    -- ID звука уведомлений
-local NOTIFY_ANIMATION_SPEED = 0.3      -- скорость анимации уведомлений (секунды)
--- ==========================================
+local CURSOR_IMAGE_ID = "18392993708"
+local NOTIFY_SOUND_ID = "132463144859699"
+local NOTIFY_ANIMATION_SPEED = 0.3
+local THREED_DISTANCE = 5
+local ThreeDMode = false
+local Current3DPart = nil
+local Current3DBillboard = nil
+local ThreeDConnection = nil
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
 local ScreenGui = Instance.new('ScreenGui');
+local OverlayGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
+ProtectGui(OverlayGui);
 
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+OverlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 ScreenGui.Parent = CoreGui;
+OverlayGui.Parent = CoreGui;
+
+local UIRoot = ScreenGui
 
 local Toggles = {};
 local Options = {};
@@ -50,11 +58,10 @@ local Library = {
     DependencyBoxes = {};
 
     Signals = {};
-    ScreenGui = ScreenGui;
+    ScreenGui = UIRoot;
 
-    -- Настройка UICorner (глобальная)
-    UICornerRadius = 0.8;               -- стандартное скругление (можно менять извне)
-    UICorners = {};                     -- список всех UICorner для обновления
+    UICornerRadius = 0.8;
+    UICorners = {};
 };
 
 local RainbowStep = 0
@@ -253,17 +260,15 @@ function Library:GetDarkerColor(Color)
 end;
 Library.AccentColorDark = Library:GetDarkerColor(Library.AccentColor);
 
--- Функция для обновления радиуса скругления
 function Library:SetUICornerRadius(radius)
     Library.UICornerRadius = radius
     for _, corner in ipairs(Library.UICorners) do
         if corner then
-            corner.CornerRadius = UDim.new(0, radius * 10)  -- преобразуем в UDim с небольшим множителем
+            corner.CornerRadius = UDim.new(0, radius * 10)
         end
     end
 end
 
--- Быстрый доступ через глобальную переменную
 getgenv().SetUICornerRadius = Library.SetUICornerRadius
 
 function Library:AddToRegistry(Instance, Properties, IsHud)
@@ -310,6 +315,7 @@ function Library:Unload()
     end
     if Library.OnUnload then Library.OnUnload() end
     ScreenGui:Destroy()
+    OverlayGui:Destroy()
 end
 
 function Library:OnUnload(Callback)
@@ -939,7 +945,7 @@ do
             TextSize = 13;
             Visible = false;
             ZIndex = 110;
-            Parent = Library.KeybindContainer;
+            Parent = OverlayGui,
         },  true);
 
         local Modes = Info.Modes or { 'Always', 'Toggle', 'Hold' };
@@ -2139,14 +2145,13 @@ do
     end;
 end;
 
--- ========== АНИМИРОВАННЫЕ УВЕДОМЛЕНИЯ ==========
 local NotificationContainer = Library:Create('Frame', {
     BackgroundTransparency = 1;
     Position = UDim2.new(0.5, 0, 1, 0);
     Size = UDim2.new(0, 0, 0, 0);
     AnchorPoint = Vector2.new(0.5, 1);
     ZIndex = 100;
-    Parent = ScreenGui;
+    Parent = OverlayGui;
 });
 
 local activeNotifications = {}
@@ -2155,7 +2160,7 @@ local function PlayNotifySound()
     local sound = Instance.new("Sound")
     sound.SoundId = "rbxassetid://" .. NOTIFY_SOUND_ID
     sound.Volume = 0.5
-    sound.Parent = ScreenGui
+    sound.Parent = OverlayGui
     if sound.IsLoaded then
         sound:Play()
     else
@@ -2186,8 +2191,8 @@ function Library:Notify(Text, Time)
 
     local Outer = Library:Create('Frame', {
         BorderColor3 = Color3.new(0, 0, 0);
-        Size = UDim2.new(0, XSize, 0, YSize);
-        Position = UDim2.new(0.5, -XSize/2, 1, 0);
+        Size = UDim2.new(0, 0, 0, YSize);
+        Position = UDim2.new(0.5, 0, 1, targetY);
         ClipsDescendants = false;
         ZIndex = 100;
         Parent = NotificationContainer;
@@ -2195,10 +2200,9 @@ function Library:Notify(Text, Time)
 
     table.insert(activeNotifications, { Outer = Outer, Time = Time })
 
-    local startPos = UDim2.new(0.5, -XSize/2, 1, 0)
+    local targetSize = UDim2.new(0, XSize, 0, YSize)
     local targetPos = UDim2.new(0.5, -XSize/2, 1, targetY)
-    Outer.Position = startPos
-    local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = targetPos })
+    local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = targetSize, Position = targetPos })
     tweenIn:Play()
 
     local Inner = Library:Create('Frame', {
@@ -2271,7 +2275,7 @@ function Library:Notify(Text, Time)
     rightTween:Play()
 
     task.delay(Time, function()
-        local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = startPos })
+        local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Size = UDim2.new(0, 0, 0, YSize), Position = UDim2.new(0.5, 0, 1, targetY) })
         tweenOut:Play()
         tweenOut.Completed:Connect(function()
             Outer:Destroy()
@@ -2284,14 +2288,15 @@ function Library:Notify(Text, Time)
             local currentY = 0
             for _, notif in ipairs(activeNotifications) do
                 local newTargetPos = UDim2.new(0.5, -notif.Outer.AbsoluteSize.X/2, 1, -currentY - notif.Outer.AbsoluteSize.Y - padding)
+                local newTargetSize = UDim2.new(0, notif.Outer.AbsoluteSize.X, 0, notif.Outer.AbsoluteSize.Y)
                 notif.Outer:TweenPosition(newTargetPos, "Out", "Quad", NOTIFY_ANIMATION_SPEED)
+                notif.Outer:TweenSize(newTargetSize, "Out", "Quad", NOTIFY_ANIMATION_SPEED)
                 currentY = currentY + notif.Outer.AbsoluteSize.Y + padding
             end
         end)
     end)
 end;
 
--- ========== КАСТОМНЫЙ КУРСОР ==========
 local cursorUpdateConnection = nil
 local function UpdateCursor()
     pcall(function()
@@ -2309,14 +2314,13 @@ local function StartCursorUpdater()
 end
 task.spawn(StartCursorUpdater)
 
--- ========== WATERMARK, KEYBINDFRAME ==========
 local WatermarkOuter = Library:Create('Frame', {
     BorderColor3 = Color3.new(0, 0, 0);
     Position = UDim2.new(0, 100, 0, -25);
     Size = UDim2.new(0, 213, 0, 20);
     ZIndex = 200;
     Visible = false;
-    Parent = ScreenGui;
+    Parent = OverlayGui;
 });
 local WatermarkInner = Library:Create('Frame', {
     BackgroundColor3 = Library.MainColor;
@@ -2370,7 +2374,7 @@ local KeybindOuter = Library:Create('Frame', {
     Size = UDim2.new(0, 210, 0, 20);
     Visible = false;
     ZIndex = 100;
-    Parent = ScreenGui;
+    Parent = OverlayGui;
 });
 local KeybindInner = Library:Create('Frame', {
     BackgroundColor3 = Library.MainColor;
@@ -2427,7 +2431,57 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 
--- ========== СОЗДАНИЕ ОКНА ==========
+function Clear3DObjects()
+    if Current3DPart then Current3DPart:Destroy() end
+    if Current3DBillboard then Current3DBillboard:Destroy() end
+    if ThreeDConnection then ThreeDConnection:Disconnect(); ThreeDConnection = nil end
+    Current3DPart = nil
+    Current3DBillboard = nil
+    if Library.ScreenGui.Parent ~= CoreGui then
+        Library.ScreenGui.Parent = CoreGui
+        Library.ScreenGui.Position = UDim2.new(0, 0, 0, 0)
+        Library.ScreenGui.Size = UDim2.new(1, 0, 1, 0)
+    end
+end
+
+function Create3DObjects()
+    Clear3DObjects()
+    local Camera = workspace.CurrentCamera
+    if not Camera then return end
+    local Part = Instance.new('Part')
+    Part.Name = 'Linoria3DPart'
+    Part.Size = Vector3.new(1, 1, 1)
+    Part.Transparency = 1
+    Part.CanCollide = false
+    Part.Anchored = true
+    Part.CFrame = Camera.CFrame * CFrame.new(0, 0, -THREED_DISTANCE)
+    Part.Parent = workspace
+    Current3DPart = Part
+    local Billboard = Instance.new('BillboardGui')
+    Billboard.Name = 'Linoria3DBillboard'
+    Billboard.Size = UDim2.new(0, 800, 0, 600)
+    Billboard.AlwaysOnTop = true
+    Billboard.Adornee = Part
+    Billboard.Parent = Part
+    Current3DBillboard = Billboard
+    Library.ScreenGui.Parent = Billboard
+    Library.ScreenGui.Position = UDim2.new(0, 0, 0, 0)
+    Library.ScreenGui.Size = UDim2.new(1, 0, 1, 0)
+end
+
+function Library:Set3DEnabled(enabled)
+    ThreeDMode = enabled
+    if enabled then
+        if Toggled then
+            Library:Toggle()
+        end
+        Clear3DObjects()
+    else
+        Clear3DObjects()
+    end
+end
+getgenv().Set3DEnabled = Library.Set3DEnabled
+
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
@@ -2457,7 +2511,6 @@ function Library:CreateWindow(...)
         ZIndex = 1;
         Parent = ScreenGui;
     });
-    -- UICorner для Outer
     local OuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Outer });
     table.insert(Library.UICorners, OuterCorner)
 
@@ -2472,7 +2525,6 @@ function Library:CreateWindow(...)
         Parent = Outer;
     });
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'AccentColor'; });
-    -- UICorner для Inner
     local InnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Inner });
     table.insert(Library.UICorners, InnerCorner)
 
@@ -2493,7 +2545,6 @@ function Library:CreateWindow(...)
         Parent = Inner;
     });
     Library:AddToRegistry(MainSectionOuter, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor'; });
-    -- UICorner для MainSectionOuter
     local MainOuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = MainSectionOuter });
     table.insert(Library.UICorners, MainOuterCorner)
 
@@ -2507,7 +2558,6 @@ function Library:CreateWindow(...)
         Parent = MainSectionOuter;
     });
     Library:AddToRegistry(MainSectionInner, { BackgroundColor3 = 'BackgroundColor'; });
-    -- UICorner для MainSectionInner (по желанию, но не обязательно)
     local MainInnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = MainSectionInner });
     table.insert(Library.UICorners, MainInnerCorner)
 
@@ -2869,6 +2919,13 @@ function Library:CreateWindow(...)
         if not Toggled then
             for frame, _ in pairs(Library.OpenedFrames) do frame.Visible = false end
             table.clear(Library.OpenedFrames)
+            if ThreeDMode then
+                Clear3DObjects()
+            end
+        else
+            if ThreeDMode then
+                Create3DObjects()
+            end
         end
         if Toggled then Outer.Visible = true; end;
         for _, Desc in next, Outer:GetDescendants() do
@@ -2892,6 +2949,9 @@ function Library:CreateWindow(...)
         end;
         task.wait(FadeTime);
         Outer.Visible = Toggled;
+        if not Toggled and ThreeDMode then
+            Clear3DObjects()
+        end
         Fading = false;
     end
     Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
