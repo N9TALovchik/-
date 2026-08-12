@@ -2473,8 +2473,8 @@ function Create3DObjects()
     if not Camera then return end
 
     local windowSize = Library.MainFrame and Library.MainFrame.Size or UDim2.fromOffset(550, 600)
-    local partSizeX = windowSize.X.Offset / PPU
-    local partSizeY = windowSize.Y.Offset / PPU
+    local partSizeX = math.max(windowSize.X.Offset / PPU, 0.1)
+    local partSizeY = math.max(windowSize.Y.Offset / PPU, 0.1)
 
     local Part = Instance.new('Part')
     Part.Name = 'Linoria3DPart'
@@ -2489,8 +2489,8 @@ function Create3DObjects()
     local Surface = Instance.new('SurfaceGui')
     Surface.Name = 'Linoria3DSurface'
     Surface.Face = Enum.NormalId.Front
-   
     Surface.PixelsPerStud = PPU
+    Surface.CanvasSize = Vector2.new(windowSize.X.Offset, windowSize.Y.Offset)
     Surface.AlwaysOnTop = true
     Surface.Parent = Part
     Current3DSurface = Surface
