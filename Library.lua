@@ -62,6 +62,9 @@ local Library = {
 
     UICornerRadius = 0.8;
     UICorners = {};
+
+    NotifySoundId = NOTIFY_SOUND_ID;
+    CursorImageId = CURSOR_IMAGE_ID;
 };
 
 local RainbowStep = 0
@@ -945,7 +948,7 @@ do
             TextSize = 13;
             Visible = false;
             ZIndex = 110;
-            Parent = OverlayGui,
+            Parent = Library.KeybindContainer,
         },  true);
 
         local Modes = Info.Modes or { 'Always', 'Toggle', 'Hold' };
@@ -2158,7 +2161,7 @@ local activeNotifications = {}
 
 local function PlayNotifySound()
     local sound = Instance.new("Sound")
-    sound.SoundId = "rbxassetid://" .. NOTIFY_SOUND_ID
+    sound.SoundId = "rbxassetid://" .. Library.NotifySoundId
     sound.Volume = 0.5
     sound.Parent = OverlayGui
     if sound.IsLoaded then
@@ -2191,18 +2194,18 @@ function Library:Notify(Text, Time)
 
     local Outer = Library:Create('Frame', {
         BorderColor3 = Color3.new(0, 0, 0);
-        Size = UDim2.new(0, 0, 0, YSize);
-        Position = UDim2.new(0.5, 0, 1, targetY);
-        ClipsDescendants = false;
+        Size = UDim2.new(0, XSize, 0, YSize);
+        Position = UDim2.new(0.5, -XSize/2, 1, 0);
+        ClipsDescendants = true;
         ZIndex = 100;
         Parent = NotificationContainer;
     });
 
     table.insert(activeNotifications, { Outer = Outer, Time = Time })
 
-    local targetSize = UDim2.new(0, XSize, 0, YSize)
+    local startPos = UDim2.new(0.5, -XSize/2, 1, 0)
     local targetPos = UDim2.new(0.5, -XSize/2, 1, targetY)
-    local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = targetSize, Position = targetPos })
+    local tweenIn = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = targetPos })
     tweenIn:Play()
 
     local Inner = Library:Create('Frame', {
@@ -2275,7 +2278,7 @@ function Library:Notify(Text, Time)
     rightTween:Play()
 
     task.delay(Time, function()
-        local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Size = UDim2.new(0, 0, 0, YSize), Position = UDim2.new(0.5, 0, 1, targetY) })
+        local tweenOut = TweenService:Create(Outer, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = startPos })
         tweenOut:Play()
         tweenOut.Completed:Connect(function()
             Outer:Destroy()
@@ -2288,9 +2291,7 @@ function Library:Notify(Text, Time)
             local currentY = 0
             for _, notif in ipairs(activeNotifications) do
                 local newTargetPos = UDim2.new(0.5, -notif.Outer.AbsoluteSize.X/2, 1, -currentY - notif.Outer.AbsoluteSize.Y - padding)
-                local newTargetSize = UDim2.new(0, notif.Outer.AbsoluteSize.X, 0, notif.Outer.AbsoluteSize.Y)
                 notif.Outer:TweenPosition(newTargetPos, "Out", "Quad", NOTIFY_ANIMATION_SPEED)
-                notif.Outer:TweenSize(newTargetSize, "Out", "Quad", NOTIFY_ANIMATION_SPEED)
                 currentY = currentY + notif.Outer.AbsoluteSize.Y + padding
             end
         end)
@@ -2302,7 +2303,7 @@ local function UpdateCursor()
     pcall(function()
         local mouse = LocalPlayer:GetMouse()
         if mouse then
-            mouse.Icon = "rbxassetid://" .. CURSOR_IMAGE_ID
+            mouse.Icon = "rbxassetid://" .. Library.CursorImageId
         end
     end)
 end
@@ -2313,6 +2314,17 @@ local function StartCursorUpdater()
     LocalPlayer.CharacterAdded:Connect(UpdateCursor)
 end
 task.spawn(StartCursorUpdater)
+
+function Library:SetNotifySoundId(id)
+    Library.NotifySoundId = id
+end
+getgenv().SetNotifySoundId = Library.SetNotifySoundId
+
+function Library:SetCursorImageId(id)
+    Library.CursorImageId = id
+    UpdateCursor()
+end
+getgenv().SetCursorImageId = Library.SetCursorImageId
 
 local WatermarkOuter = Library:Create('Frame', {
     BorderColor3 = Color3.new(0, 0, 0);
@@ -2439,8 +2451,6 @@ function Clear3DObjects()
     Current3DBillboard = nil
     if Library.ScreenGui.Parent ~= CoreGui then
         Library.ScreenGui.Parent = CoreGui
-        Library.ScreenGui.Position = UDim2.new(0, 0, 0, 0)
-        Library.ScreenGui.Size = UDim2.new(1, 0, 1, 0)
     end
 end
 
@@ -2465,22 +2475,7 @@ function Create3DObjects()
     Billboard.Parent = Part
     Current3DBillboard = Billboard
     Library.ScreenGui.Parent = Billboard
-    Library.ScreenGui.Position = UDim2.new(0, 0, 0, 0)
-    Library.ScreenGui.Size = UDim2.new(1, 0, 1, 0)
 end
-
-function Library:Set3DEnabled(enabled)
-    ThreeDMode = enabled
-    if enabled then
-        if Toggled then
-            Library:Toggle()
-        end
-        Clear3DObjects()
-    else
-        Clear3DObjects()
-    end
-end
-getgenv().Set3DEnabled = Library.Set3DEnabled
 
 function Library:CreateWindow(...)
     local Arguments = { ... }
@@ -2954,6 +2949,20 @@ function Library:CreateWindow(...)
         end
         Fading = false;
     end
+    Library.ToggleMenu = Library.Toggle
+
+    function Library:Set3DEnabled(enabled)
+        ThreeDMode = enabled
+        if enabled then
+            if Toggled then
+                Library:Toggle()
+            end
+        else
+            Clear3DObjects()
+        end
+    end
+    getgenv().Set3DEnabled = Library.Set3DEnabled
+
     Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
         if type(Library.ToggleKeybind) == 'table' and Library.ToggleKeybind.Type == 'KeyPicker' then
             if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode.Name == Library.ToggleKeybind.Value then
