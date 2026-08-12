@@ -13,9 +13,10 @@ local CURSOR_IMAGE_ID = "18392993708"
 local NOTIFY_SOUND_ID = "132463144859699"
 local NOTIFY_ANIMATION_SPEED = 0.3
 local THREED_DISTANCE = 5
+local PPU = 100
 local ThreeDMode = false
 local Current3DPart = nil
-local Current3DBillboard = nil
+local Current3DSurface = nil
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
@@ -2453,9 +2454,9 @@ end;
 
 function Clear3DObjects()
     if Current3DPart then Current3DPart:Destroy() end
-    if Current3DBillboard then Current3DBillboard:Destroy() end
+    if Current3DSurface then Current3DSurface:Destroy() end
     Current3DPart = nil
-    Current3DBillboard = nil
+    Current3DSurface = nil
 
     if Library.MainFrame and Library.MainFrame.Parent then
         pcall(function()
@@ -2471,9 +2472,13 @@ function Create3DObjects()
     local Camera = workspace.CurrentCamera
     if not Camera then return end
 
+    local windowSize = Library.MainFrame and Library.MainFrame.Size or UDim2.fromOffset(550, 600)
+    local partSizeX = windowSize.X.Offset / PPU
+    local partSizeY = windowSize.Y.Offset / PPU
+
     local Part = Instance.new('Part')
     Part.Name = 'Linoria3DPart'
-    Part.Size = Vector3.new(1, 1, 1)
+    Part.Size = Vector3.new(partSizeX, partSizeY, 0.1)
     Part.Transparency = 1
     Part.CanCollide = false
     Part.Anchored = true
@@ -2481,18 +2486,19 @@ function Create3DObjects()
     Part.Parent = workspace
     Current3DPart = Part
 
-    local Billboard = Instance.new('BillboardGui')
-    Billboard.Name = 'Linoria3DBillboard'
-    Billboard.Size = UDim2.new(0, 800, 0, 600)
-    Billboard.AlwaysOnTop = true
-    Billboard.Adornee = Part
-    Billboard.Parent = Part
-    Current3DBillboard = Billboard
+    local Surface = Instance.new('SurfaceGui')
+    Surface.Name = 'Linoria3DSurface'
+    Surface.Face = Enum.NormalId.Front
+    Surface.Size = UDim2.new(1, 0, 1, 0)
+    Surface.PixelsPerStud = PPU
+    Surface.AlwaysOnTop = true
+    Surface.Parent = Part
+    Current3DSurface = Surface
 
     if Library.MainFrame and Library.MainFrame.Parent then
         pcall(function()
-            if Library.MainFrame.Parent ~= Billboard then
-                Library.MainFrame.Parent = Billboard
+            if Library.MainFrame.Parent ~= Surface then
+                Library.MainFrame.Parent = Surface
             end
         end)
     end
@@ -2934,67 +2940,64 @@ function Library:CreateWindow(...)
         Fading = true;
         Toggled = (not Toggled);
         ModalElement.Modal = Toggled;
-        if not Toggled then
-            for frame, _ in pairs(Library.OpenedFrames) do frame.Visible = false end
-            table.clear(Library.OpenedFrames)
-            if ThreeDMode then
-                Clear3DObjects()
-            end
+
+        if ThreeDMode then
+            Outer.Visible = Toggled
         else
-            if ThreeDMode then
-                Create3DObjects()
+            if not Toggled then
+                for frame, _ in pairs(Library.OpenedFrames) do frame.Visible = false end
+                table.clear(Library.OpenedFrames)
             end
+            if Toggled then Outer.Visible = true; end;
+            for _, Desc in next, Outer:GetDescendants() do
+                local Properties = {};
+                if Desc:IsA('ImageLabel') then
+                    table.insert(Properties, 'ImageTransparency'); table.insert(Properties, 'BackgroundTransparency');
+                elseif Desc:IsA('TextLabel') or Desc:IsA('TextBox') then
+                    table.insert(Properties, 'TextTransparency');
+                elseif Desc:IsA('Frame') or Desc:IsA('ScrollingFrame') then
+                    table.insert(Properties, 'BackgroundTransparency');
+                elseif Desc:IsA('UIStroke') then
+                    table.insert(Properties, 'Transparency');
+                end;
+                local Cache = TransparencyCache[Desc];
+                if (not Cache) then Cache = {}; TransparencyCache[Desc] = Cache; end;
+                for _, Prop in next, Properties do
+                    if not Cache[Prop] then Cache[Prop] = Desc[Prop]; end;
+                    if Cache[Prop] == 1 then continue; end;
+                    TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = Toggled and Cache[Prop] or 1 }):Play();
+                end;
+            end;
         end
-        if Toggled then Outer.Visible = true; end;
-        for _, Desc in next, Outer:GetDescendants() do
-            local Properties = {};
-            if Desc:IsA('ImageLabel') then
-                table.insert(Properties, 'ImageTransparency'); table.insert(Properties, 'BackgroundTransparency');
-            elseif Desc:IsA('TextLabel') or Desc:IsA('TextBox') then
-                table.insert(Properties, 'TextTransparency');
-            elseif Desc:IsA('Frame') or Desc:IsA('ScrollingFrame') then
-                table.insert(Properties, 'BackgroundTransparency');
-            elseif Desc:IsA('UIStroke') then
-                table.insert(Properties, 'Transparency');
-            end;
-            local Cache = TransparencyCache[Desc];
-            if (not Cache) then Cache = {}; TransparencyCache[Desc] = Cache; end;
-            for _, Prop in next, Properties do
-                if not Cache[Prop] then Cache[Prop] = Desc[Prop]; end;
-                if Cache[Prop] == 1 then continue; end;
-                TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = Toggled and Cache[Prop] or 1 }):Play();
-            end;
-        end;
+
         task.wait(FadeTime);
-        Outer.Visible = Toggled;
-        if not Toggled and ThreeDMode then
-            Clear3DObjects()
+        if not Toggled and not ThreeDMode then
+            Outer.Visible = false
         end
         Fading = false;
     end
     Library.ToggleMenu = Library.Toggle
 
     function Library:Set3DEnabled(enabled)
-    if enabled == ThreeDMode then return end
-    ThreeDMode = enabled
+        if enabled == ThreeDMode then return end
+        ThreeDMode = enabled
 
-    if enabled then
-        -- Создаём 3D-объекты и переносим меню в BillboardGui
-        Create3DObjects()
-
-        -- Делаем меню видимым (оно теперь в 3D)
-        Outer.Visible = true
-        ModalElement.Modal = true
-        Toggled = true
-    else
-        -- Убираем 3D и возвращаем меню в обычный ScreenGui
-        Clear3DObjects()
-
-        -- Показываем или скрываем меню в зависимости от предыдущего состояния
-        Outer.Visible = Toggled
-        ModalElement.Modal = Toggled
+        if enabled then
+            Create3DObjects()
+            Outer.Visible = true
+            ModalElement.Modal = true
+            Toggled = true
+        else
+            Clear3DObjects()
+            if Toggled then
+                Outer.Visible = true
+                ModalElement.Modal = true
+            else
+                Outer.Visible = false
+                ModalElement.Modal = false
+            end
+        end
     end
-end
     getgenv().Set3DEnabled = Library.Set3DEnabled
 
     Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
