@@ -355,7 +355,7 @@ function ShopManager:Init(Window, Tabs)
 -- ===== INVISIBLE MODE (тело под картой, камера на копии, первый человек) =====
 -- Добавляем в группу "Other Features" вкладки "Misc"
 
-local invisibleToggle = OtherFeaturesSection:AddToggle('InvisibleMode', {
+local invisibleToggle = miscGroup:AddToggle('InvisibleMode', {
     Text = 'Invisible Mode',
     Default = false,
     Tooltip = 'Оригинал уходит под карту, прозрачная копия остаётся на месте, камера от первого лица'
