@@ -1,4 +1,4 @@
--- ThemeManager.lua (финальная версия: одна группа, Drawing клик, Radio с историей звуков, исправлен SetText)
+
 local httpService = game:GetService('HttpService')
 local UserInputService = game:GetService('UserInputService')
 local TweenService = game:GetService('TweenService')
