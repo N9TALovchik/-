@@ -1,4 +1,4 @@
--- ThemeManager.lua (чистая версия: одна группа, Drawing клик, Radio с историей звуков)
+-- ThemeManager.lua (финальная версия: одна группа, Drawing клик, Radio с историей звуков, исправлен SetText)
 local httpService = game:GetService('HttpService')
 local UserInputService = game:GetService('UserInputService')
 local TweenService = game:GetService('TweenService')
@@ -40,10 +40,9 @@ local ThemeManager = {} do
 	local radioDuration = 0
 
 	-- История звуков
-	local soundHistory = {} -- { [id] = { name = string, lastPlayed = number } }
+	local soundHistory = {}
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
 
-	-- Загрузка истории
 	local function loadSoundHistory()
 		if isfile(historyFile) then
 			local success, data = pcall(httpService.JSONDecode, httpService, readfile(historyFile))
@@ -56,14 +55,12 @@ local ThemeManager = {} do
 	end
 	loadSoundHistory()
 
-	-- Сохранение истории
 	local function saveSoundHistory()
 		pcall(function()
 			writefile(historyFile, httpService:JSONEncode(soundHistory))
 		end)
 	end
 
-	-- Добавление звука в историю
 	local function addToHistory(soundId, soundName)
 		if not soundId or soundId == "" then return end
 		local id = soundId
@@ -79,13 +76,11 @@ local ThemeManager = {} do
 			}
 		end
 		saveSoundHistory()
-		-- Обновляем дропдаун истории
 		if Options.SoundHistoryDropdown then
 			Options.SoundHistoryDropdown:SetValues(ThemeManager:GetSoundHistoryList())
 		end
 	end
 
-	-- Получение списка для дропдауна
 	function ThemeManager:GetSoundHistoryList()
 		local list = {}
 		for id, data in pairs(soundHistory) do
@@ -102,12 +97,10 @@ local ThemeManager = {} do
 		return list
 	end
 
-	-- Получение ID из строки дропдауна
 	local function getSoundIdFromDisplay(display)
 		return display:match("%((%d+)%)$")
 	end
 
-	-- Функция воспроизведения звука (для клика и радио)
 	local function playSound(soundId, volume, callback, onError)
 		if not soundId or soundId == "" then 
 			if onError then onError("No Sound ID") end
@@ -142,7 +135,6 @@ local ThemeManager = {} do
 		return sound
 	end
 
-	-- Обновление статуса Radio
 	local function updateRadioUI()
 		if not Options.RadioStatus then return end
 		if radioPlaying and radioSound then
@@ -155,7 +147,6 @@ local ThemeManager = {} do
 		end
 	end
 
-	-- Остановка радио
 	local function stopRadio()
 		if radioSound then
 			radioSound:Stop()
@@ -164,7 +155,7 @@ local ThemeManager = {} do
 		end
 		radioPlaying = false
 		if Options.RadioPlayButton then
-			Options.RadioPlayButton:SetText("Play Sound")
+			Options.RadioPlayButton.Label.Text = "Play Sound"
 		end
 		if radioUpdateConnection then
 			radioUpdateConnection:Disconnect()
@@ -173,7 +164,6 @@ local ThemeManager = {} do
 		updateRadioUI()
 	end
 
-	-- Запуск радио
 	local function startRadio()
 		stopRadio()
 		local id = Options.RadioSoundId and Options.RadioSoundId.Value or ""
@@ -188,7 +178,7 @@ local ThemeManager = {} do
 		local sound = playSound(id, volume, function()
 			radioPlaying = false
 			if Options.RadioPlayButton then
-				Options.RadioPlayButton:SetText("Play Sound")
+				Options.RadioPlayButton.Label.Text = "Play Sound"
 			end
 			if radioUpdateConnection then
 				radioUpdateConnection:Disconnect()
@@ -198,7 +188,7 @@ local ThemeManager = {} do
 		end, function(err)
 			radioPlaying = false
 			if Options.RadioPlayButton then
-				Options.RadioPlayButton:SetText("Play Sound")
+				Options.RadioPlayButton.Label.Text = "Play Sound"
 			end
 			if ThemeManager.Library then ThemeManager.Library:Notify("Error: " .. err, 3) end
 			updateRadioUI()
@@ -208,7 +198,7 @@ local ThemeManager = {} do
 			radioSound = sound
 			radioPlaying = true
 			if Options.RadioPlayButton then
-				Options.RadioPlayButton:SetText("Stop Sound")
+				Options.RadioPlayButton.Label.Text = "Stop Sound"
 			end
 			radioName = sound.Name or id
 			radioDuration = sound.TimeLength or 0
@@ -218,7 +208,6 @@ local ThemeManager = {} do
 		end
 	end
 
-	-- Инициализация клик-эффекта
 	function ThemeManager:InitClickEffect()
 		if inputConnection then inputConnection:Disconnect() inputConnection = nil end
 		lastClickTime = 0
@@ -283,7 +272,6 @@ local ThemeManager = {} do
 		end)
 	end
 
-	-- Применение темы
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = ThemeManager:GetCustomTheme(theme)
 		local data = customThemeData or ThemeManager.BuiltInThemes[theme]
@@ -330,7 +318,6 @@ local ThemeManager = {} do
 		end
 	end
 
-	-- Сохранение/загрузка дефолтной темы
 	function ThemeManager:SaveDefault(theme)
 		writefile(ThemeManager.Folder .. '/themes/default.txt', theme)
 	end
@@ -356,7 +343,6 @@ local ThemeManager = {} do
 		end
 	end
 
-	-- Загрузка/сохранение доп. настроек (курсор, звук уведомлений)
 	local function loadSetting(key, default)
 		local path = ThemeManager.Folder .. '/settings/' .. key .. '.txt'
 		if isfile(path) then return readfile(path) end
@@ -366,7 +352,6 @@ local ThemeManager = {} do
 		writefile(ThemeManager.Folder .. '/settings/' .. key .. '.txt', value)
 	end
 
-	-- Создание UI (всё в одной группе)
 	function ThemeManager:CreateThemeManager(groupbox)
 		-- Theme Colors
 		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = ThemeManager.Library.BackgroundColor })
