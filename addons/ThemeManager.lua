@@ -157,7 +157,7 @@ local ThemeManager = {} do
 		return playSoundInternal(soundId, volume, callback, onError, false)
 	end
 
-	-- Обновление статуса Radio (исправлено: TextLabel.Text)
+	-- Обновление статуса Radio
 	local function updateRadioUI()
 		if not Options.RadioStatus then return end
 		local label = Options.RadioStatus
@@ -179,8 +179,8 @@ local ThemeManager = {} do
 			radioSound = nil
 		end
 		radioPlaying = false
-		if Options.RadioPlayButton then
-			Options.RadioPlayButton:SetText("Play Sound")
+		if Options.RadioPlayButton and Options.RadioPlayButton.Label then
+			Options.RadioPlayButton.Label.Text = "Play Sound"
 		end
 		if radioUpdateConnection then
 			radioUpdateConnection:Disconnect()
@@ -204,8 +204,8 @@ local ThemeManager = {} do
 
 		local function onEnd()
 			radioPlaying = false
-			if Options.RadioPlayButton then
-				Options.RadioPlayButton:SetText("Play Sound")
+			if Options.RadioPlayButton and Options.RadioPlayButton.Label then
+				Options.RadioPlayButton.Label.Text = "Play Sound"
 			end
 			if radioUpdateConnection then
 				radioUpdateConnection:Disconnect()
@@ -216,8 +216,8 @@ local ThemeManager = {} do
 
 		local function onError(err)
 			radioPlaying = false
-			if Options.RadioPlayButton then
-				Options.RadioPlayButton:SetText("Play Sound")
+			if Options.RadioPlayButton and Options.RadioPlayButton.Label then
+				Options.RadioPlayButton.Label.Text = "Play Sound"
 			end
 			if ThemeManager.Library then ThemeManager.Library:Notify("Error: " .. err, 3) end
 			updateRadioUI()
@@ -228,8 +228,8 @@ local ThemeManager = {} do
 		if sound then
 			radioSound = sound
 			radioPlaying = true
-			if Options.RadioPlayButton then
-				Options.RadioPlayButton:SetText("Stop Sound")
+			if Options.RadioPlayButton and Options.RadioPlayButton.Label then
+				Options.RadioPlayButton.Label.Text = "Stop Sound"
 			end
 			radioName = sound.Name or id
 			radioDuration = sound.TimeLength or 0
@@ -270,7 +270,6 @@ local ThemeManager = {} do
 	-- Создание клик-эффекта через Drawing
 	function ThemeManager:CreateClickEffect(x, y)
 		if not ThemeManager.Library then return end
-		-- Проверка, доступен ли Drawing
 		if not Drawing then return end
 		if not Drawing.new then return end
 
