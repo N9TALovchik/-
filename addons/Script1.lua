@@ -349,6 +349,197 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
+
+
+
+-- ===== INVISIBLE MODE (тело под картой, камера на копии, первый человек) =====
+-- Добавляем в группу "Other Features" вкладки "Misc"
+
+local invisibleToggle = OtherFeaturesSection:AddToggle('InvisibleMode', {
+    Text = 'Invisible Mode',
+    Default = false,
+    Tooltip = 'Оригинал уходит под карту, прозрачная копия остаётся на месте, камера от первого лица'
+})
+
+local invisibleData = {
+    savedCFrame = nil,
+    savedTransparencies = {},
+    savedPlatformStand = false,
+    savedAutoRotate = true,
+    savedCameraSubject = nil,
+    savedCameraMode = nil,
+    copyInstance = nil,
+    wasAnchored = false
+}
+
+-- Вспомогательные функции
+local function setAllPartsTransparency(character, transparency, skipList)
+    if not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and (not skipList or not skipList[part]) then
+            part.Transparency = transparency
+        end
+    end
+end
+
+local function saveTransparencies(character)
+    if not character then return end
+    invisibleData.savedTransparencies = {}
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            invisibleData.savedTransparencies[part] = part.Transparency
+        end
+    end
+end
+
+local function restoreTransparencies(character)
+    if not character or not invisibleData.savedTransparencies then return end
+    for part, trans in pairs(invisibleData.savedTransparencies) do
+        if part and part.Parent then
+            part.Transparency = trans
+        end
+    end
+    invisibleData.savedTransparencies = {}
+end
+
+local function setAnchored(character, anchored)
+    if not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = anchored
+        end
+    end
+end
+
+local function setCanCollide(character, collide)
+    if not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = collide
+        end
+    end
+end
+
+local function toggleInvisibleMode(enabled)
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character then return end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local hrp = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+    if not hrp or not humanoid then return end
+
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+
+    if enabled then
+        -- Сохраняем текущее состояние
+        invisibleData.savedCFrame = hrp.CFrame
+        invisibleData.savedPlatformStand = humanoid.PlatformStand
+        invisibleData.savedAutoRotate = humanoid.AutoRotate
+        invisibleData.savedCameraSubject = camera.CameraSubject
+        invisibleData.savedCameraMode = player.CameraMode
+        saveTransparencies(character)
+
+        -- Создаём копию персонажа
+        local copy = character:Clone()
+        copy.Name = "InvisibleCopy"
+        copy.Parent = workspace
+
+        -- Делаем копию полупрозрачной и без коллизий
+        setAllPartsTransparency(copy, 0.5)
+        setCanCollide(copy, false)
+
+        -- Отключаем физику копии (чтобы не двигалась)
+        local copyHumanoid = copy:FindFirstChildOfClass("Humanoid")
+        if copyHumanoid then
+            copyHumanoid.PlatformStand = true
+            copyHumanoid.AutoRotate = false
+        end
+        setAnchored(copy, true) -- заанкорим всю копию, чтобы стояла на месте
+
+        -- Устанавливаем камеру на копию
+        camera.CameraSubject = copyHumanoid or copy
+
+        -- Переключаем в первый человек (если хотим)
+        player.CameraMode = Enum.CameraMode.LockFirstPerson
+
+        -- Теперь оригинал: телепортируем под карту
+        local targetPos = Vector3.new(867.782043, -39.9123535, -141.675568)
+        -- можно использовать точный CFrame, но позиции достаточно
+        hrp.CFrame = CFrame.new(targetPos)
+
+        -- Заанкориваем оригинал, чтобы не падал
+        setAnchored(character, true)
+
+        -- Делаем оригинал полностью прозрачным
+        setAllPartsTransparency(character, 1)
+
+        -- Отключаем управление оригиналом
+        humanoid.PlatformStand = true
+        humanoid.AutoRotate = false
+
+        -- Сохраняем ссылку на копию
+        invisibleData.copyInstance = copy
+
+        _G.NOTALovchik_InvisibleModeActive = true
+        v64("Invisible mode ON – тело под картой, камера на копии", 2)
+
+    else
+        -- Выключение: возврат всего
+        if invisibleData.copyInstance then
+            invisibleData.copyInstance:Destroy()
+            invisibleData.copyInstance = nil
+        end
+
+        -- Возврат камеры на оригинал
+        camera.CameraSubject = invisibleData.savedCameraSubject or character
+
+        -- Возврат режима камеры
+        if invisibleData.savedCameraMode then
+            player.CameraMode = invisibleData.savedCameraMode
+        end
+
+        -- Возврат оригинала на место
+        if invisibleData.savedCFrame then
+            hrp.CFrame = invisibleData.savedCFrame
+        end
+
+        -- Снимаем Anchored с оригинала
+        setAnchored(character, false)
+
+        -- Восстанавливаем прозрачность
+        restoreTransparencies(character)
+
+        -- Восстанавливаем управление
+        humanoid.PlatformStand = invisibleData.savedPlatformStand or false
+        humanoid.AutoRotate = invisibleData.savedAutoRotate
+
+        _G.NOTALovchik_InvisibleModeActive = false
+        v64("Invisible mode OFF – всё возвращено", 2)
+    end
+end
+
+-- Следим за респавном персонажа – при смерти выключаем режим
+local function onCharacterAdded(char)
+    if _G.NOTALovchik_InvisibleModeActive then
+        -- Если режим был активен, отключаем его при новом появлении
+        invisibleToggle:SetValue(false)
+        toggleInvisibleMode(false)
+    end
+end
+
+if _G.NOTALovchik_HasPlayersService then
+    _G.NOTALovchik_PlayersService.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+end
+
+-- Подписываемся на изменение Toggle
+invisibleToggle:OnChanged(function(value)
+    toggleInvisibleMode(value)
+end)
+
+
+    
     -- ===== VIEWMODEL CHANGER =====
     local savedOffset = nil
     pcall(function()
