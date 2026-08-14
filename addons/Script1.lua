@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финальный + Silent Aim + Invisible Mode в группе Fun вкладки Arrp)
+-- ShopManager.lua (полный финал + Invisible Mode в группе Fun вкладки Arrp, безопасное клонирование)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -25,7 +25,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== INF STAMINA (TOGGLE) =====
+    -- ===== INF STAMINA =====
     local infStaminaToggle = miscGroup:AddToggle('InfStaminaToggle', {
         Text = 'Inf Stamina',
         Default = false,
@@ -503,7 +503,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- ESP GROUP (Car ESP) – финальная версия
+    -- ESP GROUP (Car ESP)
     -- =====================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
@@ -1276,11 +1276,10 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- PLAYER ACTIONS GROUP (Выбор игрока + Steal Sound)
+    -- PLAYER ACTIONS GROUP
     -- =====================================================
     local playerGroup = shopTab:AddLeftGroupbox('Player Actions')
 
-    -- Функция получения списка игроков
     local function getPlayerList()
         local players = {}
         local localPlayer = game.Players.LocalPlayer
@@ -1296,7 +1295,6 @@ function ShopManager:Init(Window, Tabs)
         return players
     end
 
-    -- Dropdown для выбора игрока
     local playerDropdown = playerGroup:AddDropdown('PlayerDropdown', {
         Text = 'Select Player',
         Values = getPlayerList(),
@@ -1306,15 +1304,12 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Выберите игрока для действий'
     })
 
-    -- Переменная для хранения выбранного имени
     local selectedPlayerName = playerDropdown.Value or "No players found"
 
-    -- Обновление при выборе
     playerDropdown:OnChanged(function(value)
         selectedPlayerName = value
     end)
 
-    -- Кнопка обновления списка
     playerGroup:AddButton('Refresh Player List', function()
         local newList = getPlayerList()
         playerDropdown:SetValues(newList)
@@ -1324,7 +1319,6 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Player list refreshed", 2)
     end)
 
-    -- Кнопка Steal Sound
     playerGroup:AddButton('Steal Sound', function()
         if selectedPlayerName == "No players found" or not selectedPlayerName then
             Library:Notify("No player selected", 3)
@@ -1349,7 +1343,6 @@ function ShopManager:Init(Window, Tabs)
             return
         end
 
-        -- Ищем Sound внутри Head (может быть прямой потомок или глубже)
         local sound = nil
         for _, child in ipairs(head:GetDescendants()) do
             if child:IsA("Sound") then
@@ -1369,7 +1362,6 @@ function ShopManager:Init(Window, Tabs)
             return
         end
 
-        -- Извлекаем числовой ID (убираем "rbxassetid://" или "rbxasset://")
         local id = soundId:match("rbxassetid://(%d+)")
         if not id then
             id = soundId:match("rbxasset://(%d+)")
@@ -1383,7 +1375,6 @@ function ShopManager:Init(Window, Tabs)
             return
         end
 
-        -- Копируем в буфер обмена
         local success = pcall(function()
             setclipboard(id)
         end)
@@ -1396,7 +1387,7 @@ function ShopManager:Init(Window, Tabs)
     end)
 
     -- =====================================================
-    -- АВТО-БАЙ (оставлено без изменений)
+    -- АВТО-БАЙ
     -- =====================================================
     local currentNPCId = "Smugglers"
     local currentConfig = nil
@@ -1735,7 +1726,7 @@ function ShopManager:Init(Window, Tabs)
     end)
     
     -- =====================================================
-    -- ГРУППА FUN ВНУТРИ ВКЛАДКИ Arrp
+    -- ГРУППА FUN (Invisible Mode) ВНУТРИ ВКЛАДКИ Arrp
     -- =====================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
     
@@ -1745,6 +1736,7 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Оригинал уходит под карту, прозрачная копия остаётся на месте, камера от первого лица'
     })
 
+    -- Хранилище данных
     local invisibleData = {
         savedCFrame = nil,
         savedTransparencies = {},
@@ -1755,6 +1747,7 @@ function ShopManager:Init(Window, Tabs)
         copyInstance = nil,
     }
 
+    -- Вспомогательные функции
     local function setAllPartsTransparency(character, transparency)
         if not character then return end
         for _, part in ipairs(character:GetDescendants()) do
@@ -1802,15 +1795,35 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    local function cloneCharacter(character)
-        local success, result = pcall(function()
-            return character:Clone()
-        end)
-        if success then
-            return result
-        else
-            return nil
+    -- БЕЗОПАСНОЕ КЛОНИРОВАНИЕ (только BasePart + новый Humanoid)
+    local function createSafeClone(character)
+        local clone = Instance.new("Model")
+        clone.Name = "InvisibleCopy"
+        
+        -- Копируем все BasePart'ы с их свойствами
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local newPart = Instance.new(part.ClassName)
+                newPart.Name = part.Name
+                newPart.Size = part.Size
+                newPart.CFrame = part.CFrame
+                newPart.Color = part.Color
+                newPart.Material = part.Material
+                newPart.Transparency = part.Transparency
+                newPart.Anchored = part.Anchored
+                newPart.CanCollide = part.CanCollide
+                newPart.Parent = clone
+            end
         end
+        
+        -- Добавляем Humanoid (для камеры)
+        local humanoid = Instance.new("Humanoid")
+        humanoid.PlatformStand = true
+        humanoid.AutoRotate = false
+        humanoid.Parent = clone
+        
+        clone.Parent = workspace
+        return clone
     end
 
     local function toggleInvisibleMode(enabled)
@@ -1835,38 +1848,35 @@ function ShopManager:Init(Window, Tabs)
             invisibleData.savedCameraMode = player.CameraMode
             saveTransparencies(character)
 
-            -- Клонируем персонажа с защитой от ошибок
-            local copy = cloneCharacter(character)
+            -- Создаём упрощённую копию
+            local copy = createSafeClone(character)
             if not copy then
-                Library:Notify("Failed to clone character – retrying in 0.5s", 3)
-                task.wait(0.5)
-                copy = cloneCharacter(character)
-                if not copy then
-                    Library:Notify("Still failed to clone. Disabling Invisible Mode.", 3)
-                    invisibleToggle:SetValue(false)
-                    return
-                end
+                Library:Notify("Failed to create copy – disabling", 3)
+                invisibleToggle:SetValue(false)
+                return
             end
-            copy.Name = "InvisibleCopy"
-            copy.Parent = workspace
 
+            -- Делаем копию полупрозрачной и без коллизий
             setAllPartsTransparency(copy, 0.5)
             setCanCollide(copy, false)
+            setAnchored(copy, true)
 
+            -- Настраиваем Humanoid копии
             local copyHumanoid = copy:FindFirstChildOfClass("Humanoid")
             if copyHumanoid then
                 copyHumanoid.PlatformStand = true
                 copyHumanoid.AutoRotate = false
             end
-            setAnchored(copy, true)
 
+            -- Камера на копию, режим 1-го лица
             camera.CameraSubject = copyHumanoid or copy
             player.CameraMode = Enum.CameraMode.LockFirstPerson
 
-            -- Оригинал под карту
+            -- Телепортируем оригинал под карту
             local targetPos = Vector3.new(867.782043, -39.9123535, -141.675568)
             hrp.CFrame = CFrame.new(targetPos)
 
+            -- Заанкориваем и делаем прозрачным
             setAnchored(character, true)
             setAllPartsTransparency(character, 1)
 
