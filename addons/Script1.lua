@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финальный + Silent Aim + Invisible Mode в отдельной вкладке Fun)
+-- ShopManager.lua (полный финальный + Silent Aim + Invisible Mode в группе Fun вкладки Arrp)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -1735,12 +1735,11 @@ function ShopManager:Init(Window, Tabs)
     end)
     
     -- =====================================================
-    -- НОВАЯ ВКЛАДКА FUN С INVISIBLE MODE
+    -- ГРУППА FUN ВНУТРИ ВКЛАДКИ Arrp
     -- =====================================================
-    local funTab = Window:AddTab('Fun')
-    local invisibleGroup = funTab:AddLeftGroupbox('Invisible Mode')
-
-    local invisibleToggle = invisibleGroup:AddToggle('InvisibleMode', {
+    local funGroup = shopTab:AddLeftGroupbox('Fun')
+    
+    local invisibleToggle = funGroup:AddToggle('InvisibleMode', {
         Text = 'Invisible Mode',
         Default = false,
         Tooltip = 'Оригинал уходит под карту, прозрачная копия остаётся на месте, камера от первого лица'
@@ -1803,6 +1802,17 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
+    local function cloneCharacter(character)
+        local success, result = pcall(function()
+            return character:Clone()
+        end)
+        if success then
+            return result
+        else
+            return nil
+        end
+    end
+
     local function toggleInvisibleMode(enabled)
         local player = game.Players.LocalPlayer
         if not player then return end
@@ -1825,11 +1835,17 @@ function ShopManager:Init(Window, Tabs)
             invisibleData.savedCameraMode = player.CameraMode
             saveTransparencies(character)
 
-            -- Копия
-            local copy = character:Clone()
+            -- Клонируем персонажа с защитой от ошибок
+            local copy = cloneCharacter(character)
             if not copy then
-                Library:Notify("Failed to clone character", 3)
-                return
+                Library:Notify("Failed to clone character – retrying in 0.5s", 3)
+                task.wait(0.5)
+                copy = cloneCharacter(character)
+                if not copy then
+                    Library:Notify("Still failed to clone. Disabling Invisible Mode.", 3)
+                    invisibleToggle:SetValue(false)
+                    return
+                end
             end
             copy.Name = "InvisibleCopy"
             copy.Parent = workspace
