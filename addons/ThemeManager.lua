@@ -38,11 +38,13 @@ local ThemeManager = {} do
 	local radioVolume = 0.3
 	local radioName = ""
 	local radioDuration = 0
+	local radioLooped = false
 
 	-- История звуков
-	local soundHistory = {}
+	local soundHistory = {} -- { [id] = { name = string, lastPlayed = number } }
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
 
+	-- Загрузка истории
 	local function loadSoundHistory()
 		if isfile(historyFile) then
 			local success, data = pcall(httpService.JSONDecode, httpService, readfile(historyFile))
@@ -55,12 +57,14 @@ local ThemeManager = {} do
 	end
 	loadSoundHistory()
 
+	-- Сохранение истории
 	local function saveSoundHistory()
 		pcall(function()
 			writefile(historyFile, httpService:JSONEncode(soundHistory))
 		end)
 	end
 
+	-- Добавление звука в историю
 	local function addToHistory(soundId, soundName)
 		if not soundId or soundId == "" then return end
 		local id = soundId
@@ -81,6 +85,7 @@ local ThemeManager = {} do
 		end
 	end
 
+	-- Получение списка для дропдауна
 	function ThemeManager:GetSoundHistoryList()
 		local list = {}
 		for id, data in pairs(soundHistory) do
@@ -97,11 +102,13 @@ local ThemeManager = {} do
 		return list
 	end
 
+	-- Получение ID из строки дропдауна
 	local function getSoundIdFromDisplay(display)
 		return display:match("%((%d+)%)$")
 	end
 
-	local function playSound(soundId, volume, callback, onError)
+	-- Внутренняя функция воспроизведения звука (с поддержкой looped)
+	local function playSoundInternal(soundId, volume, onEnd, onError, looped)
 		if not soundId or soundId == "" then 
 			if onError then onError("No Sound ID") end
 			return nil 
@@ -128,25 +135,44 @@ local ThemeManager = {} do
 			return nil
 		end
 		addToHistory(id, soundName)
+		
 		sound.Ended:Connect(function()
-			if callback then callback() end
 			sound:Destroy()
+			if looped and radioPlaying then
+				-- Перезапускаем с задержкой, чтобы избежать спама
+				task.spawn(function()
+					task.wait(0.05)
+					if radioPlaying and looped then
+						playSoundInternal(radioSoundId, radioVolume, onEnd, onError, true)
+					end
+				end)
+			else
+				if onEnd then onEnd() end
+			end
 		end)
 		return sound
 	end
 
+	-- Функция воспроизведения для внешнего использования (клик)
+	local function playSound(soundId, volume, callback, onError)
+		return playSoundInternal(soundId, volume, callback, onError, false)
+	end
+
+	-- Обновление статуса Radio
 	local function updateRadioUI()
 		if not Options.RadioStatus then return end
+		local label = Options.RadioStatus
 		if radioPlaying and radioSound then
 			local time = radioSound.TimePosition or 0
 			local duration = radioSound.TimeLength or 0
 			local displayName = radioName ~= "" and radioName or radioSoundId
-			Options.RadioStatus:SetText(string.format("%s [%.1fs/%.1fs]", displayName, time, duration))
+			label.TextLabel.Text = string.format("%s [%.1fs/%.1fs]", displayName, time, duration)
 		else
-			Options.RadioStatus:SetText("Idle")
+			label.TextLabel.Text = "Idle"
 		end
 	end
 
+	-- Остановка радио
 	local function stopRadio()
 		if radioSound then
 			radioSound:Stop()
@@ -155,7 +181,7 @@ local ThemeManager = {} do
 		end
 		radioPlaying = false
 		if Options.RadioPlayButton then
-			Options.RadioPlayButton.Label.Text = "Play Sound"
+			Options.RadioPlayButton:SetText("Play Sound")
 		end
 		if radioUpdateConnection then
 			radioUpdateConnection:Disconnect()
@@ -164,6 +190,7 @@ local ThemeManager = {} do
 		updateRadioUI()
 	end
 
+	-- Запуск радио
 	local function startRadio()
 		stopRadio()
 		local id = Options.RadioSoundId and Options.RadioSoundId.Value or ""
@@ -174,31 +201,36 @@ local ThemeManager = {} do
 		local volume = Options.RadioVolume and Options.RadioVolume.Value or 0.3
 		radioSoundId = id
 		radioVolume = volume
+		radioLooped = Options.RadioLooped and Options.RadioLooped.Value or false
 
-		local sound = playSound(id, volume, function()
+		local function onEnd()
 			radioPlaying = false
 			if Options.RadioPlayButton then
-				Options.RadioPlayButton.Label.Text = "Play Sound"
+				Options.RadioPlayButton:SetText("Play Sound")
 			end
 			if radioUpdateConnection then
 				radioUpdateConnection:Disconnect()
 				radioUpdateConnection = nil
 			end
 			updateRadioUI()
-		end, function(err)
+		end
+
+		local function onError(err)
 			radioPlaying = false
 			if Options.RadioPlayButton then
-				Options.RadioPlayButton.Label.Text = "Play Sound"
+				Options.RadioPlayButton:SetText("Play Sound")
 			end
 			if ThemeManager.Library then ThemeManager.Library:Notify("Error: " .. err, 3) end
 			updateRadioUI()
-		end)
+		end
+
+		local sound = playSoundInternal(id, volume, onEnd, onError, radioLooped)
 
 		if sound then
 			radioSound = sound
 			radioPlaying = true
 			if Options.RadioPlayButton then
-				Options.RadioPlayButton.Label.Text = "Stop Sound"
+				Options.RadioPlayButton:SetText("Stop Sound")
 			end
 			radioName = sound.Name or id
 			radioDuration = sound.TimeLength or 0
@@ -208,6 +240,7 @@ local ThemeManager = {} do
 		end
 	end
 
+	-- Инициализация клик-эффекта
 	function ThemeManager:InitClickEffect()
 		if inputConnection then inputConnection:Disconnect() inputConnection = nil end
 		lastClickTime = 0
@@ -272,6 +305,7 @@ local ThemeManager = {} do
 		end)
 	end
 
+	-- Применение темы
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = ThemeManager:GetCustomTheme(theme)
 		local data = customThemeData or ThemeManager.BuiltInThemes[theme]
@@ -318,6 +352,7 @@ local ThemeManager = {} do
 		end
 	end
 
+	-- Сохранение/загрузка дефолтной темы
 	function ThemeManager:SaveDefault(theme)
 		writefile(ThemeManager.Folder .. '/themes/default.txt', theme)
 	end
@@ -343,6 +378,7 @@ local ThemeManager = {} do
 		end
 	end
 
+	-- Загрузка/сохранение доп. настроек (курсор, звук уведомлений)
 	local function loadSetting(key, default)
 		local path = ThemeManager.Folder .. '/settings/' .. key .. '.txt'
 		if isfile(path) then return readfile(path) end
@@ -352,6 +388,7 @@ local ThemeManager = {} do
 		writefile(ThemeManager.Folder .. '/settings/' .. key .. '.txt', value)
 	end
 
+	-- Создание UI (всё в одной группе)
 	function ThemeManager:CreateThemeManager(groupbox)
 		-- Theme Colors
 		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = ThemeManager.Library.BackgroundColor })
@@ -429,6 +466,13 @@ local ThemeManager = {} do
 				radioSound.Volume = Options.RadioVolume.Value
 			end
 		end)
+
+		-- Looped Toggle
+		groupbox:AddToggle('RadioLooped', {
+			Text = 'Looped',
+			Default = false,
+			Tooltip = 'Зациклить воспроизведение звука'
+		})
 
 		local statusLabel = groupbox:AddLabel("Idle")
 		Options.RadioStatus = statusLabel
