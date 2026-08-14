@@ -41,7 +41,7 @@ local ThemeManager = {} do
 	local radioLooped = false
 
 	-- История звуков
-	local soundHistory = {} -- { [id] = { name = string, lastPlayed = number } }
+	local soundHistory = {}
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
 
 	-- Загрузка истории
@@ -107,7 +107,7 @@ local ThemeManager = {} do
 		return display:match("%((%d+)%)$")
 	end
 
-	-- Внутренняя функция воспроизведения звука (с поддержкой looped)
+	-- Внутренняя функция воспроизведения звука
 	local function playSoundInternal(soundId, volume, onEnd, onError, looped)
 		if not soundId or soundId == "" then 
 			if onError then onError("No Sound ID") end
@@ -139,7 +139,6 @@ local ThemeManager = {} do
 		sound.Ended:Connect(function()
 			sound:Destroy()
 			if looped and radioPlaying then
-				-- Перезапускаем с задержкой, чтобы избежать спама
 				task.spawn(function()
 					task.wait(0.05)
 					if radioPlaying and looped then
@@ -158,7 +157,7 @@ local ThemeManager = {} do
 		return playSoundInternal(soundId, volume, callback, onError, false)
 	end
 
-	-- Обновление статуса Radio
+	-- Обновление статуса Radio (исправлено: TextLabel.Text)
 	local function updateRadioUI()
 		if not Options.RadioStatus then return end
 		local label = Options.RadioStatus
@@ -268,8 +267,12 @@ local ThemeManager = {} do
 		end)
 	end
 
+	-- Создание клик-эффекта через Drawing
 	function ThemeManager:CreateClickEffect(x, y)
 		if not ThemeManager.Library then return end
+		-- Проверка, доступен ли Drawing
+		if not Drawing then return end
+		if not Drawing.new then return end
 
 		local circle = Drawing.new("Circle")
 		circle.Visible = true
@@ -467,7 +470,6 @@ local ThemeManager = {} do
 			end
 		end)
 
-		-- Looped Toggle
 		groupbox:AddToggle('RadioLooped', {
 			Text = 'Looped',
 			Default = false,
