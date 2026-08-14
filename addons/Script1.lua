@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финальный + Silent Aim (Rage) + Player Actions + Invisible Mode в вкладке Fun)
+-- ShopManager.lua (полный финальный + Silent Aim + Player Actions + Invisible Mode в Groupbox внутри Misc)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -25,7 +25,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== INF STAMINA (TOGGLE) =====
+    -- ===== INF STAMINA =====
     local infStaminaToggle = miscGroup:AddToggle('InfStaminaToggle', {
         Text = 'Inf Stamina',
         Default = false,
@@ -500,6 +500,163 @@ function ShopManager:Init(Window, Tabs)
         end)
 
         Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
+    end)
+
+    -- =====================================================
+    -- НОВАЯ ГРУППА INVISIBLE MODE (внутри Misc)
+    -- =====================================================
+    local invisibleGroup = miscGroup:AddGroupbox('Invisible Mode')  -- <-- ЭТО ГРУППА!
+
+    local invisibleToggle = invisibleGroup:AddToggle('InvisibleMode', {
+        Text = 'Invisible Mode',
+        Default = false,
+        Tooltip = 'Оригинал уходит под карту, прозрачная копия остаётся на месте, камера от первого лица'
+    })
+
+    local invisibleData = {
+        savedCFrame = nil,
+        savedTransparencies = {},
+        savedPlatformStand = false,
+        savedAutoRotate = true,
+        savedCameraSubject = nil,
+        savedCameraMode = nil,
+        copyInstance = nil,
+    }
+
+    local function setAllPartsTransparency(character, transparency, skipList)
+        if not character then return end
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") and (not skipList or not skipList[part]) then
+                part.Transparency = transparency
+            end
+        end
+    end
+
+    local function saveTransparencies(character)
+        if not character then return end
+        invisibleData.savedTransparencies = {}
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                invisibleData.savedTransparencies[part] = part.Transparency
+            end
+        end
+    end
+
+    local function restoreTransparencies(character)
+        if not character or not invisibleData.savedTransparencies then return end
+        for part, trans in pairs(invisibleData.savedTransparencies) do
+            if part and part.Parent then
+                part.Transparency = trans
+            end
+        end
+        invisibleData.savedTransparencies = {}
+    end
+
+    local function setAnchored(character, anchored)
+        if not character then return end
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = anchored
+            end
+        end
+    end
+
+    local function setCanCollide(character, collide)
+        if not character then return end
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = collide
+            end
+        end
+    end
+
+    local function toggleInvisibleMode(enabled)
+        local player = game.Players.LocalPlayer
+        local character = player.Character
+        if not character then return end
+
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local hrp = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+        if not hrp or not humanoid then return end
+
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+
+        if enabled then
+            invisibleData.savedCFrame = hrp.CFrame
+            invisibleData.savedPlatformStand = humanoid.PlatformStand
+            invisibleData.savedAutoRotate = humanoid.AutoRotate
+            invisibleData.savedCameraSubject = camera.CameraSubject
+            invisibleData.savedCameraMode = player.CameraMode
+            saveTransparencies(character)
+
+            local copy = character:Clone()
+            copy.Name = "InvisibleCopy"
+            copy.Parent = workspace
+
+            setAllPartsTransparency(copy, 0.5)
+            setCanCollide(copy, false)
+
+            local copyHumanoid = copy:FindFirstChildOfClass("Humanoid")
+            if copyHumanoid then
+                copyHumanoid.PlatformStand = true
+                copyHumanoid.AutoRotate = false
+            end
+            setAnchored(copy, true)
+
+            camera.CameraSubject = copyHumanoid or copy
+            player.CameraMode = Enum.CameraMode.LockFirstPerson
+
+            local targetPos = Vector3.new(867.782043, -39.9123535, -141.675568)
+            hrp.CFrame = CFrame.new(targetPos)
+
+            setAnchored(character, true)
+            setAllPartsTransparency(character, 1)
+
+            humanoid.PlatformStand = true
+            humanoid.AutoRotate = false
+
+            invisibleData.copyInstance = copy
+            _G.NOTALovchik_InvisibleModeActive = true
+            Library:Notify("Invisible mode ON – тело под картой, камера на копии", 2)
+
+        else
+            if invisibleData.copyInstance then
+                invisibleData.copyInstance:Destroy()
+                invisibleData.copyInstance = nil
+            end
+
+            camera.CameraSubject = invisibleData.savedCameraSubject or character
+            if invisibleData.savedCameraMode then
+                player.CameraMode = invisibleData.savedCameraMode
+            end
+
+            if invisibleData.savedCFrame then
+                hrp.CFrame = invisibleData.savedCFrame
+            end
+
+            setAnchored(character, false)
+            restoreTransparencies(character)
+
+            humanoid.PlatformStand = invisibleData.savedPlatformStand or false
+            humanoid.AutoRotate = invisibleData.savedAutoRotate
+
+            _G.NOTALovchik_InvisibleModeActive = false
+            Library:Notify("Invisible mode OFF – всё возвращено", 2)
+        end
+    end
+
+    local function onCharacterAdded()
+        if _G.NOTALovchik_InvisibleModeActive then
+            invisibleToggle:SetValue(false)
+            toggleInvisibleMode(false)
+        end
+    end
+
+    game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+    invisibleToggle:OnChanged(function(value)
+        toggleInvisibleMode(value)
     end)
 
     -- =====================================================
@@ -1280,7 +1437,6 @@ function ShopManager:Init(Window, Tabs)
     -- =====================================================
     local playerGroup = shopTab:AddLeftGroupbox('Player Actions')
 
-    -- Функция получения списка игроков
     local function getPlayerList()
         local players = {}
         local localPlayer = game.Players.LocalPlayer
@@ -1296,7 +1452,6 @@ function ShopManager:Init(Window, Tabs)
         return players
     end
 
-    -- Dropdown для выбора игрока
     local playerDropdown = playerGroup:AddDropdown('PlayerDropdown', {
         Text = 'Select Player',
         Values = getPlayerList(),
@@ -1306,15 +1461,12 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Выберите игрока для действий'
     })
 
-    -- Переменная для хранения выбранного имени
     local selectedPlayerName = playerDropdown.Value or "No players found"
 
-    -- Обновление при выборе
     playerDropdown:OnChanged(function(value)
         selectedPlayerName = value
     end)
 
-    -- Кнопка обновления списка
     playerGroup:AddButton('Refresh Player List', function()
         local newList = getPlayerList()
         playerDropdown:SetValues(newList)
@@ -1324,7 +1476,6 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Player list refreshed", 2)
     end)
 
-    -- Кнопка Steal Sound
     playerGroup:AddButton('Steal Sound', function()
         if selectedPlayerName == "No players found" or not selectedPlayerName then
             Library:Notify("No player selected", 3)
@@ -1349,7 +1500,6 @@ function ShopManager:Init(Window, Tabs)
             return
         end
 
-        -- Ищем Sound внутри Head (может быть прямой потомок или глубже)
         local sound = nil
         for _, child in ipairs(head:GetDescendants()) do
             if child:IsA("Sound") then
@@ -1369,7 +1519,6 @@ function ShopManager:Init(Window, Tabs)
             return
         end
 
-        -- Извлекаем числовой ID (убираем "rbxassetid://" или "rbxasset://")
         local id = soundId:match("rbxassetid://(%d+)")
         if not id then
             id = soundId:match("rbxasset://(%d+)")
@@ -1383,7 +1532,6 @@ function ShopManager:Init(Window, Tabs)
             return
         end
 
-        -- Копируем в буфер обмена
         local success = pcall(function()
             setclipboard(id)
         end)
@@ -1691,7 +1839,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end
     
-    -- ============ UI (LinoriaLib) ============
     local autoBuyToggle = configGroup:AddToggle('AutoBuyToggle', {
         Text = 'Auto Buy',
         Default = false,
@@ -1734,169 +1881,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-    -- =====================================================
-    -- НОВАЯ ВКЛАДКА FUN С INVISIBLE MODE
-    -- =====================================================
-    local funTab = Window:AddTab('Fun')
-    local invisibleGroup = funTab:AddLeftGroupbox('Invisible Mode')
-
-    local invisibleToggle = invisibleGroup:AddToggle('InvisibleMode', {
-        Text = 'Invisible Mode',
-        Default = false,
-        Tooltip = 'Оригинал уходит под карту, прозрачная копия остаётся на месте, камера от первого лица'
-    })
-
-    local invisibleData = {
-        savedCFrame = nil,
-        savedTransparencies = {},
-        savedPlatformStand = false,
-        savedAutoRotate = true,
-        savedCameraSubject = nil,
-        savedCameraMode = nil,
-        copyInstance = nil,
-    }
-
-    local function setAllPartsTransparency(character, transparency, skipList)
-        if not character then return end
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") and (not skipList or not skipList[part]) then
-                part.Transparency = transparency
-            end
-        end
-    end
-
-    local function saveTransparencies(character)
-        if not character then return end
-        invisibleData.savedTransparencies = {}
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                invisibleData.savedTransparencies[part] = part.Transparency
-            end
-        end
-    end
-
-    local function restoreTransparencies(character)
-        if not character or not invisibleData.savedTransparencies then return end
-        for part, trans in pairs(invisibleData.savedTransparencies) do
-            if part and part.Parent then
-                part.Transparency = trans
-            end
-        end
-        invisibleData.savedTransparencies = {}
-    end
-
-    local function setAnchored(character, anchored)
-        if not character then return end
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Anchored = anchored
-            end
-        end
-    end
-
-    local function setCanCollide(character, collide)
-        if not character then return end
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = collide
-            end
-        end
-    end
-
-    local function toggleInvisibleMode(enabled)
-        local player = game.Players.LocalPlayer
-        local character = player.Character
-        if not character then return end
-
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        local hrp = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-        if not hrp or not humanoid then return end
-
-        local camera = workspace.CurrentCamera
-        if not camera then return end
-
-        if enabled then
-            -- Сохраняем состояние
-            invisibleData.savedCFrame = hrp.CFrame
-            invisibleData.savedPlatformStand = humanoid.PlatformStand
-            invisibleData.savedAutoRotate = humanoid.AutoRotate
-            invisibleData.savedCameraSubject = camera.CameraSubject
-            invisibleData.savedCameraMode = player.CameraMode
-            saveTransparencies(character)
-
-            -- Копия
-            local copy = character:Clone()
-            copy.Name = "InvisibleCopy"
-            copy.Parent = workspace
-
-            setAllPartsTransparency(copy, 0.5)
-            setCanCollide(copy, false)
-
-            local copyHumanoid = copy:FindFirstChildOfClass("Humanoid")
-            if copyHumanoid then
-                copyHumanoid.PlatformStand = true
-                copyHumanoid.AutoRotate = false
-            end
-            setAnchored(copy, true)
-
-            camera.CameraSubject = copyHumanoid or copy
-            player.CameraMode = Enum.CameraMode.LockFirstPerson
-
-            -- Оригинал под карту
-            local targetPos = Vector3.new(867.782043, -39.9123535, -141.675568)
-            hrp.CFrame = CFrame.new(targetPos)
-
-            setAnchored(character, true)
-            setAllPartsTransparency(character, 1)
-
-            humanoid.PlatformStand = true
-            humanoid.AutoRotate = false
-
-            invisibleData.copyInstance = copy
-            _G.NOTALovchik_InvisibleModeActive = true
-            Library:Notify("Invisible mode ON – тело под картой, камера на копии", 2)
-
-        else
-            -- Выключение
-            if invisibleData.copyInstance then
-                invisibleData.copyInstance:Destroy()
-                invisibleData.copyInstance = nil
-            end
-
-            camera.CameraSubject = invisibleData.savedCameraSubject or character
-            if invisibleData.savedCameraMode then
-                player.CameraMode = invisibleData.savedCameraMode
-            end
-
-            if invisibleData.savedCFrame then
-                hrp.CFrame = invisibleData.savedCFrame
-            end
-
-            setAnchored(character, false)
-            restoreTransparencies(character)
-
-            humanoid.PlatformStand = invisibleData.savedPlatformStand or false
-            humanoid.AutoRotate = invisibleData.savedAutoRotate
-
-            _G.NOTALovchik_InvisibleModeActive = false
-            Library:Notify("Invisible mode OFF – всё возвращено", 2)
-        end
-    end
-
-    -- Сброс при респавне
-    local function onCharacterAdded()
-        if _G.NOTALovchik_InvisibleModeActive then
-            invisibleToggle:SetValue(false)
-            toggleInvisibleMode(false)
-        end
-    end
-
-    game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-    invisibleToggle:OnChanged(function(value)
-        toggleInvisibleMode(value)
-    end)
-
     Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
 end
 
