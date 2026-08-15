@@ -1,4 +1,3 @@
-
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -11,7 +10,6 @@ function ShopManager:Init(Window, Tabs)
     local configGroup = shopTab:AddLeftGroupbox('Auto Buy Settings')
     local itemsGroup = shopTab:AddRightGroupbox('Shop Items')
     
-    -- ========== ГРУППА MISC ==========
     local miscGroup = shopTab:AddLeftGroupbox('Misc')
     miscGroup:AddLabel('30 minute needed')
     miscGroup:AddButton('AutoPromocode', function()
@@ -25,7 +23,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== INF STAMINA =====
     local infStaminaToggle = miscGroup:AddToggle('InfStaminaToggle', {
         Text = 'Inf Stamina',
         Default = false,
@@ -50,7 +47,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== AC BYPASS =====
     miscGroup:AddButton('AC Bypass', function()
         local player = game:GetService("Players").LocalPlayer
         local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -95,7 +91,6 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Персонаж умрёт и возродится с Trusted. Проверки отключены.", 2)
     end)
 
-    -- ===== NoJumpDelay =====
     local noJumpLoopActive = false
     miscGroup:AddButton('NoJumpDelay', function()
         if noJumpLoopActive then return end
@@ -117,7 +112,6 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("NoJumpDelay activated. JumpPhysic will be removed continuously.", 2)
     end)
 
-    -- ===== SHOW INVENTORY =====
     local invHeartbeat = nil
     miscGroup:AddButton('No Hide Inventory', function()
         if invHeartbeat then return end
@@ -130,7 +124,6 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Инвентарь теперь всегда виден", 2)
     end)
 
-    -- ===== SPINBOT =====
     _G.SpinbotEnabled = false
     _G.SpinbotSpeed = 180
 
@@ -210,7 +203,6 @@ function ShopManager:Init(Window, Tabs)
         _G.SpinbotSpeed = value
     end)
 
-    -- ===== DEATH SPAWN =====
     local deathSpawnToggle = miscGroup:AddToggle('DeathSpawnToggle', {
         Text = 'Death Spawn',
         Default = false,
@@ -271,7 +263,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== AUTO UNCUFF =====
     local uncuffToggle = miscGroup:AddToggle('UncuffToggle', {
         Text = 'Auto UnCuff',
         Default = false,
@@ -310,7 +301,6 @@ function ShopManager:Init(Window, Tabs)
         if enabled then startUncuffHeartbeat() else stopUncuffHeartbeat() end
     end)
 
-    -- ===== RANDOM CHAT SPAM =====
     local chatSpamToggle = miscGroup:AddToggle('ChatSpamToggle', {
         Text = 'Random Chat Spam',
         Default = false,
@@ -349,7 +339,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- ===== VIEWMODEL CHANGER =====
     local savedOffset = nil
     pcall(function()
         if readfile and writefile then
@@ -448,7 +437,6 @@ function ShopManager:Init(Window, Tabs)
 
     if vmToggle.Value then updateVmHeartbeat() end
 
-    -- ===== INSTANT PROMPT =====
     local instantPromptActive = false
     miscGroup:AddButton('Instant Prompt', function()
         if instantPromptActive then return end
@@ -462,7 +450,6 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Instant Prompt активирован. Все промты теперь мгновенные.", 2)
     end)
 
-    -- ===== NO BLACK SCREEN =====
     local noBlackScreenActive = false
     miscGroup:AddButton('No Black Screen', function()
         if noBlackScreenActive then return end
@@ -481,7 +468,6 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("No Black Screen активирован. DeathScrean будет удаляться.", 2)
     end)
 
-    -- ===== AUTO PASS TEST =====
     miscGroup:AddButton('Auto Pass Test', function()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local startTestRemote = replicatedStorage.Remotes.StartTest
@@ -502,9 +488,6 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Auto pass test activated. The next test will be completed instantly.", 2)
     end)
 
-    -- =====================================================
-    -- ESP GROUP (Car ESP)
-    -- =====================================================
     local espGroup = shopTab:AddLeftGroupbox('ESP')
     local workspace = game:GetService("Workspace")
     local runService = game:GetService("RunService")
@@ -794,9 +777,6 @@ function ShopManager:Init(Window, Tabs)
 
     checkLoop()
 
-    -- =====================================================
-    -- RAGE GROUP (Silent Aim + Auto Fire)
-    -- =====================================================
     local rageGroup = shopTab:AddLeftGroupbox('Rage')
 
     _G.SilentAim_Enabled = false
@@ -1056,9 +1036,6 @@ function ShopManager:Init(Window, Tabs)
         updateAutoFire()
     end)
 
-    -- =====================================================
-    -- СИСТЕМА МОДИФИКАЦИИ ОРУЖИЯ
-    -- =====================================================
     local activeMods = {
         rapidFire = false,
         noSpread = false,
@@ -1275,9 +1252,6 @@ function ShopManager:Init(Window, Tabs)
         Library:Notify("Радиус взрыва установлен на " .. (num and tostring(num) or "нет"), 2)
     end)
 
-    -- =====================================================
-    -- PLAYER ACTIONS GROUP
-    -- =====================================================
     local playerGroup = shopTab:AddLeftGroupbox('Player Actions')
 
     local function getPlayerList()
@@ -1386,9 +1360,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    -- =====================================================
-    -- АВТО-БАЙ
-    -- =====================================================
     local currentNPCId = "Smugglers"
     local currentConfig = nil
     local products = {}
@@ -1682,7 +1653,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end
     
-    -- ============ UI (LinoriaLib) ============
     local autoBuyToggle = configGroup:AddToggle('AutoBuyToggle', {
         Text = 'Auto Buy',
         Default = false,
@@ -1726,7 +1696,7 @@ function ShopManager:Init(Window, Tabs)
     end)
     
     -- =====================================================
-    -- ГРУППА FUN (Invisible Mode) ВНУТРИ ВКЛАДКИ Arrp
+    -- ГРУППА FUN (Invisible Mode)
     -- =====================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
     
@@ -1736,9 +1706,8 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Оригинал под картой, управление передаётся копии, камера от первого лица'
     })
 
-    -- KeyBind через Label
     local keybindLabel = funGroup:AddLabel('Toggle Key')
-    local invisibleKeybind = keybindLabel:AddKeyPicker('InvisibleKeybind', {
+    keybindLabel:AddKeyPicker('InvisibleKeybind', {
         Text = 'Toggle Key',
         Default = 'None',
         Mode = 'Toggle',
@@ -1746,7 +1715,6 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Клавиша для включения/выключения режима'
     })
 
-    -- Хранилище данных
     local invisibleData = {
         savedCFrame = nil,
         savedTransparencies = {},
@@ -1759,7 +1727,6 @@ function ShopManager:Init(Window, Tabs)
         savedJumpPower = 50,
     }
 
-    -- Вспомогательные функции
     local function setAllPartsTransparency(character, transparency)
         if not character then return end
         for _, part in ipairs(character:GetDescendants()) do
@@ -1807,7 +1774,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- Клонирование с принудительным включением Archivable
     local function cloneCharacter(character)
         local archivableCache = {}
         for _, obj in ipairs(character:GetDescendants()) do
@@ -1818,11 +1784,16 @@ function ShopManager:Init(Window, Tabs)
                 end
             end)
         end
-        local clone = character:Clone()
+        local success, clone = pcall(function()
+            return character:Clone()
+        end)
         for obj, val in pairs(archivableCache) do
             pcall(function()
                 obj.Archivable = val
             end)
+        end
+        if not success then
+            return nil
         end
         return clone
     end
@@ -1919,7 +1890,6 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- Сброс при респавне
     local function onCharacterAdded()
         if _G.NOTALovchik_InvisibleModeActive then
             invisibleToggle:SetValue(false)
@@ -1929,13 +1899,11 @@ function ShopManager:Init(Window, Tabs)
 
     game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
 
-    -- Подписываемся на изменения тогла
     invisibleToggle:OnChanged(function(value)
         toggleInvisibleMode(value)
     end)
 
-    -- Подписываемся на KeyBind (синхронизация с тоглом)
-    invisibleKeybind:OnChanged(function()
+    Options.InvisibleKeybind:OnChanged(function()
         invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
 
