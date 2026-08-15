@@ -1696,18 +1696,18 @@ function ShopManager:Init(Window, Tabs)
     end)
     
     -- =====================================================
-    -- ГРУППА FUN (Invisible Mode) – без клонирования, только визуальная копия
+    -- ГРУППА FUN (Invisible Mode) – разваливающийся клон
     -- =====================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
     
     local invisibleToggle = funGroup:AddToggle('InvisibleMode', {
         Text = 'Invisible Mode',
         Default = false,
-        Tooltip = 'Тело под картой, камера на заанкоренной визуальной копии'
+        Tooltip = 'Оригинал под картой (Anchored, без коллизий), копия полностью прозрачная, камера на Head'
     })
 
     local keybindLabel = funGroup:AddLabel('Toggle Key')
-    local invisibleKeybind = keybindLabel:AddKeyPicker('InvisibleKeybind', {
+    keybindLabel:AddKeyPicker('InvisibleKeybind', {
         Text = 'Toggle Key',
         Default = 'None',
         Mode = 'Toggle',
@@ -1736,6 +1736,24 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
+    local function setAllAnchored(character, anchored)
+        if not character then return end
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = anchored
+            end
+        end
+    end
+
+    local function setAllCanCollide(character, collide)
+        if not character then return end
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = collide
+            end
+        end
+    end
+
     local function saveTransparencies(character)
         if not character then return end
         invisibleData.savedTransparencies = {}
@@ -1754,48 +1772,6 @@ function ShopManager:Init(Window, Tabs)
             end
         end
         invisibleData.savedTransparencies = {}
-    end
-
-    local function setAnchored(character, anchored)
-        if not character then return end
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Anchored = anchored
-            end
-        end
-    end
-
-    local function setCanCollide(character, collide)
-        if not character then return end
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = collide
-            end
-        end
-    end
-
-    -- Создаём визуальную копию (только части, без Humanoid и скриптов)
-    local function createVisualCopy(character)
-        local copy = Instance.new("Model")
-        copy.Name = "InvisibleCopy"
-        
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                local newPart = Instance.new(part.ClassName)
-                newPart.Name = part.Name
-                newPart.Size = part.Size
-                newPart.CFrame = part.CFrame
-                newPart.Color = part.Color
-                newPart.Material = part.Material
-                newPart.Transparency = part.Transparency
-                newPart.Anchored = true
-                newPart.CanCollide = false
-                newPart.Parent = copy
-            end
-        end
-        
-        copy.Parent = workspace
-        return copy
     end
 
     local function toggleInvisibleMode(enabled)
@@ -1821,33 +1797,37 @@ function ShopManager:Init(Window, Tabs)
             invisibleData.savedJumpPower = humanoid.JumpPower
             saveTransparencies(character)
 
-            -- Создаём визуальную копию (без скриптов и Humanoid)
-            local copy = createVisualCopy(character)
-            if not copy then
-                Library:Notify("Failed to create visual copy – disabling", 3)
-                invisibleToggle:SetValue(false)
-                return
-            end
+            -- Клонируем (персонаж может развалиться – это нормально)
+            local copy = character:Clone()
+            copy.Name = "InvisibleCopy"
+            copy.Parent = workspace
 
-            -- Камера на копию (Humanoid отсутствует, поэтому привязываем к модели или любой части)
-            camera.CameraSubject = copy
-            player.CameraMode = Enum.CameraMode.LockFirstPerson
-
-            -- Телепортируем оригинал под карту
+            -- Оригинал: телепортируем под карту, anchored, без коллизий, прозрачный
             local targetPos = Vector3.new(867.782043, -39.9123535, -141.675568)
             hrp.CFrame = CFrame.new(targetPos)
-
-            -- Заанкориваем оригинал и делаем прозрачным
-            setAnchored(character, true)
+            setAllAnchored(character, true)
+            setAllCanCollide(character, false)
             setAllPartsTransparency(character, 1)
-
-            -- Отключаем управление оригиналом
             humanoid.PlatformStand = true
             humanoid.AutoRotate = false
 
+            -- Копия: полностью прозрачная, anchored, без коллизий (чтобы не разваливалась)
+            setAllPartsTransparency(copy, 1)
+            setAllAnchored(copy, true)
+            setAllCanCollide(copy, false)
+
+            -- Камера на Head (если есть)
+            local head = copy:FindFirstChild("Head")
+            if head then
+                camera.CameraSubject = head
+            else
+                camera.CameraSubject = copy
+            end
+            player.CameraMode = Enum.CameraMode.LockFirstPerson
+
             invisibleData.copyInstance = copy
             _G.NOTALovchik_InvisibleModeActive = true
-            Library:Notify("Invisible mode ON – тело под картой, камера на копии", 2)
+            Library:Notify("Invisible mode ON – оригинал под картой, копия прозрачная, камера на Head", 2)
 
         else
             if invisibleData.copyInstance then
@@ -1869,7 +1849,8 @@ function ShopManager:Init(Window, Tabs)
                 hrp.CFrame = invisibleData.savedCFrame
             end
 
-            setAnchored(character, false)
+            setAllAnchored(character, false)
+            setAllCanCollide(character, true)
             restoreTransparencies(character)
 
             humanoid.PlatformStand = invisibleData.savedPlatformStand or false
@@ -1895,7 +1876,8 @@ function ShopManager:Init(Window, Tabs)
         toggleInvisibleMode(value)
     end)
 
-    invisibleKeybind:OnChanged(function()
+    -- Правильная подписка через Options
+    Options.InvisibleKeybind:OnChanged(function()
         invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
 
