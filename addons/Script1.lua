@@ -1911,8 +1911,8 @@ function ShopManager:Init(Window, Tabs)
         toggleInvisibleMode(value)
     end)
 
-    -- Подписка на KeyBind через глобальную таблицу Options
-    Options.InvisibleKeybind:OnChanged(function()
+    -- Подписка на KeyBind через OnClick (вызывается только при реальном нажатии клавиши)
+    Options.InvisibleKeybind:OnClick(function()
         invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
 
