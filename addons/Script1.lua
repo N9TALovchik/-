@@ -1695,8 +1695,8 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-        -- ============================================================
-    -- ГРУППА FUN – INVISIBLE MODE (платформа под картой)
+    -- ============================================================
+    -- ГРУППА FUN – INVISIBLE MODE (платформа под картой, проверка на сидение)
     -- ============================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
     
@@ -1726,6 +1726,8 @@ function ShopManager:Init(Window, Tabs)
         savedWalkSpeed = 16,
         savedJumpPower = 50,
         platformPart = nil,
+        keepPositionConnection = nil,
+        platformPos = Vector3.new(867.782043, -39.9123535, -141.675568),
     }
 
     local function setAllPartsTransparency(character, transparency)
@@ -1799,6 +1801,39 @@ function ShopManager:Init(Window, Tabs)
         return copyModel
     end
 
+    -- Функция для удержания позиции на платформе
+    local function startKeepPosition()
+        if invisibleData.keepPositionConnection then
+            invisibleData.keepPositionConnection:Disconnect()
+            invisibleData.keepPositionConnection = nil
+        end
+
+        invisibleData.keepPositionConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            if not _G.NOTALovchik_InvisibleModeActive then return end
+            local player = game.Players.LocalPlayer
+            if not player then return end
+            local character = player.Character
+            if not character then return end
+            local hrp = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+            if not hrp then return end
+
+            local currentPos = hrp.Position
+            local targetPos = invisibleData.platformPos + Vector3.new(0, 0.5, 0)
+            local distance = (currentPos - targetPos).Magnitude
+            if distance > 1 then
+                -- Если отошёл дальше чем на 1 студию, телепортируем обратно
+                hrp.CFrame = CFrame.new(targetPos)
+            end
+        end)
+    end
+
+    local function stopKeepPosition()
+        if invisibleData.keepPositionConnection then
+            invisibleData.keepPositionConnection:Disconnect()
+            invisibleData.keepPositionConnection = nil
+        end
+    end
+
     local function toggleInvisibleMode(enabled)
         local player = game.Players.LocalPlayer
         if not player then return end
@@ -1813,6 +1848,13 @@ function ShopManager:Init(Window, Tabs)
         if not camera then return end
 
         if enabled then
+            -- Проверка: сидит ли игрок
+            if humanoid.Sit or humanoid.SeatPart then
+                Library:Notify("You are sitting! Cannot activate Invisible Mode.", 3)
+                invisibleToggle:SetValue(false)
+                return
+            end
+
             -- Сохраняем состояние
             invisibleData.savedCFrame = hrp.CFrame
             invisibleData.savedPlatformStand = humanoid.PlatformStand
@@ -1831,9 +1873,8 @@ function ShopManager:Init(Window, Tabs)
                 return
             end
 
-            -- Создаём невидимую платформу под картой на заданных координатах
-            local platformPos = Vector3.new(867.782043, -39.9123535, -141.675568)
-            -- Платформа чуть ниже позиции, чтобы персонаж стоял на ней (опускаем на 0.5)
+            -- Создаём невидимую платформу под картой
+            local platformPos = invisibleData.platformPos
             local platform = Instance.new("Part")
             platform.Name = "InvisiblePlatform"
             platform.Size = Vector3.new(10, 0.2, 10)
@@ -1846,8 +1887,9 @@ function ShopManager:Init(Window, Tabs)
             platform.Parent = workspace
             invisibleData.platformPart = platform
 
-            -- Телепортируем оригинал на платформу (чуть выше, чтобы стоять)
-            hrp.CFrame = CFrame.new(platformPos + Vector3.new(0, 0.5, 0))
+            -- Телепортируем оригинал на платформу (чуть выше)
+            local targetPos = platformPos + Vector3.new(0, 0.5, 0)
+            hrp.CFrame = CFrame.new(targetPos)
 
             -- Делаем оригинал прозрачным, отключаем коллизии, отключаем управление
             setAllPartsTransparency(character, 1)
@@ -1864,10 +1906,16 @@ function ShopManager:Init(Window, Tabs)
             end
             player.CameraMode = Enum.CameraMode.LockFirstPerson
 
+            -- Запускаем удержание позиции
+            startKeepPosition()
+
             _G.NOTALovchik_InvisibleModeActive = true
             Library:Notify("Invisible mode ON", 2)
 
         else
+            -- Останавливаем удержание позиции
+            stopKeepPosition()
+
             -- Удаляем платформу
             if invisibleData.platformPart then
                 invisibleData.platformPart:Destroy()
