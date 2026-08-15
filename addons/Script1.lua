@@ -1695,7 +1695,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-    -- ============================================================
+        -- ============================================================
     -- ГРУППА FUN – INVISIBLE MODE (ручная копия, без автозапуска)
     -- ============================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
@@ -1711,7 +1711,6 @@ function ShopManager:Init(Window, Tabs)
         Text = 'Toggle Key',
         Default = 'None',
         Mode = 'Toggle',
-        -- SyncToggleState = false (по умолчанию)
         Tooltip = 'Клавиша для включения/выключения режима'
     })
 
@@ -1907,12 +1906,12 @@ function ShopManager:Init(Window, Tabs)
 
     game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
 
-    -- Подписка на тогл – вызываем только при ручном переключении
+    -- Подписка на тогл
     invisibleToggle:OnChanged(function(value)
         toggleInvisibleMode(value)
     end)
 
-    -- KeyBind переключает тогл вручную, без автоматического вызова при старте
+    -- KeyBind переключает тогл (используем сам объект, а не Options)
     invisibleKeybind:OnChanged(function()
         invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
