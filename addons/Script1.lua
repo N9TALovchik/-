@@ -1707,7 +1707,7 @@ function ShopManager:Init(Window, Tabs)
     })
 
     local keybindLabel = funGroup:AddLabel('Toggle Key')
-    keybindLabel:AddKeyPicker('InvisibleKeybind', {
+    local invisibleKeybind = keybindLabel:AddKeyPicker('InvisibleKeybind', {
         Text = 'Toggle Key',
         Default = 'None',
         Mode = 'Toggle',
@@ -1821,9 +1821,15 @@ function ShopManager:Init(Window, Tabs)
             invisibleData.savedJumpPower = humanoid.JumpPower
             saveTransparencies(character)
 
-            local copy = cloneCharacter(character)
+            local copy = nil
+            for attempt = 1, 3 do
+                copy = cloneCharacter(character)
+                if copy then break end
+                task.wait(0.2)
+            end
+
             if not copy then
-                Library:Notify("Failed to clone character – disabling", 3)
+                Library:Notify("Failed to clone character after 3 attempts – disabling", 3)
                 invisibleToggle:SetValue(false)
                 return
             end
@@ -1903,7 +1909,7 @@ function ShopManager:Init(Window, Tabs)
         toggleInvisibleMode(value)
     end)
 
-    Options.InvisibleKeybind:OnChanged(function()
+    invisibleKeybind:OnChanged(function()
         invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
 
