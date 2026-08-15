@@ -47,8 +47,8 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
 
-    miscGroup:AddButton('AC Bypass', function()
-        local player = game:GetService("Players").LocalPlayer
+   local function acbyppas()
+                local player = game:GetService("Players").LocalPlayer
         local replicatedStorage = game:GetService("ReplicatedStorage")
         local collectionService = game:GetService("CollectionService")
 
