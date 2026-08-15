@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финал + Invisible Mode в группе Fun вкладки Arrp, безопасное клонирование)
+-- ShopManager.lua (полный финал + Invisible Mode в группе Fun вкладки Arrp)
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -1733,7 +1733,7 @@ function ShopManager:Init(Window, Tabs)
     local invisibleToggle = funGroup:AddToggle('InvisibleMode', {
         Text = 'Invisible Mode',
         Default = false,
-        Tooltip = 'Оригинал уходит под карту, прозрачная копия остаётся на месте, камера от первого лица'
+        Tooltip = 'Оригинал под картой, управление передаётся копии, камера от первого лица'
     })
 
     -- Хранилище данных
@@ -1745,6 +1745,8 @@ function ShopManager:Init(Window, Tabs)
         savedCameraSubject = nil,
         savedCameraMode = nil,
         copyInstance = nil,
+        savedWalkSpeed = 16,
+        savedJumpPower = 50,
     }
 
     -- Вспомогательные функции
@@ -1816,10 +1818,12 @@ function ShopManager:Init(Window, Tabs)
             end
         end
         
-        -- Добавляем Humanoid (для камеры)
+        -- Добавляем Humanoid (для управления и камеры)
         local humanoid = Instance.new("Humanoid")
-        humanoid.PlatformStand = true
-        humanoid.AutoRotate = false
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate = true
+        humanoid.WalkSpeed = invisibleData.savedWalkSpeed
+        humanoid.JumpPower = invisibleData.savedJumpPower
         humanoid.Parent = clone
         
         clone.Parent = workspace
@@ -1846,9 +1850,11 @@ function ShopManager:Init(Window, Tabs)
             invisibleData.savedAutoRotate = humanoid.AutoRotate
             invisibleData.savedCameraSubject = camera.CameraSubject
             invisibleData.savedCameraMode = player.CameraMode
+            invisibleData.savedWalkSpeed = humanoid.WalkSpeed
+            invisibleData.savedJumpPower = humanoid.JumpPower
             saveTransparencies(character)
 
-            -- Создаём упрощённую копию
+            -- Создаём управляемую копию (не заанкориваем)
             local copy = createSafeClone(character)
             if not copy then
                 Library:Notify("Failed to create copy – disabling", 3)
@@ -1856,16 +1862,17 @@ function ShopManager:Init(Window, Tabs)
                 return
             end
 
-            -- Делаем копию полупрозрачной и без коллизий
+            -- Делаем копию полупрозрачной, но с коллизиями (можно оставить CanCollide = true)
             setAllPartsTransparency(copy, 0.5)
-            setCanCollide(copy, false)
-            setAnchored(copy, true)
+            -- setCanCollide(copy, true) -- если нужно, чтобы копия взаимодействовала с миром
 
-            -- Настраиваем Humanoid копии
+            -- Настраиваем Humanoid копии (уже установлено в createSafeClone)
             local copyHumanoid = copy:FindFirstChildOfClass("Humanoid")
             if copyHumanoid then
-                copyHumanoid.PlatformStand = true
-                copyHumanoid.AutoRotate = false
+                copyHumanoid.PlatformStand = false
+                copyHumanoid.AutoRotate = true
+                copyHumanoid.WalkSpeed = humanoid.WalkSpeed
+                copyHumanoid.JumpPower = humanoid.JumpPower
             end
 
             -- Камера на копию, режим 1-го лица
@@ -1876,16 +1883,17 @@ function ShopManager:Init(Window, Tabs)
             local targetPos = Vector3.new(867.782043, -39.9123535, -141.675568)
             hrp.CFrame = CFrame.new(targetPos)
 
-            -- Заанкориваем и делаем прозрачным
+            -- Заанкориваем оригинал и делаем прозрачным
             setAnchored(character, true)
             setAllPartsTransparency(character, 1)
 
+            -- Отключаем управление оригиналом
             humanoid.PlatformStand = true
             humanoid.AutoRotate = false
 
             invisibleData.copyInstance = copy
             _G.NOTALovchik_InvisibleModeActive = true
-            Library:Notify("Invisible mode ON – тело под картой, камера на копии", 2)
+            Library:Notify("Invisible mode ON – тело под картой, камера на копии, управление копией", 2)
 
         else
             -- Выключение
@@ -1913,6 +1921,8 @@ function ShopManager:Init(Window, Tabs)
 
             humanoid.PlatformStand = invisibleData.savedPlatformStand or false
             humanoid.AutoRotate = invisibleData.savedAutoRotate
+            humanoid.WalkSpeed = invisibleData.savedWalkSpeed
+            humanoid.JumpPower = invisibleData.savedJumpPower
 
             _G.NOTALovchik_InvisibleModeActive = false
             Library:Notify("Invisible mode OFF – всё возвращено", 2)
