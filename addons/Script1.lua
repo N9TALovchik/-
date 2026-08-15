@@ -1,4 +1,4 @@
--- ShopManager.lua (полный финал + Invisible Mode в группе Fun вкладки Arrp)
+
 local ShopManager = {}
 
 function ShopManager:Init(Window, Tabs)
@@ -1736,6 +1736,15 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Оригинал под картой, управление передаётся копии, камера от первого лица'
     })
 
+    -- KeyBind для Invisible Mode
+    local invisibleKeybind = funGroup:AddKeyPicker('InvisibleKeybind', {
+        Text = 'Toggle Key',
+        Default = 'None',
+        Mode = 'Toggle',
+        SyncToggleState = true,
+        Tooltip = 'Клавиша для включения/выключения режима'
+    })
+
     -- Хранилище данных
     local invisibleData = {
         savedCFrame = nil,
@@ -1797,36 +1806,26 @@ function ShopManager:Init(Window, Tabs)
         end
     end
 
-    -- БЕЗОПАСНОЕ КЛОНИРОВАНИЕ (только BasePart + новый Humanoid)
-    local function createSafeClone(character)
-        local clone = Instance.new("Model")
-        clone.Name = "InvisibleCopy"
-        
-        -- Копируем все BasePart'ы с их свойствами
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                local newPart = Instance.new(part.ClassName)
-                newPart.Name = part.Name
-                newPart.Size = part.Size
-                newPart.CFrame = part.CFrame
-                newPart.Color = part.Color
-                newPart.Material = part.Material
-                newPart.Transparency = part.Transparency
-                newPart.Anchored = part.Anchored
-                newPart.CanCollide = part.CanCollide
-                newPart.Parent = clone
-            end
+    -- Клонирование с принудительным включением Archivable
+    local function cloneCharacter(character)
+        -- Временно делаем все объекты Archivable = true
+        local archivableCache = {}
+        for _, obj in ipairs(character:GetDescendants()) do
+            pcall(function()
+                if obj.Archivable ~= nil then
+                    archivableCache[obj] = obj.Archivable
+                    obj.Archivable = true
+                end
+            end)
         end
-        
-        -- Добавляем Humanoid (для управления и камеры)
-        local humanoid = Instance.new("Humanoid")
-        humanoid.PlatformStand = false
-        humanoid.AutoRotate = true
-        humanoid.WalkSpeed = invisibleData.savedWalkSpeed
-        humanoid.JumpPower = invisibleData.savedJumpPower
-        humanoid.Parent = clone
-        
-        clone.Parent = workspace
+        -- Клонируем
+        local clone = character:Clone()
+        -- Восстанавливаем Archivable
+        for obj, val in pairs(archivableCache) do
+            pcall(function()
+                obj.Archivable = val
+            end)
+        end
         return clone
     end
 
@@ -1854,19 +1853,21 @@ function ShopManager:Init(Window, Tabs)
             invisibleData.savedJumpPower = humanoid.JumpPower
             saveTransparencies(character)
 
-            -- Создаём управляемую копию (не заанкориваем)
-            local copy = createSafeClone(character)
+            -- Клонируем персонажа
+            local copy = cloneCharacter(character)
             if not copy then
-                Library:Notify("Failed to create copy – disabling", 3)
+                Library:Notify("Failed to clone character – disabling", 3)
                 invisibleToggle:SetValue(false)
                 return
             end
+            copy.Name = "InvisibleCopy"
+            copy.Parent = workspace
 
-            -- Делаем копию полупрозрачной, но с коллизиями (можно оставить CanCollide = true)
+            -- Делаем копию полупрозрачной, но не заанкориваем
             setAllPartsTransparency(copy, 0.5)
-            -- setCanCollide(copy, true) -- если нужно, чтобы копия взаимодействовала с миром
+            setCanCollide(copy, true) -- можно включить коллизию, если нужно
 
-            -- Настраиваем Humanoid копии (уже установлено в createSafeClone)
+            -- Настраиваем Humanoid копии
             local copyHumanoid = copy:FindFirstChildOfClass("Humanoid")
             if copyHumanoid then
                 copyHumanoid.PlatformStand = false
@@ -1893,7 +1894,7 @@ function ShopManager:Init(Window, Tabs)
 
             invisibleData.copyInstance = copy
             _G.NOTALovchik_InvisibleModeActive = true
-            Library:Notify("Invisible mode ON – тело под картой, камера на копии, управление копией", 2)
+            Library:Notify("Invisible mode ON – тело под картой, управление копией", 2)
 
         else
             -- Выключение
@@ -1939,8 +1940,14 @@ function ShopManager:Init(Window, Tabs)
 
     game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
 
+    -- Подписываемся на изменения тогла
     invisibleToggle:OnChanged(function(value)
         toggleInvisibleMode(value)
+    end)
+
+    -- Подписываемся на KeyBind (синхронизация с тоглом)
+    invisibleKeybind:OnChanged(function()
+        invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
 
     Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
