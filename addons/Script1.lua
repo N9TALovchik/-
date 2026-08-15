@@ -1696,14 +1696,14 @@ function ShopManager:Init(Window, Tabs)
     end)
     
     -- =====================================================
-    -- ГРУППА FUN (Invisible Mode) – разваливающийся клон
+    -- ГРУППА FUN (Invisible Mode) – клон не разваливается
     -- =====================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
     
     local invisibleToggle = funGroup:AddToggle('InvisibleMode', {
         Text = 'Invisible Mode',
         Default = false,
-        Tooltip = 'Оригинал под картой (Anchored, без коллизий), копия полностью прозрачная, камера на Head'
+        Tooltip = 'Оригинал под картой (Anchored, без коллизий), копия прозрачная, камера на Head'
     })
 
     local keybindLabel = funGroup:AddLabel('Toggle Key')
@@ -1797,8 +1797,15 @@ function ShopManager:Init(Window, Tabs)
             invisibleData.savedJumpPower = humanoid.JumpPower
             saveTransparencies(character)
 
-            -- Клонируем (персонаж может развалиться – это нормально)
-            local copy = character:Clone()
+            -- Клонируем с защитой от ошибок
+            local success, copy = pcall(function()
+                return character:Clone()
+            end)
+            if not success or not copy then
+                Library:Notify("Failed to clone character – disabling", 3)
+                invisibleToggle:SetValue(false)
+                return
+            end
             copy.Name = "InvisibleCopy"
             copy.Parent = workspace
 
