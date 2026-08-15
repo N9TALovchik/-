@@ -1725,7 +1725,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-    -- =====================================================
+       -- =====================================================
     -- ГРУППА FUN (Invisible Mode) ВНУТРИ ВКЛАДКИ Arrp
     -- =====================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
@@ -1736,8 +1736,9 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Оригинал под картой, управление передаётся копии, камера от первого лица'
     })
 
-    -- KeyBind для Invisible Mode
-    local invisibleKeybind = funGroup:AddKeyPicker('InvisibleKeybind', {
+    -- KeyBind для Invisible Mode (через Label)
+    local keybindLabel = funGroup:AddLabel('Toggle Key')
+    local invisibleKeybind = keybindLabel:AddKeyPicker('InvisibleKeybind', {
         Text = 'Toggle Key',
         Default = 'None',
         Mode = 'Toggle',
@@ -1808,7 +1809,6 @@ function ShopManager:Init(Window, Tabs)
 
     -- Клонирование с принудительным включением Archivable
     local function cloneCharacter(character)
-        -- Временно делаем все объекты Archivable = true
         local archivableCache = {}
         for _, obj in ipairs(character:GetDescendants()) do
             pcall(function()
@@ -1818,9 +1818,7 @@ function ShopManager:Init(Window, Tabs)
                 end
             end)
         end
-        -- Клонируем
         local clone = character:Clone()
-        -- Восстанавливаем Archivable
         for obj, val in pairs(archivableCache) do
             pcall(function()
                 obj.Archivable = val
@@ -1843,7 +1841,6 @@ function ShopManager:Init(Window, Tabs)
         if not camera then return end
 
         if enabled then
-            -- Сохраняем состояние
             invisibleData.savedCFrame = hrp.CFrame
             invisibleData.savedPlatformStand = humanoid.PlatformStand
             invisibleData.savedAutoRotate = humanoid.AutoRotate
@@ -1853,7 +1850,6 @@ function ShopManager:Init(Window, Tabs)
             invisibleData.savedJumpPower = humanoid.JumpPower
             saveTransparencies(character)
 
-            -- Клонируем персонажа
             local copy = cloneCharacter(character)
             if not copy then
                 Library:Notify("Failed to clone character – disabling", 3)
@@ -1863,11 +1859,9 @@ function ShopManager:Init(Window, Tabs)
             copy.Name = "InvisibleCopy"
             copy.Parent = workspace
 
-            -- Делаем копию полупрозрачной, но не заанкориваем
             setAllPartsTransparency(copy, 0.5)
-            setCanCollide(copy, true) -- можно включить коллизию, если нужно
+            setCanCollide(copy, true)
 
-            -- Настраиваем Humanoid копии
             local copyHumanoid = copy:FindFirstChildOfClass("Humanoid")
             if copyHumanoid then
                 copyHumanoid.PlatformStand = false
@@ -1876,19 +1870,15 @@ function ShopManager:Init(Window, Tabs)
                 copyHumanoid.JumpPower = humanoid.JumpPower
             end
 
-            -- Камера на копию, режим 1-го лица
             camera.CameraSubject = copyHumanoid or copy
             player.CameraMode = Enum.CameraMode.LockFirstPerson
 
-            -- Телепортируем оригинал под карту
             local targetPos = Vector3.new(867.782043, -39.9123535, -141.675568)
             hrp.CFrame = CFrame.new(targetPos)
 
-            -- Заанкориваем оригинал и делаем прозрачным
             setAnchored(character, true)
             setAllPartsTransparency(character, 1)
 
-            -- Отключаем управление оригиналом
             humanoid.PlatformStand = true
             humanoid.AutoRotate = false
 
@@ -1897,7 +1887,6 @@ function ShopManager:Init(Window, Tabs)
             Library:Notify("Invisible mode ON – тело под картой, управление копией", 2)
 
         else
-            -- Выключение
             if invisibleData.copyInstance then
                 invisibleData.copyInstance:Destroy()
                 invisibleData.copyInstance = nil
@@ -1949,7 +1938,6 @@ function ShopManager:Init(Window, Tabs)
     invisibleKeybind:OnChanged(function()
         invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
-
     Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
 end
 
