@@ -1695,15 +1695,15 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-    -- =====================================================
-    -- ГРУППА FUN (Invisible Mode) – клон не разваливается
-    -- =====================================================
+    -- ============================================================
+    -- ГРУППА FUN – INVISIBLE MODE (ручная копия без клонирования)
+    -- ============================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
     
     local invisibleToggle = funGroup:AddToggle('InvisibleMode', {
         Text = 'Invisible Mode',
         Default = false,
-        Tooltip = 'Оригинал под картой (Anchored, без коллизий), копия прозрачная, камера на Head'
+        Tooltip = 'Оригинал под картой (Anchored, без коллизий), копия собирается вручную'
     })
 
     local keybindLabel = funGroup:AddLabel('Toggle Key')
@@ -1722,11 +1722,13 @@ function ShopManager:Init(Window, Tabs)
         savedAutoRotate = true,
         savedCameraSubject = nil,
         savedCameraMode = nil,
-        copyInstance = nil,
+        copyParts = {},
+        copyHumanoid = nil,
         savedWalkSpeed = 16,
         savedJumpPower = 50,
     }
 
+    -- Вспомогательные функции
     local function setAllPartsTransparency(character, transparency)
         if not character then return end
         for _, part in ipairs(character:GetDescendants()) do
@@ -1774,6 +1776,40 @@ function ShopManager:Init(Window, Tabs)
         invisibleData.savedTransparencies = {}
     end
 
+    -- Создаём упрощённую копию из частей (без клонирования)
+    local function createDummyCopy(character)
+        local copyModel = Instance.new("Model")
+        copyModel.Name = "DummyCopy"
+
+        local partsToCopy = {"Head", "Torso", "UpperTorso", "LowerTorso", "HumanoidRootPart", "LeftArm", "RightArm", "LeftLeg", "RightLeg"}
+        for _, name in ipairs(partsToCopy) do
+            local orig = character:FindFirstChild(name)
+            if orig and orig:IsA("BasePart") then
+                local newPart = Instance.new(orig.ClassName)
+                newPart.Name = orig.Name
+                newPart.Size = orig.Size
+                newPart.CFrame = orig.CFrame
+                newPart.Color = orig.Color
+                newPart.Material = orig.Material
+                newPart.Transparency = 1 -- полностью прозрачная
+                newPart.Anchored = true
+                newPart.CanCollide = false
+                newPart.Parent = copyModel
+                table.insert(invisibleData.copyParts, newPart)
+            end
+        end
+
+        -- Добавляем Humanoid, чтобы камера могла нацелиться
+        local h = Instance.new("Humanoid")
+        h.PlatformStand = true
+        h.AutoRotate = false
+        h.Parent = copyModel
+
+        copyModel.Parent = workspace
+        invisibleData.copyHumanoid = h
+        return copyModel
+    end
+
     local function toggleInvisibleMode(enabled)
         local player = game.Players.LocalPlayer
         if not player then return end
@@ -1797,33 +1833,15 @@ function ShopManager:Init(Window, Tabs)
             invisibleData.savedJumpPower = humanoid.JumpPower
             saveTransparencies(character)
 
-            -- Клонируем с защитой от ошибок
-            local success, copy = pcall(function()
-                return character:Clone()
-            end)
-            if not success or not copy then
-                Library:Notify("Failed to clone character – disabling", 3)
+            -- Создаём упрощённую копию
+            local copy = createDummyCopy(character)
+            if not copy then
+                Library:Notify("Failed to create dummy copy – disabling", 3)
                 invisibleToggle:SetValue(false)
                 return
             end
-            copy.Name = "InvisibleCopy"
-            copy.Parent = workspace
 
-            -- Оригинал: телепортируем под карту, anchored, без коллизий, прозрачный
-            local targetPos = Vector3.new(867.782043, -39.9123535, -141.675568)
-            hrp.CFrame = CFrame.new(targetPos)
-            setAllAnchored(character, true)
-            setAllCanCollide(character, false)
-            setAllPartsTransparency(character, 1)
-            humanoid.PlatformStand = true
-            humanoid.AutoRotate = false
-
-            -- Копия: полностью прозрачная, anchored, без коллизий (чтобы не разваливалась)
-            setAllPartsTransparency(copy, 1)
-            setAllAnchored(copy, true)
-            setAllCanCollide(copy, false)
-
-            -- Камера на Head (если есть)
+            -- Камера на копию, первый человек
             local head = copy:FindFirstChild("Head")
             if head then
                 camera.CameraSubject = head
@@ -1832,26 +1850,45 @@ function ShopManager:Init(Window, Tabs)
             end
             player.CameraMode = Enum.CameraMode.LockFirstPerson
 
-            invisibleData.copyInstance = copy
+            -- Телепортируем оригинал под карту
+            local targetPos = Vector3.new(867.782043, -39.9123535, -141.675568)
+            hrp.CFrame = CFrame.new(targetPos)
+
+            setAllAnchored(character, true)
+            setAllCanCollide(character, false)
+            setAllPartsTransparency(character, 1)
+
+            humanoid.PlatformStand = true
+            humanoid.AutoRotate = false
+
             _G.NOTALovchik_InvisibleModeActive = true
-            Library:Notify("Invisible mode ON – оригинал под картой, копия прозрачная, камера на Head", 2)
+            Library:Notify("Invisible mode ON (ручная копия)", 2)
 
         else
-            if invisibleData.copyInstance then
-                invisibleData.copyInstance:Destroy()
-                invisibleData.copyInstance = nil
+            -- Удаляем копию
+            if invisibleData.copyHumanoid then
+                local copyModel = invisibleData.copyHumanoid.Parent
+                if copyModel then copyModel:Destroy() end
+                invisibleData.copyHumanoid = nil
+                invisibleData.copyParts = {}
+            else
+                for _, part in ipairs(invisibleData.copyParts) do
+                    part:Destroy()
+                end
+                invisibleData.copyParts = {}
             end
 
+            -- Восстанавливаем камеру
             if invisibleData.savedCameraSubject then
                 camera.CameraSubject = invisibleData.savedCameraSubject
             else
                 camera.CameraSubject = character
             end
-
             if invisibleData.savedCameraMode then
                 player.CameraMode = invisibleData.savedCameraMode
             end
 
+            -- Возвращаем оригинал
             if invisibleData.savedCFrame then
                 hrp.CFrame = invisibleData.savedCFrame
             end
@@ -1866,7 +1903,7 @@ function ShopManager:Init(Window, Tabs)
             humanoid.JumpPower = invisibleData.savedJumpPower
 
             _G.NOTALovchik_InvisibleModeActive = false
-            Library:Notify("Invisible mode OFF – всё возвращено", 2)
+            Library:Notify("Invisible mode OFF", 2)
         end
     end
 
@@ -1883,7 +1920,6 @@ function ShopManager:Init(Window, Tabs)
         toggleInvisibleMode(value)
     end)
 
-    -- Правильная подписка через Options
     Options.InvisibleKeybind:OnChanged(function()
         invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
