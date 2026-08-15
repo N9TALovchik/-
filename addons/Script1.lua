@@ -1695,7 +1695,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-        -- ============================================================
+    -- ============================================================
     -- ГРУППА FUN – INVISIBLE MODE (ручная копия, без автозапуска)
     -- ============================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
@@ -1707,7 +1707,7 @@ function ShopManager:Init(Window, Tabs)
     })
 
     local keybindLabel = funGroup:AddLabel('Toggle Key')
-    local invisibleKeybind = keybindLabel:AddKeyPicker('InvisibleKeybind', {
+    keybindLabel:AddKeyPicker('InvisibleKeybind', {
         Text = 'Toggle Key',
         Default = 'None',
         Mode = 'Toggle',
@@ -1911,8 +1911,8 @@ function ShopManager:Init(Window, Tabs)
         toggleInvisibleMode(value)
     end)
 
-    -- KeyBind переключает тогл (используем сам объект, а не Options)
-    invisibleKeybind:OnChanged(function()
+    -- Подписка на KeyBind через глобальную таблицу Options
+    Options.InvisibleKeybind:OnChanged(function()
         invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
 
