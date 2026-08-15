@@ -1725,7 +1725,7 @@ function ShopManager:Init(Window, Tabs)
         end
     end)
     
-       -- =====================================================
+    -- =====================================================
     -- ГРУППА FUN (Invisible Mode) ВНУТРИ ВКЛАДКИ Arrp
     -- =====================================================
     local funGroup = shopTab:AddLeftGroupbox('Fun')
@@ -1736,7 +1736,7 @@ function ShopManager:Init(Window, Tabs)
         Tooltip = 'Оригинал под картой, управление передаётся копии, камера от первого лица'
     })
 
-    -- KeyBind для Invisible Mode (через Label)
+    -- KeyBind через Label
     local keybindLabel = funGroup:AddLabel('Toggle Key')
     local invisibleKeybind = keybindLabel:AddKeyPicker('InvisibleKeybind', {
         Text = 'Toggle Key',
@@ -1938,6 +1938,7 @@ function ShopManager:Init(Window, Tabs)
     invisibleKeybind:OnChanged(function()
         invisibleToggle:SetValue(not invisibleToggle.Value)
     end)
+
     Library:Notify("ShopManager loaded. All items are purchased with cash (GamePass ignored).", 3)
 end
 
