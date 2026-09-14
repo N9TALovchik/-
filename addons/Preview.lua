@@ -1,8 +1,8 @@
 --=====================================================
 -- PreviewManager.lua
 -- Отдельный плавающий фрейм с ESP-превью локального персонажа.
--- Вращение камеры мышью, автоспин, полный ESP overlay.
--- Синхронизация открытия/закрытия с Library.MainFrame.
+-- Вращение мыши, автоспин, полный ESP overlay.
+-- Синхронизация видимости с Library.MainFrame.
 --=====================================================
 
 local Players          = game:GetService('Players')
@@ -10,65 +10,64 @@ local RunService       = game:GetService('RunService')
 local UserInputService = game:GetService('UserInputService')
 local CoreGui          = game:GetService('CoreGui')
 
-local Options  = getgenv().Options or {}
-local Toggles  = getgenv().Toggles or {}
+local Options = getgenv().Options or {}
+local Toggles = getgenv().Toggles or {}
 
-local PreviewManager = {} do
-    PreviewManager.Folder  = 'NOTALovchik'
-    PreviewManager.Library = nil
+local PreviewManager = {}
+PreviewManager.Folder  = 'NOTALovchik'
+PreviewManager.Library = nil
 
-    PreviewManager.Config = {
-        Enabled              = true,
-        Size                 = Vector2.new(240, 340),
-        Position             = UDim2.new(0, 40, 0, 120),
-        BackgroundColor      = Color3.fromRGB(20, 20, 26),
-        BackgroundTransparency = 0,
-        OutlineColor         = Color3.fromRGB(70, 70, 95),
-        OutlineThickness     = 1,
-        CornerRadius         = 6,
+PreviewManager.Config = {
+    Enabled                = true,
+    Size                   = Vector2.new(240, 340),
+    Position               = UDim2.new(0, 40, 0, 120),
+    BackgroundColor        = Color3.fromRGB(20, 20, 26),
+    BackgroundTransparency = 0,
+    OutlineColor           = Color3.fromRGB(70, 70, 95),
+    OutlineThickness       = 1,
+    CornerRadius           = 6,
 
-        AutoRotate           = true,
-        RotationSpeed        = 0.5,   -- rad/sec
-        ManualYaw            = 0,
-        Pitch                = math.rad(8),
-        Distance             = 9,
-        FOV                  = 50,
-        FocusHeight          = 2.6,
+    AutoRotate             = true,
+    RotationSpeed          = 0.5,
+    ManualYaw              = 0,
+    Pitch                  = math.rad(8),
+    Distance               = 9,
+    FOV                    = 50,
+    FocusHeight            = 2.6,
 
-        ShowBox              = true,
-        ShowName             = true,
-        ShowHealth           = true,
-        ShowHeadDot          = true,
+    ShowBox                = true,
+    ShowName               = true,
+    ShowHealth             = true,
+    ShowHeadDot            = true,
 
-        BoxColor             = Color3.fromRGB(255, 255, 255),
-        NameColor            = Color3.fromRGB(255, 255, 255),
-        HealthColor          = Color3.fromRGB(0, 255, 0),
-        HeadDotColor         = Color3.fromRGB(255, 255, 255),
-    }
+    BoxColor               = Color3.fromRGB(255, 255, 255),
+    NameColor              = Color3.fromRGB(255, 255, 255),
+    HealthColor            = Color3.fromRGB(0, 255, 0),
+    HeadDotColor           = Color3.fromRGB(255, 255, 255),
+}
 
-    PreviewManager.State = {
-        Gui           = nil,
-        MainFrame     = nil,
-        ViewportFrame = nil,
-        WorldModel    = nil,
-        Camera        = nil,
-        Character     = nil,
-        ESPContainer  = nil,
+PreviewManager.State = {
+    Gui           = nil,
+    MainFrame     = nil,
+    ViewportFrame = nil,
+    WorldModel    = nil,
+    Camera        = nil,
+    Character     = nil,
+    ESPContainer  = nil,
 
-        Box           = nil, BoxStroke = nil,
-        Name          = nil,
-        HealthBg      = nil, HealthFill = nil,
-        HeadDot       = nil,
+    Box           = nil, BoxStroke = nil,
+    Name          = nil,
+    HealthBg      = nil, HealthFill = nil,
+    HeadDot       = nil,
 
-        Yaw           = 0,
-        Dragging      = false,
-        LastMouseX    = 0,
+    Yaw           = 0,
+    Dragging      = false,
+    LastMouseX    = 0,
 
-        SyncConn      = nil,
-        RenderConn    = nil,
-        CharacterConn = nil,
-    }
-end
+    SyncConn      = nil,
+    RenderConn    = nil,
+    CharacterConn = nil,
+}
 
 --=====================================================
 -- helpers
@@ -91,58 +90,36 @@ local function getGuiParent()
     return Players.LocalPlayer:WaitForChild('PlayerGui')
 end
 
-local function getConfig()
-    -- читаем актуальные настройки из существующего ESP конфига
-    local c = PreviewManager.Config
-    local g = _G.NOTALovchik_v190 or {}
-
-    if g.Box then
-        c.ShowBox    = c.ShowBox or g.Box.Enabled
-        c.BoxColor   = g.Box.Color or c.BoxColor
-    end
-    if g.Name then
-        c.ShowName   = c.ShowName or g.Name.Enabled
-        c.NameColor  = g.Name.Color or c.NameColor
-    end
-    if g.Health then
-        c.ShowHealth = c.ShowHealth or g.Health.Enabled
-        c.HealthColor = g.Health.Color or c.HealthColor
-    end
-    return c
-end
-
 --=====================================================
 -- build
 --=====================================================
 function PreviewManager:Build()
     local S = PreviewManager.State
     local C = PreviewManager.Config
-
     if S.Gui and S.Gui.Parent then return end
 
     local gui = create('ScreenGui', {
-        Name           = 'NOTALovchik_Preview',
-        ResetOnSpawn   = false,
+        Name = 'NOTALovchik_Preview',
+        ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        Enabled        = false,
+        Enabled = false,
     })
     protectGui(gui)
     gui.Parent = getGuiParent()
 
     local frame = create('Frame', {
-        Name                   = 'PreviewFrame',
-        Size                   = UDim2.fromOffset(C.Size.X, C.Size.Y),
-        Position               = C.Position,
-        BackgroundColor3       = C.BackgroundColor,
+        Name = 'PreviewFrame',
+        Size = UDim2.fromOffset(C.Size.X, C.Size.Y),
+        Position = C.Position,
+        BackgroundColor3 = C.BackgroundColor,
         BackgroundTransparency = C.BackgroundTransparency,
-        BorderSizePixel        = 0,
-        ClipsDescendants       = true,
-        Active                 = true,
-        Draggable              = true,
-        Parent                 = gui,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        Active = true,
+        Draggable = true,
+        Parent = gui,
     })
-
-    local corner = create('UICorner', { CornerRadius = UDim.new(0, C.CornerRadius), Parent = frame })
+    create('UICorner', { CornerRadius = UDim.new(0, C.CornerRadius), Parent = frame })
     local stroke = create('UIStroke', {
         Color = C.OutlineColor,
         Thickness = C.OutlineThickness,
@@ -166,7 +143,6 @@ function PreviewManager:Build()
     local cam = create('Camera', { FieldOfView = C.FOV, Parent = vp })
     vp.CurrentCamera = cam
 
-    -- ESP overlay (поверх вьюпорта, поверх модели)
     local esp = create('Frame', {
         Name = 'ESPOverlay',
         Size = UDim2.fromScale(1, 1),
@@ -176,7 +152,6 @@ function PreviewManager:Build()
         Parent = frame,
     })
 
-    -- box
     local box = create('Frame', {
         Name = 'Box',
         BackgroundTransparency = 1,
@@ -187,7 +162,6 @@ function PreviewManager:Build()
     })
     local boxStroke = create('UIStroke', { Color = C.BoxColor, Thickness = 1, Parent = box })
 
-    -- name
     local nameLbl = create('TextLabel', {
         Name = 'Name',
         BackgroundTransparency = 1,
@@ -197,14 +171,13 @@ function PreviewManager:Build()
         TextStrokeTransparency = 0,
         TextStrokeColor3 = Color3.new(0, 0, 0),
         Text = 'Player',
-        Size = UDim2.new(0, 120, 0, 16),
+        Size = UDim2.new(0, 160, 0, 16),
         AnchorPoint = Vector2.new(0.5, 1),
         Visible = false,
         ZIndex = 7,
         Parent = esp,
     })
 
-    -- health
     local hbg = create('Frame', {
         Name = 'HealthBG',
         BackgroundColor3 = Color3.new(0, 0, 0),
@@ -222,7 +195,6 @@ function PreviewManager:Build()
         Parent = esp,
     })
 
-    -- head dot
     local dot = create('Frame', {
         Name = 'HeadDot',
         BackgroundColor3 = C.HeadDotColor,
@@ -235,13 +207,11 @@ function PreviewManager:Build()
     })
     create('UICorner', { CornerRadius = UDim.new(1, 0), Parent = dot })
 
-    -- привязываем размер ViewportSize к реальному размеру фрейма
     cam.ViewportSize = vp.AbsoluteSize
     vp:GetPropertyChangedSignal('AbsoluteSize'):Connect(function()
         cam.ViewportSize = vp.AbsoluteSize
     end)
 
-    -- drag камеры мышью
     vp.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton2
            or input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -263,18 +233,18 @@ function PreviewManager:Build()
         PreviewManager.Config.ManualYaw = PreviewManager.Config.ManualYaw + dx * math.rad(0.6)
     end)
 
-    S.Gui           = gui
-    S.MainFrame     = frame
+    S.Gui = gui
+    S.MainFrame = frame
     S.ViewportFrame = vp
-    S.WorldModel    = world
-    S.Camera        = cam
-    S.ESPContainer  = esp
-    S.Box           = box
-    S.BoxStroke     = boxStroke
-    S.Name          = nameLbl
-    S.HealthBg      = hbg
-    S.HealthFill    = hfill
-    S.HeadDot       = dot
+    S.WorldModel = world
+    S.Camera = cam
+    S.ESPContainer = esp
+    S.Box = box
+    S.BoxStroke = boxStroke
+    S.Name = nameLbl
+    S.HealthBg = hbg
+    S.HealthFill = hfill
+    S.HeadDot = dot
 end
 
 --=====================================================
@@ -295,7 +265,6 @@ function PreviewManager:RefreshCharacter()
     local ok, clone = pcall(function() return lp.Character:Clone() end)
     if not ok or not clone then return end
 
-    -- чистим скрипты/звуки/аниматоры кроме Humanoid чтобы не мешали
     for _, d in ipairs(clone:GetDescendants()) do
         if d:IsA('Script') or d:IsA('LocalScript')
            or d:IsA('Sound') or d:IsA('Animator')
@@ -311,7 +280,6 @@ function PreviewManager:RefreshCharacter()
         pcall(function() clone:SetPrimaryPartCFrame(CFrame.new(0, 0, 0)) end)
     end
 
-    -- архивируем physics
     for _, d in ipairs(clone:GetDescendants()) do
         if d:IsA('BasePart') then
             d.Anchored = true
@@ -332,21 +300,15 @@ function PreviewManager:UpdateCamera()
     local C = PreviewManager.Config
     if not S.Camera then return end
 
-    if C.AutoRotate and not S.Dragging then
-        S.Yaw = S.Yaw + (RunService.Heartbeat and 0 or 0) -- placeholder, real add in render loop
-    end
-
     local yaw = S.Yaw + C.ManualYaw
     local pitch = C.Pitch
     local dist = C.Distance
-
     local focus = Vector3.new(0, C.FocusHeight, 0)
     local offset = Vector3.new(
         math.sin(yaw) * math.cos(pitch) * dist,
         math.sin(pitch) * dist,
         math.cos(yaw) * math.cos(pitch) * dist
     )
-
     S.Camera.CFrame = CFrame.new(focus + offset, focus)
     S.Camera.FieldOfView = C.FOV
 end
@@ -357,11 +319,10 @@ end
 function PreviewManager:UpdateESP()
     local S = PreviewManager.State
     local C = PreviewManager.Config
-    if not S.Camera or not S.Character or not S.ViewportFrame then return end
+    if not S.Camera or not S.Character then return end
 
     local cam = S.Camera
     local char = S.Character
-
     local hrp = char:FindFirstChild('HumanoidRootPart')
         or char:FindFirstChild('UpperTorso')
         or char:FindFirstChild('Torso')
@@ -370,16 +331,13 @@ function PreviewManager:UpdateESP()
     local hum = char:FindFirstChildOfClass('Humanoid')
     local head = char:FindFirstChild('Head') or hrp
 
-    local headPos  = head.Position + Vector3.new(0, 0.5, 0)
-    local footPos  = hrp.Position - Vector3.new(0, 3, 0)
-    local torsoPos = hrp.Position
+    local headPos = head.Position + Vector3.new(0, 0.5, 0)
+    local footPos = hrp.Position - Vector3.new(0, 3, 0)
 
     local headScr, headOn = cam:WorldToViewportPoint(headPos)
     local footScr, footOn = cam:WorldToViewportPoint(footPos)
-
     local onScreen = headOn and footOn
 
-    -- box
     if C.ShowBox and onScreen then
         local x1 = math.min(headScr.X, footScr.X)
         local y1 = math.min(headScr.Y, footScr.Y)
@@ -398,7 +356,6 @@ function PreviewManager:UpdateESP()
         S.Name.Text = Players.LocalPlayer.Name
         S.Name.Visible = C.ShowName
 
-        -- health bar
         local hp = 1
         if hum then hp = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1) end
         local barH = y2 - y1
@@ -406,7 +363,6 @@ function PreviewManager:UpdateESP()
         S.HealthBg.Position = UDim2.fromOffset(barX - 1, y1 - 1)
         S.HealthBg.Size = UDim2.fromOffset(4, barH + 2)
         S.HealthBg.Visible = C.ShowHealth
-
         S.HealthFill.Position = UDim2.fromOffset(barX, y1 + (barH - barH * hp))
         S.HealthFill.Size = UDim2.fromOffset(2, barH * hp)
         S.HealthFill.BackgroundColor3 = C.HealthColor
@@ -418,11 +374,10 @@ function PreviewManager:UpdateESP()
         S.HealthFill.Visible = false
     end
 
-    -- head dot
     if C.ShowHeadDot then
-        local headScreen, headVisible = cam:WorldToViewportPoint(head.Position)
-        if headVisible then
-            S.HeadDot.Position = UDim2.fromOffset(headScreen.X, headScreen.Y)
+        local hs, hv = cam:WorldToViewportPoint(head.Position)
+        if hv then
+            S.HeadDot.Position = UDim2.fromOffset(hs.X, hs.Y)
             S.HeadDot.BackgroundColor3 = C.HeadDotColor
             S.HeadDot.Visible = true
         else
@@ -434,56 +389,45 @@ function PreviewManager:UpdateESP()
 end
 
 --=====================================================
--- sync with Library
+-- sync + render
 --=====================================================
 function PreviewManager:StartSync()
     local S = PreviewManager.State
     if S.SyncConn then S.SyncConn:Disconnect() end
-
     S.SyncConn = RunService.Heartbeat:Connect(function()
         local lib = PreviewManager.Library
         if not lib or not lib.MainFrame then return end
-
         local shouldShow = lib.MainFrame.Visible and PreviewManager.Config.Enabled
-        if S.Gui then
-            S.Gui.Enabled = shouldShow and true or false
-        end
+        if S.Gui then S.Gui.Enabled = shouldShow and true or false end
     end)
 end
 
---=====================================================
--- render loop
---=====================================================
 function PreviewManager:StartRender()
     local S = PreviewManager.State
     if S.RenderConn then S.RenderConn:Disconnect() end
-
     local lastT = tick()
     S.RenderConn = RunService.RenderStepped:Connect(function()
         local now = tick()
         local dt = now - lastT
         lastT = now
-
         if not S.Gui or not S.Gui.Enabled then return end
-
         if PreviewManager.Config.AutoRotate and not S.Dragging then
             S.Yaw = S.Yaw + dt * PreviewManager.Config.RotationSpeed
         end
-
         PreviewManager:UpdateCamera()
         PreviewManager:UpdateESP()
     end)
 end
 
 --=====================================================
--- public
+-- public API
 --=====================================================
 function PreviewManager:SetLibrary(lib)
     PreviewManager.Library = lib
 end
 
 function PreviewManager:SetFolder(f)
-    PreviewManager.Folder = f
+    PreviewManager.Folder = f or PreviewManager.Folder
 end
 
 function PreviewManager:Create()
@@ -509,17 +453,15 @@ function PreviewManager:Destroy()
     if S.Gui then S.Gui:Destroy() S.Gui = nil end
 end
 
-function PreviewManager:SetEnabled(b)
-    PreviewManager.Config.Enabled = b and true or false
+function PreviewManager:SetEnabled(b) PreviewManager.Config.Enabled = b and true or false end
+function PreviewManager:SetAutoRotate(b) PreviewManager.Config.AutoRotate = b and true or false end
+function PreviewManager:SetRotationSpeed(v) PreviewManager.Config.RotationSpeed = v end
+function PreviewManager:SetDistance(v) PreviewManager.Config.Distance = v end
+function PreviewManager:SetFOV(v) PreviewManager.Config.FOV = v end
+function PreviewManager:ResetYaw()
+    PreviewManager.State.Yaw = 0
+    PreviewManager.Config.ManualYaw = 0
 end
-
-function PreviewManager:SetSize(x, y)
-    PreviewManager.Config.Size = Vector2.new(x, y)
-    if PreviewManager.State.MainFrame then
-        PreviewManager.State.MainFrame.Size = UDim2.fromOffset(x, y)
-    end
-end
-
 function PreviewManager:SetBackground(color, transparency)
     if color then PreviewManager.Config.BackgroundColor = color end
     if transparency then PreviewManager.Config.BackgroundTransparency = transparency end
@@ -529,11 +471,9 @@ function PreviewManager:SetBackground(color, transparency)
         f.BackgroundTransparency = PreviewManager.Config.BackgroundTransparency
     end
 end
-
 function PreviewManager:SetOutline(color, thickness)
     if color then PreviewManager.Config.OutlineColor = color end
     if thickness then PreviewManager.Config.OutlineThickness = thickness end
-    local s = PreviewManager.State.BoxStroke
     local f = PreviewManager.State.MainFrame
     if f then
         local st = f:FindFirstChildOfClass('UIStroke')
@@ -544,33 +484,11 @@ function PreviewManager:SetOutline(color, thickness)
     end
 end
 
-function PreviewManager:SetAutoRotate(b)
-    PreviewManager.Config.AutoRotate = b and true or false
-end
-
-function PreviewManager:SetRotationSpeed(v)
-    PreviewManager.Config.RotationSpeed = v
-end
-
-function PreviewManager:SetDistance(v)
-    PreviewManager.Config.Distance = v
-end
-
-function PreviewManager:SetFOV(v)
-    PreviewManager.Config.FOV = v
-end
-
-function PreviewManager:ResetYaw()
-    PreviewManager.State.Yaw = 0
-    PreviewManager.Config.ManualYaw = 0
-end
-
 --=====================================================
 -- settings UI
 --=====================================================
 function PreviewManager:CreateSettingsUI(tab)
     if not tab or not PreviewManager.Library then return end
-
     local section = tab:AddLeftGroupbox('ESP Preview')
 
     section:AddToggle('PreviewEnabled', {
@@ -578,41 +496,39 @@ function PreviewManager:CreateSettingsUI(tab)
         Default = PreviewManager.Config.Enabled,
         Callback = function(v) PreviewManager:SetEnabled(v) end,
     })
-
     section:AddToggle('PreviewAutoRotate', {
         Text = 'Auto Rotate',
         Default = PreviewManager.Config.AutoRotate,
         Callback = function(v) PreviewManager:SetAutoRotate(v) end,
     })
-
     section:AddSlider('PreviewRotSpeed', {
         Text = 'Rotation Speed',
-        Min = 0, Max = 3, Default = PreviewManager.Config.RotationSpeed, Rounding = 2,
+        Min = 0, Max = 3,
+        Default = PreviewManager.Config.RotationSpeed,
+        Rounding = 2,
         Callback = function(v) PreviewManager:SetRotationSpeed(v) end,
     })
-
     section:AddSlider('PreviewDistance', {
         Text = 'Camera Distance',
-        Min = 3, Max = 20, Default = PreviewManager.Config.Distance, Rounding = 1,
+        Min = 3, Max = 20,
+        Default = PreviewManager.Config.Distance,
+        Rounding = 1,
         Callback = function(v) PreviewManager:SetDistance(v) end,
     })
-
     section:AddSlider('PreviewFOV', {
         Text = 'Camera FOV',
-        Min = 20, Max = 100, Default = PreviewManager.Config.FOV, Rounding = 0,
+        Min = 20, Max = 100,
+        Default = PreviewManager.Config.FOV,
+        Rounding = 0,
         Callback = function(v) PreviewManager:SetFOV(v) end,
     })
-
-    section:AddButton('Reset Yaw', function()
-        PreviewManager:ResetYaw()
-    end)
+    section:AddButton('Reset Yaw', function() PreviewManager:ResetYaw() end)
 
     section:AddDivider()
     section:AddLabel('Visuals')
 
     section:AddToggle('PreviewShowBox', {
-        Text = 'Box',
-        Default = PreviewManager.Config.ShowBox,
+        Text = 'Box', Default = PreviewManager.Config.ShowBox,
         Callback = function(v) PreviewManager.Config.ShowBox = v end,
     })
     section:AddLabel('Box Color'):AddColorPicker('PreviewBoxColor', {
@@ -620,10 +536,8 @@ function PreviewManager:CreateSettingsUI(tab)
         Title = 'Box Color',
         Callback = function(c) PreviewManager.Config.BoxColor = c end,
     })
-
     section:AddToggle('PreviewShowName', {
-        Text = 'Name',
-        Default = PreviewManager.Config.ShowName,
+        Text = 'Name', Default = PreviewManager.Config.ShowName,
         Callback = function(v) PreviewManager.Config.ShowName = v end,
     })
     section:AddLabel('Name Color'):AddColorPicker('PreviewNameColor', {
@@ -631,10 +545,8 @@ function PreviewManager:CreateSettingsUI(tab)
         Title = 'Name Color',
         Callback = function(c) PreviewManager.Config.NameColor = c end,
     })
-
     section:AddToggle('PreviewShowHealth', {
-        Text = 'Health Bar',
-        Default = PreviewManager.Config.ShowHealth,
+        Text = 'Health Bar', Default = PreviewManager.Config.ShowHealth,
         Callback = function(v) PreviewManager.Config.ShowHealth = v end,
     })
     section:AddLabel('Health Color'):AddColorPicker('PreviewHealthColor', {
@@ -642,10 +554,8 @@ function PreviewManager:CreateSettingsUI(tab)
         Title = 'Health Color',
         Callback = function(c) PreviewManager.Config.HealthColor = c end,
     })
-
     section:AddToggle('PreviewShowHeadDot', {
-        Text = 'Head Dot',
-        Default = PreviewManager.Config.ShowHeadDot,
+        Text = 'Head Dot', Default = PreviewManager.Config.ShowHeadDot,
         Callback = function(v) PreviewManager.Config.ShowHeadDot = v end,
     })
 
@@ -662,24 +572,32 @@ function PreviewManager:CreateSettingsUI(tab)
         Title = 'Outline Color',
         Callback = function(c) PreviewManager:SetOutline(c) end,
     })
-
     section:AddSlider('PreviewBgTransparency', {
         Text = 'Background Transparency',
-        Min = 0, Max = 1, Default = PreviewManager.Config.BackgroundTransparency, Rounding = 2,
+        Min = 0, Max = 1,
+        Default = PreviewManager.Config.BackgroundTransparency,
+        Rounding = 2,
         Callback = function(v) PreviewManager:SetBackground(nil, v) end,
     })
     section:AddSlider('PreviewOutlineThickness', {
         Text = 'Outline Thickness',
-        Min = 0, Max = 5, Default = PreviewManager.Config.OutlineThickness, Rounding = 0,
+        Min = 0, Max = 5,
+        Default = PreviewManager.Config.OutlineThickness,
+        Rounding = 0,
         Callback = function(v) PreviewManager:SetOutline(nil, v) end,
     })
     section:AddSlider('PreviewCornerRadius', {
         Text = 'Corner Radius',
-        Min = 0, Max = 20, Default = PreviewManager.Config.CornerRadius, Rounding = 0,
+        Min = 0, Max = 20,
+        Default = PreviewManager.Config.CornerRadius,
+        Rounding = 0,
         Callback = function(v)
             PreviewManager.Config.CornerRadius = v
-            local c = PreviewManager.State.MainFrame and PreviewManager.State.MainFrame:FindFirstChildOfClass('UICorner')
-            if c then c.CornerRadius = UDim.new(0, v) end
+            local f = PreviewManager.State.MainFrame
+            if f then
+                local c = f:FindFirstChildOfClass('UICorner')
+                if c then c.CornerRadius = UDim.new(0, v) end
+            end
         end,
     })
 end
