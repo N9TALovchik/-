@@ -134,7 +134,6 @@ function PreviewManager:Build()
         ClipsDescendants = true,
         Ambient = Color3.fromRGB(150, 150, 150),
         LightColor = Color3.fromRGB(255, 255, 255),
-        LightDirection = Enum.NormalId.Front,
         Parent = frame,
     })
     create('UICorner', { CornerRadius = UDim.new(0, C.CornerRadius), Parent = vp })
