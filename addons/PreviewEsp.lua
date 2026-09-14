@@ -1,13 +1,14 @@
 --=====================================================
--- PreviewManager.lua
--- Просто плавающий фрейм + контейнер. Всё из кода.
+-- PreviewEsp.lua — контейнер + правильный enable
 --=====================================================
 
-local Players    = game:GetService('Players')
-local RunService = game:GetService('RunService')
-local CoreGui    = game:GetService('CoreGui')
+local Players          = game:GetService('Players')
+local RunService       = game:GetService('RunService')
+local UserInputService = game:GetService('UserInputService')
+local CoreGui          = game:GetService('CoreGui')
 
 local PreviewManager = {}
+PreviewManager.Folder  = 'NOTALovchik'
 PreviewManager.Library = nil
 
 PreviewManager.Config = {
@@ -62,7 +63,7 @@ function PreviewManager:Build()
         Name = 'NOTALovchik_Preview',
         ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        Enabled = false,
+        Enabled = true,   -- ВОТ ТУТ было false
     })
     protectGui(gui)
     gui.Parent = getGuiParent()
@@ -112,16 +113,36 @@ function PreviewManager:Build()
 end
 
 --=====================================================
--- sync with Library
+-- sync — надёжная проверка
 --=====================================================
 function PreviewManager:StartSync()
     local S = PreviewManager.State
     if S.SyncConn then S.SyncConn:Disconnect() end
     S.SyncConn = RunService.Heartbeat:Connect(function()
+        if not S.Gui then return end
+
+        -- если юзер сам выключил превью
+        if not PreviewManager.Config.Enabled then
+            S.Gui.Enabled = false
+            return
+        end
+
+        -- пробуем синкнуться с либой; если MainFrame нет — показываем всегда
         local lib = PreviewManager.Library
-        if not lib or not lib.MainFrame then return end
-        local shouldShow = lib.MainFrame.Visible and PreviewManager.Config.Enabled
-        if S.Gui then S.Gui.Enabled = shouldShow and true or false end
+        local mf  = lib and lib.MainFrame
+
+        if not mf then
+            S.Gui.Enabled = true
+            return
+        end
+
+        local ok, isVisible = pcall(function() return mf.Visible end)
+        if not ok then
+            S.Gui.Enabled = true
+            return
+        end
+
+        S.Gui.Enabled = isVisible and true or false
     end)
 end
 
@@ -149,7 +170,7 @@ function PreviewManager:GetFrame()     return PreviewManager.State.MainFrame end
 function PreviewManager:GetGui()       return PreviewManager.State.Gui end
 
 --=====================================================
--- setters (для вызова из своего кода)
+-- setters
 --=====================================================
 function PreviewManager:SetEnabled(b) PreviewManager.Config.Enabled = b and true or false end
 
