@@ -7,7 +7,8 @@ local CoreGui = game:GetService('CoreGui')
 local Workspace = game:GetService('Workspace')
 local RunService = game:GetService('RunService')
 local SoundService = game:GetService('SoundService')
-
+local Options = getgenv().Options
+local Toggles = getgenv().Toggles
 local ThemeManager = {} do
 	ThemeManager.Folder = 'LinoriaLibSettings'
 
