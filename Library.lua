@@ -18,6 +18,10 @@ local ThreeDMode = false
 local Current3DPart = nil
 local Current3DSurface = nil
 
+-- [FIX] общий максимум скорости для rainbow и gradient
+local SPEED_MIN = 0.1
+local SPEED_MAX = 15.0
+
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
 local ScreenGui = Instance.new('ScreenGui');
@@ -874,6 +878,11 @@ do
     });
 
     -- ===== Display / value resolution =====
+    -- [FIX] сохраняем фазу для rainbow, чтобы анимация шла плавно
+    ColorPicker._rainbowPhase = 0
+    ColorPicker._gradientPhase = 0
+    ColorPicker._lastTick = tick()
+
     function ColorPicker:GetEffectiveColor()
         if ColorPicker.Mode == 'Standard' then
             return Color3.fromHSV(ColorPicker.Hue, ColorPicker.Sat, ColorPicker.Vib)
@@ -888,7 +897,8 @@ do
     end
 
     local function updateRainbowSliders()
-        local s = math.clamp((ColorPicker.RainbowSpeed - 0.1) / 4.9, 0, 1)
+        -- [FIX] маппинг под SPEED_MIN..SPEED_MAX (до 15)
+        local s = math.clamp((ColorPicker.RainbowSpeed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN), 0, 1)
         RSpeedFill.Size = UDim2.new(s, 0, 1, 0)
         RSpeedLabel.Text = string.format('Rainbow Speed: %.1f', ColorPicker.RainbowSpeed)
         local b = math.clamp(ColorPicker.RainbowBrightness, 0.05, 1)
@@ -897,7 +907,8 @@ do
     end
 
     local function updateGradientSpeed()
-        local s = math.clamp((ColorPicker.GradientSpeed - 0.1) / 4.9, 0, 1)
+        -- [FIX] маппинг под SPEED_MIN..SPEED_MAX (до 15)
+        local s = math.clamp((ColorPicker.GradientSpeed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN), 0, 1)
         GSpeedFill.Size = UDim2.new(s, 0, 1, 0)
         GSpeedLabel.Text = string.format('Gradient Speed: %.1f', ColorPicker.GradientSpeed)
     end
@@ -1138,7 +1149,8 @@ do
                 local minX = RSpeedOuter.AbsolutePosition.X
                 local maxX = minX + RSpeedOuter.AbsoluteSize.X
                 local mx = math.clamp(Mouse.X, minX, maxX)
-                ColorPicker.RainbowSpeed = 0.1 + ((mx - minX) / (maxX - minX)) * 4.9
+                -- [FIX] скорость до 15
+                ColorPicker.RainbowSpeed = SPEED_MIN + ((mx - minX) / (maxX - minX)) * (SPEED_MAX - SPEED_MIN)
                 updateRainbowSliders()
                 ColorPicker:Display()
                 RenderStepped:Wait()
@@ -1164,7 +1176,8 @@ do
                 local minX = GSpeedOuter.AbsolutePosition.X
                 local maxX = minX + GSpeedOuter.AbsoluteSize.X
                 local mx = math.clamp(Mouse.X, minX, maxX)
-                ColorPicker.GradientSpeed = 0.1 + ((mx - minX) / (maxX - minX)) * 4.9
+                -- [FIX] скорость до 15
+                ColorPicker.GradientSpeed = SPEED_MIN + ((mx - minX) / (maxX - minX)) * (SPEED_MAX - SPEED_MIN)
                 updateGradientSpeed()
                 ColorPicker:Display()
                 RenderStepped:Wait()
@@ -1325,19 +1338,42 @@ do
 
     ColorPicker:Display();
     ColorPicker.DisplayFrame = DisplayFrame
-    -- === Live-tick для Rainbow/Gradient ===
+
+    -- ================================================================
+    -- [FIX] LIVE-TICK
+    -- раньше тут был только колбек и DisplayFrame вообще не менялся.
+    -- теперь: обновляем фон DisplayFrame, бордер, а также текст hex/rgb
+    -- для радуги/градиента, чтобы визуально всё двигалось.
+    -- ================================================================
     Library:GiveSignal(RenderStepped:Connect(function()
         if ColorPicker.Mode == 'Standard' then return end
-        local c = ColorPicker:GetEffectiveColor()
+
+        local c
+        if ColorPicker.Mode == 'Rainbow' then
+            local t = tick() * ColorPicker.RainbowSpeed
+            c = Color3.fromHSV(t % 1, 1, ColorPicker.RainbowBrightness)
+        elseif ColorPicker.Mode == 'Gradient' then
+            local t = (math.sin(tick() * ColorPicker.GradientSpeed) + 1) * 0.5
+            c = ColorPicker.GradientColorA:Lerp(ColorPicker.GradientColorB, t)
+        else
+            return
+        end
+
         ColorPicker.Value = c
+
+        -- визуал самого свотча
+        DisplayFrame.BackgroundColor3 = c
+        DisplayFrame.BorderColor3 = Library:GetDarkerColor(c)
+
+        -- прозрачность-бокс если есть
+        if TransparencyBoxInner then
+            TransparencyBoxInner.BackgroundColor3 = c
+        end
+
         Library:SafeCallback(ColorPicker.Callback, c, ColorPicker.Transparency)
         Library:SafeCallback(ColorPicker.Changed, c, ColorPicker.Transparency)
     end))
 
-    Options[Idx] = ColorPicker;
-
-    return self;
-end;
     Options[Idx] = ColorPicker;
 
     return self;
