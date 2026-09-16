@@ -1325,7 +1325,19 @@ do
 
     ColorPicker:Display();
     ColorPicker.DisplayFrame = DisplayFrame
+    -- === Live-tick для Rainbow/Gradient ===
+    Library:GiveSignal(RenderStepped:Connect(function()
+        if ColorPicker.Mode == 'Standard' then return end
+        local c = ColorPicker:GetEffectiveColor()
+        ColorPicker.Value = c
+        Library:SafeCallback(ColorPicker.Callback, c, ColorPicker.Transparency)
+        Library:SafeCallback(ColorPicker.Changed, c, ColorPicker.Transparency)
+    end))
 
+    Options[Idx] = ColorPicker;
+
+    return self;
+end;
     Options[Idx] = ColorPicker;
 
     return self;
