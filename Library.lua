@@ -18,6 +18,7 @@ local ThreeDMode = false
 local Current3DPart = nil
 local Current3DSurface = nil
 
+-- [FIX] общий максимум скорости для rainbow и gradient
 local SPEED_MIN = 0.1
 local SPEED_MAX = 15.0
 
@@ -343,8 +344,6 @@ do
     local ToggleLabel = self.TextLabel;
     assert(Info.Default, 'AddColorPicker: Missing default value.');
     local OnlyStandart = (Info.OnlyStandart == 1)
-    -- [FIX #3] transparency по умолчанию = 0 (ползунок всегда есть)
-    if Info.Transparency == nil then Info.Transparency = 0 end
 
     local ColorPicker = {
         Value = Info.Default;
@@ -377,21 +376,19 @@ do
         end
     end
 
-    -- [FIX #1] Active = true + ZIndex 50 (выше ToggleRegion=8)
     local DisplayFrame = Library:Create('Frame', {
         BackgroundColor3 = ColorPicker.Value;
         BorderColor3 = Library:GetDarkerColor(ColorPicker.Value);
         BorderMode = Enum.BorderMode.Inset;
         Size = UDim2.new(0, 28, 0, 14);
-        ZIndex = 50;
-        Active = true;
+        ZIndex = 6;
         Parent = ToggleLabel;
     });
 
     local CheckerFrame = Library:Create('ImageLabel', {
         BorderSizePixel = 0;
         Size = UDim2.new(0, 27, 0, 13);
-        ZIndex = 51;
+        ZIndex = 5;
         Image = 'http://www.roblox.com/asset/?id=12977615774';
         Visible = not not Info.Transparency;
         Parent = DisplayFrame;
@@ -429,6 +426,7 @@ do
         Parent = PickerFrameInner;
     });
 
+    -- Title
     Library:CreateLabel({
         Size = UDim2.new(1, 0, 0, 14);
         Position = UDim2.fromOffset(5, 5);
@@ -440,6 +438,7 @@ do
         Parent = PickerFrameInner;
     });
 
+    -- Mode dropdown
     local ModeBtn = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
         BorderColor3 = Library.OutlineColor;
@@ -487,6 +486,7 @@ do
 
     local CONTENT_Y = 68
 
+    -- ===== STANDARD CONTENT =====
     local StdContent = Library:Create('Frame', {
         BackgroundTransparency = 1;
         Position = UDim2.fromOffset(0, CONTENT_Y);
@@ -609,6 +609,7 @@ do
         TextColor3 = Library.FontColor
     });
 
+    -- ===== RAINBOW CONTENT =====
     local RainContent = Library:Create('Frame', {
         BackgroundTransparency = 1;
         Position = UDim2.fromOffset(0, CONTENT_Y);
@@ -674,6 +675,7 @@ do
     });
     Library:AddToRegistry(RBrightFill, { BackgroundColor3 = 'AccentColor'; });
 
+    -- ===== GRADIENT CONTENT =====
     local GradContent = Library:Create('Frame', {
         BackgroundTransparency = 1;
         Position = UDim2.fromOffset(0, CONTENT_Y);
@@ -814,6 +816,7 @@ do
     });
     Library:AddToRegistry(GSpeedFill, { BackgroundColor3 = 'AccentColor'; });
 
+    -- ===== Transparency box =====
     local TransparencyBoxOuter, TransparencyBoxInner, TransparencyCursor;
     local function getTransY()
         if ColorPicker.Mode == 'Rainbow' then
@@ -824,39 +827,41 @@ do
             return CONTENT_Y + 228
         end
     end
-    -- [FIX #3] бокс всегда создаётся
-    TransparencyBoxOuter = Library:Create('Frame', {
-        BorderColor3 = Color3.new(0, 0, 0);
-        Position = UDim2.fromOffset(4, getTransY());
-        Size = UDim2.new(1, -8, 0, 15);
-        ZIndex = 30;
-        Parent = PickerFrameInner;
-    });
-    TransparencyBoxInner = Library:Create('Frame', {
-        BackgroundColor3 = ColorPicker.Value;
-        BorderColor3 = Library.OutlineColor;
-        BorderMode = Enum.BorderMode.Inset;
-        Size = UDim2.new(1, 0, 1, 0);
-        ZIndex = 30;
-        Parent = TransparencyBoxOuter;
-    });
-    Library:AddToRegistry(TransparencyBoxInner, { BorderColor3 = 'OutlineColor' });
-    Library:Create('ImageLabel', {
-        BackgroundTransparency = 1;
-        Size = UDim2.new(1, 0, 1, 0);
-        Image = 'http://www.roblox.com/asset/?id=12978095818';
-        ZIndex = 31;
-        Parent = TransparencyBoxInner;
-    });
-    TransparencyCursor = Library:Create('Frame', {
-        BackgroundColor3 = Color3.new(1, 1, 1);
-        AnchorPoint = Vector2.new(0.5, 0);
-        BorderColor3 = Color3.new(0, 0, 0);
-        Size = UDim2.new(0, 1, 1, 0);
-        ZIndex = 32;
-        Parent = TransparencyBoxInner;
-    });
+    if Info.Transparency then
+        TransparencyBoxOuter = Library:Create('Frame', {
+            BorderColor3 = Color3.new(0, 0, 0);
+            Position = UDim2.fromOffset(4, getTransY());
+            Size = UDim2.new(1, -8, 0, 15);
+            ZIndex = 30;
+            Parent = PickerFrameInner;
+        });
+        TransparencyBoxInner = Library:Create('Frame', {
+            BackgroundColor3 = ColorPicker.Value;
+            BorderColor3 = Library.OutlineColor;
+            BorderMode = Enum.BorderMode.Inset;
+            Size = UDim2.new(1, 0, 1, 0);
+            ZIndex = 30;
+            Parent = TransparencyBoxOuter;
+        });
+        Library:AddToRegistry(TransparencyBoxInner, { BorderColor3 = 'OutlineColor' });
+        Library:Create('ImageLabel', {
+            BackgroundTransparency = 1;
+            Size = UDim2.new(1, 0, 1, 0);
+            Image = 'http://www.roblox.com/asset/?id=12978095818';
+            ZIndex = 31;
+            Parent = TransparencyBoxInner;
+        });
+        TransparencyCursor = Library:Create('Frame', {
+            BackgroundColor3 = Color3.new(1, 1, 1);
+            AnchorPoint = Vector2.new(0.5, 0);
+            BorderColor3 = Color3.new(0, 0, 0);
+            Size = UDim2.new(0, 1, 1, 0);
+            ZIndex = 32;
+            Parent = TransparencyBoxInner;
+        });
+    end
 
+    -- Hue gradients
     local SequenceTable = {};
     for Hue = 0, 1, 0.1 do
         table.insert(SequenceTable, ColorSequenceKeypoint.new(Hue, Color3.fromHSV(Hue, 1, 1)));
@@ -872,6 +877,8 @@ do
         Parent = GHueInner;
     });
 
+    -- ===== Display / value resolution =====
+    -- [FIX] сохраняем фазу для rainbow, чтобы анимация шла плавно
     ColorPicker._rainbowPhase = 0
     ColorPicker._gradientPhase = 0
     ColorPicker._lastTick = tick()
@@ -890,6 +897,7 @@ do
     end
 
     local function updateRainbowSliders()
+        -- [FIX] маппинг под SPEED_MIN..SPEED_MAX (до 15)
         local s = math.clamp((ColorPicker.RainbowSpeed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN), 0, 1)
         RSpeedFill.Size = UDim2.new(s, 0, 1, 0)
         RSpeedLabel.Text = string.format('Rainbow Speed: %.1f', ColorPicker.RainbowSpeed)
@@ -899,6 +907,7 @@ do
     end
 
     local function updateGradientSpeed()
+        -- [FIX] маппинг под SPEED_MIN..SPEED_MAX (до 15)
         local s = math.clamp((ColorPicker.GradientSpeed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN), 0, 1)
         GSpeedFill.Size = UDim2.new(s, 0, 1, 0)
         GSpeedLabel.Text = string.format('Gradient Speed: %.1f', ColorPicker.GradientSpeed)
@@ -945,23 +954,19 @@ do
         Library:SafeCallback(ColorPicker.Changed, ColorPicker.Value, ColorPicker.Transparency);
     end
 
-    -- [FIX #2] визуал режима отдельно от логики, чтобы вызывать из Show()
-    local function ApplyModeVisuals(mode)
-        ModeBtnLabel.Text = mode
-        StdContent.Visible = (mode == 'Standard')
-        RainContent.Visible = (mode == 'Rainbow')
-        GradContent.Visible = (mode == 'Gradient')
-        ModeList.Visible = false
-        PickerFrameOuter.Size = UDim2.fromOffset(230, PickerHeight(mode))
-        if TransparencyBoxOuter then
-            TransparencyBoxOuter.Position = UDim2.fromOffset(4, getTransY())
-        end
-    end
-
+    -- ===== Mode switching =====
     local function SetMode(newMode)
         if ColorPicker.OnlyStandart and newMode ~= 'Standard' then return end
         ColorPicker.Mode = newMode
-        ApplyModeVisuals(newMode)
+        ModeBtnLabel.Text = newMode
+        StdContent.Visible = (newMode == 'Standard')
+        RainContent.Visible = (newMode == 'Rainbow')
+        GradContent.Visible = (newMode == 'Gradient')
+        ModeList.Visible = false
+        PickerFrameOuter.Size = UDim2.fromOffset(230, PickerHeight(newMode))
+        if TransparencyBoxOuter then
+            TransparencyBoxOuter.Position = UDim2.fromOffset(4, getTransY())
+        end
         if newMode == 'Gradient' then
             if ColorPicker.GradientEditTarget == 'A' then
                 ColorPicker:SetHSVFromRGB(ColorPicker.GradientColorA)
@@ -1013,6 +1018,7 @@ do
         end
     end)
 
+    -- ===== Context menu =====
     local ContextMenu = {}
     do
         ContextMenu.Options = {}
@@ -1117,6 +1123,7 @@ do
     Library:AddToRegistry(RgbBox, { TextColor3 = 'FontColor', });
     Library:AddToRegistry(HueBox, { TextColor3 = 'FontColor', });
 
+    -- ===== Input handlers =====
     HueBox.FocusLost:Connect(function(enter)
         if enter then
             local success, result = pcall(Color3.fromHex, HueBox.Text)
@@ -1142,6 +1149,7 @@ do
                 local minX = RSpeedOuter.AbsolutePosition.X
                 local maxX = minX + RSpeedOuter.AbsoluteSize.X
                 local mx = math.clamp(Mouse.X, minX, maxX)
+                -- [FIX] скорость до 15
                 ColorPicker.RainbowSpeed = SPEED_MIN + ((mx - minX) / (maxX - minX)) * (SPEED_MAX - SPEED_MIN)
                 updateRainbowSliders()
                 ColorPicker:Display()
@@ -1168,6 +1176,7 @@ do
                 local minX = GSpeedOuter.AbsolutePosition.X
                 local maxX = minX + GSpeedOuter.AbsoluteSize.X
                 local mx = math.clamp(Mouse.X, minX, maxX)
+                -- [FIX] скорость до 15
                 ColorPicker.GradientSpeed = SPEED_MIN + ((mx - minX) / (maxX - minX)) * (SPEED_MAX - SPEED_MIN)
                 updateGradientSpeed()
                 ColorPicker:Display()
@@ -1297,8 +1306,6 @@ do
         ColorPicker.Changed = Func;
         Func(ColorPicker.Value)
     end;
-
-    -- [FIX #2] Show восстанавливает визуал режима
     function ColorPicker:Show()
         for Frame, Val in next, Library.OpenedFrames do
             if Frame.Name == 'Color' then
@@ -1308,9 +1315,7 @@ do
         end;
         PickerFrameOuter.Visible = true;
         Library.OpenedFrames[PickerFrameOuter] = true;
-        ApplyModeVisuals(ColorPicker.Mode)
     end;
-
     function ColorPicker:Hide()
         PickerFrameOuter.Visible = false;
         Library.OpenedFrames[PickerFrameOuter] = nil;
@@ -1334,8 +1339,15 @@ do
     ColorPicker:Display();
     ColorPicker.DisplayFrame = DisplayFrame
 
+    -- ================================================================
+    -- [FIX] LIVE-TICK
+    -- раньше тут был только колбек и DisplayFrame вообще не менялся.
+    -- теперь: обновляем фон DisplayFrame, бордер, а также текст hex/rgb
+    -- для радуги/градиента, чтобы визуально всё двигалось.
+    -- ================================================================
     Library:GiveSignal(RenderStepped:Connect(function()
         if ColorPicker.Mode == 'Standard' then return end
+
         local c
         if ColorPicker.Mode == 'Rainbow' then
             local t = tick() * ColorPicker.RainbowSpeed
@@ -1346,17 +1358,24 @@ do
         else
             return
         end
+
         ColorPicker.Value = c
+
+        -- визуал самого свотча
         DisplayFrame.BackgroundColor3 = c
         DisplayFrame.BorderColor3 = Library:GetDarkerColor(c)
+
+        -- прозрачность-бокс если есть
         if TransparencyBoxInner then
             TransparencyBoxInner.BackgroundColor3 = c
         end
+
         Library:SafeCallback(ColorPicker.Callback, c, ColorPicker.Transparency)
         Library:SafeCallback(ColorPicker.Changed, c, ColorPicker.Transparency)
     end))
 
     Options[Idx] = ColorPicker;
+
     return self;
 end;
 
@@ -1382,13 +1401,11 @@ end;
             Info.Mode = 'Toggle'
         end
 
-        -- [FIX] ZIndex 50 + Active, чтобы клик по пикеру не проваливался в тогл
         local PickOuter = Library:Create('Frame', {
             BackgroundColor3 = Color3.new(0, 0, 0);
             BorderColor3 = Color3.new(0, 0, 0);
             Size = UDim2.new(0, 28, 0, 15);
-            ZIndex = 50;
-            Active = true;
+            ZIndex = 6;
             Parent = ToggleLabel;
         });
 
@@ -1397,7 +1414,7 @@ end;
             BorderColor3 = Library.OutlineColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
-            ZIndex = 51;
+            ZIndex = 7;
             Parent = PickOuter;
         });
 
@@ -1411,7 +1428,7 @@ end;
             TextSize = 13;
             Text = Info.Default;
             TextWrapped = true;
-            ZIndex = 52;
+            ZIndex = 8;
             Parent = PickInner;
         });
 
@@ -2752,7 +2769,7 @@ function Library:Notify(Text, Time)
             return ColorSequence.new({
                 ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
                 ColorSequenceKeypoint.new(1, Library.MainColor),
-            })
+            });
         end
     });
 
@@ -2877,7 +2894,7 @@ Library:AddToRegistry(Gradient, {
         return ColorSequence.new({
             ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
             ColorSequenceKeypoint.new(1, Library.MainColor),
-        })
+        });
     end
 });
 local WatermarkLabel = Library:CreateLabel({
@@ -3402,7 +3419,7 @@ function Library:CreateWindow(...)
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
                         Tab:Show();
                         Tab:Resize();
-                    end
+                    end;
                 end);
                 Tab.Container = Container;
                 Tabbox.Tabs[Name] = Tab;
