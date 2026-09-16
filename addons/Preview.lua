@@ -1,5 +1,5 @@
 --=====================================================
--- PreviewEsp.lua — контейнер + правильный enable
+-- PreviewEsp.lua — контейнер + правильный enable + синк с Library
 --=====================================================
 
 local Players          = game:GetService('Players')
@@ -63,7 +63,7 @@ function PreviewManager:Build()
         Name = 'NOTALovchik_Preview',
         ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        Enabled = true,   -- ВОТ ТУТ было false
+        Enabled = true,
     })
     protectGui(gui)
     gui.Parent = getGuiParent()
@@ -113,7 +113,7 @@ function PreviewManager:Build()
 end
 
 --=====================================================
--- sync — надёжная проверка
+-- sync — видимость + цвета + корнеры
 --=====================================================
 function PreviewManager:StartSync()
     local S = PreviewManager.State
@@ -127,22 +127,54 @@ function PreviewManager:StartSync()
             return
         end
 
-        -- пробуем синкнуться с либой; если MainFrame нет — показываем всегда
+        -- видимость синкаем с Library.MainFrame
         local lib = PreviewManager.Library
         local mf  = lib and lib.MainFrame
 
         if not mf then
             S.Gui.Enabled = true
-            return
+        else
+            local ok, isVisible = pcall(function() return mf.Visible end)
+            if not ok then
+                S.Gui.Enabled = true
+            else
+                S.Gui.Enabled = isVisible and true or false
+            end
         end
 
-        local ok, isVisible = pcall(function() return mf.Visible end)
-        if not ok then
-            S.Gui.Enabled = true
-            return
-        end
+        -- ===== синк цветов и корнеров с Library =====
+        if lib then
+            -- фон = MainColor
+            if S.MainFrame and lib.MainColor then
+                if S.MainFrame.BackgroundColor3 ~= lib.MainColor then
+                    S.MainFrame.BackgroundColor3 = lib.MainColor
+                    PreviewManager.Config.BackgroundColor = lib.MainColor
+                end
+            end
 
-        S.Gui.Enabled = isVisible and true or false
+            -- обводка = OutlineColor
+            if S.Stroke and lib.OutlineColor then
+                if S.Stroke.Color ~= lib.OutlineColor then
+                    S.Stroke.Color = lib.OutlineColor
+                    PreviewManager.Config.OutlineColor = lib.OutlineColor
+                end
+            end
+
+            -- корнеры = UICornerRadius * 10 (та же формула что в Library)
+            if lib.UICornerRadius then
+                local rad = math.floor(lib.UICornerRadius * 10)
+                if S.Corner and S.Corner.CornerRadius.Offset ~= rad then
+                    S.Corner.CornerRadius = UDim.new(0, rad)
+                end
+                if S.Container then
+                    local c = S.Container:FindFirstChildOfClass('UICorner')
+                    if c and c.CornerRadius.Offset ~= rad then
+                        c.CornerRadius = UDim.new(0, rad)
+                    end
+                end
+                PreviewManager.Config.CornerRadius = rad
+            end
+        end
     end)
 end
 
@@ -170,7 +202,7 @@ function PreviewManager:GetFrame()     return PreviewManager.State.MainFrame end
 function PreviewManager:GetGui()       return PreviewManager.State.Gui end
 
 --=====================================================
--- setters
+-- setters (ручные оверрайды, но следующий кадр перезапишет значением из Library)
 --=====================================================
 function PreviewManager:SetEnabled(b) PreviewManager.Config.Enabled = b and true or false end
 
