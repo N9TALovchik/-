@@ -22,6 +22,9 @@ local Current3DSurface = nil
 local SPEED_MIN = 0.1
 local SPEED_MAX = 15.0
 
+-- [FIX] общий тактовый клок для синхронизации радужных/градиентных пикеров
+local RainbowClock = 0
+
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
 local ScreenGui = Instance.new('ScreenGui');
@@ -75,6 +78,11 @@ local Library = {
 
 local RainbowStep = 0
 local Hue = 0
+
+-- [FIX] сначала обновляем общий клок, чтобы все пикеры в этом кадре видели одно и то же значение
+table.insert(Library.Signals, RenderStepped:Connect(function(Delta)
+    RainbowClock = RainbowClock + Delta
+end))
 
 table.insert(Library.Signals, RenderStepped:Connect(function(Delta)
     RainbowStep = RainbowStep + Delta
@@ -309,7 +317,7 @@ function Library:UpdateColorsUsingRegistry()
             elseif type(ColorIdx) == 'function' then
                 Object.Instance[Property] = ColorIdx()
             end
-        end;
+        end
     end;
 end;
 
@@ -366,13 +374,15 @@ do
     end;
     ColorPicker:SetHSVFromRGB(ColorPicker.Value);
 
+    -- [FIX] увеличил высоту для случаев с transparency, чтобы бокс не вылезал снизу.
+    -- Rainbow был 150 → 160, Gradient 380 → 384, Standard 315 → 322.
     local function PickerHeight(mode)
         if mode == 'Rainbow' then
-            return Info.Transparency and 150 or 132
+            return Info.Transparency and 160 or 132
         elseif mode == 'Gradient' then
-            return Info.Transparency and 380 or 362
+            return Info.Transparency and 384 or 362
         else
-            return Info.Transparency and 315 or 297
+            return Info.Transparency and 322 or 297
         end
     end
 
@@ -878,26 +888,26 @@ do
     });
 
     -- ===== Display / value resolution =====
-    -- [FIX] сохраняем фазу для rainbow, чтобы анимация шла плавно
     ColorPicker._rainbowPhase = 0
     ColorPicker._gradientPhase = 0
     ColorPicker._lastTick = tick()
 
+    -- [FIX] используем общий RainbowClock вместо tick() — радуга и градиент синхронны по фазе
+    -- для одинаковых скоростей. яркость у каждого пикера остаётся своя.
     function ColorPicker:GetEffectiveColor()
         if ColorPicker.Mode == 'Standard' then
             return Color3.fromHSV(ColorPicker.Hue, ColorPicker.Sat, ColorPicker.Vib)
         elseif ColorPicker.Mode == 'Rainbow' then
-            local t = tick() * ColorPicker.RainbowSpeed
+            local t = RainbowClock * ColorPicker.RainbowSpeed
             return Color3.fromHSV(t % 1, 1, ColorPicker.RainbowBrightness)
         elseif ColorPicker.Mode == 'Gradient' then
-            local t = (math.sin(tick() * ColorPicker.GradientSpeed) + 1) * 0.5
+            local t = (math.sin(RainbowClock * ColorPicker.GradientSpeed) + 1) * 0.5
             return ColorPicker.GradientColorA:Lerp(ColorPicker.GradientColorB, t)
         end
         return ColorPicker.Value
     end
 
     local function updateRainbowSliders()
-        -- [FIX] маппинг под SPEED_MIN..SPEED_MAX (до 15)
         local s = math.clamp((ColorPicker.RainbowSpeed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN), 0, 1)
         RSpeedFill.Size = UDim2.new(s, 0, 1, 0)
         RSpeedLabel.Text = string.format('Rainbow Speed: %.1f', ColorPicker.RainbowSpeed)
@@ -907,7 +917,6 @@ do
     end
 
     local function updateGradientSpeed()
-        -- [FIX] маппинг под SPEED_MIN..SPEED_MAX (до 15)
         local s = math.clamp((ColorPicker.GradientSpeed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN), 0, 1)
         GSpeedFill.Size = UDim2.new(s, 0, 1, 0)
         GSpeedLabel.Text = string.format('Gradient Speed: %.1f', ColorPicker.GradientSpeed)
@@ -1149,7 +1158,6 @@ do
                 local minX = RSpeedOuter.AbsolutePosition.X
                 local maxX = minX + RSpeedOuter.AbsoluteSize.X
                 local mx = math.clamp(Mouse.X, minX, maxX)
-                -- [FIX] скорость до 15
                 ColorPicker.RainbowSpeed = SPEED_MIN + ((mx - minX) / (maxX - minX)) * (SPEED_MAX - SPEED_MIN)
                 updateRainbowSliders()
                 ColorPicker:Display()
@@ -1176,7 +1184,6 @@ do
                 local minX = GSpeedOuter.AbsolutePosition.X
                 local maxX = minX + GSpeedOuter.AbsoluteSize.X
                 local mx = math.clamp(Mouse.X, minX, maxX)
-                -- [FIX] скорость до 15
                 ColorPicker.GradientSpeed = SPEED_MIN + ((mx - minX) / (maxX - minX)) * (SPEED_MAX - SPEED_MIN)
                 updateGradientSpeed()
                 ColorPicker:Display()
@@ -1339,21 +1346,16 @@ do
     ColorPicker:Display();
     ColorPicker.DisplayFrame = DisplayFrame
 
-    -- ================================================================
-    -- [FIX] LIVE-TICK
-    -- раньше тут был только колбек и DisplayFrame вообще не менялся.
-    -- теперь: обновляем фон DisplayFrame, бордер, а также текст hex/rgb
-    -- для радуги/градиента, чтобы визуально всё двигалось.
-    -- ================================================================
+    -- [FIX] live-tick — используем общий RainbowClock, чтобы все пикеры были в одной фазе при одинаковой скорости
     Library:GiveSignal(RenderStepped:Connect(function()
         if ColorPicker.Mode == 'Standard' then return end
 
         local c
         if ColorPicker.Mode == 'Rainbow' then
-            local t = tick() * ColorPicker.RainbowSpeed
+            local t = RainbowClock * ColorPicker.RainbowSpeed
             c = Color3.fromHSV(t % 1, 1, ColorPicker.RainbowBrightness)
         elseif ColorPicker.Mode == 'Gradient' then
-            local t = (math.sin(tick() * ColorPicker.GradientSpeed) + 1) * 0.5
+            local t = (math.sin(RainbowClock * ColorPicker.GradientSpeed) + 1) * 0.5
             c = ColorPicker.GradientColorA:Lerp(ColorPicker.GradientColorB, t)
         else
             return
@@ -1361,11 +1363,9 @@ do
 
         ColorPicker.Value = c
 
-        -- визуал самого свотча
         DisplayFrame.BackgroundColor3 = c
         DisplayFrame.BorderColor3 = Library:GetDarkerColor(c)
 
-        -- прозрачность-бокс если есть
         if TransparencyBoxInner then
             TransparencyBoxInner.BackgroundColor3 = c
         end
@@ -1509,7 +1509,7 @@ end;
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 then
                     ModeButton:Select();
                     Library:AttemptSave();
-                end;
+                end
             end);
 
             if Mode == KeyPicker.Mode then
@@ -1771,6 +1771,7 @@ do
         local Groupbox = self;
         local Container = Groupbox.Container;
 
+        -- [FIX] добавили Ripple-фрейм: начинается в центре кнопки, растягивается до полного размера.
         local function CreateBaseButton(Button)
             local Outer = Library:Create('Frame', {
                 BackgroundColor3 = Color3.new(0, 0, 0);
@@ -1786,6 +1787,18 @@ do
                 Size = UDim2.new(1, 0, 1, 0);
                 ZIndex = 6;
                 Parent = Outer;
+            });
+
+            -- ripple
+            local Ripple = Library:Create('Frame', {
+                BackgroundColor3 = Color3.new(1, 1, 1);
+                BackgroundTransparency = 1;
+                BorderSizePixel = 0;
+                AnchorPoint = Vector2.new(0.5, 0.5);
+                Position = UDim2.new(0.5, 0, 0.5, 0);
+                Size = UDim2.new(0, 0, 0, 0);
+                ZIndex = 5; -- ниже Label (ZIndex 6), чтобы текст всегда был сверху
+                Parent = Inner;
             });
 
             local Label = Library:CreateLabel({
@@ -1813,7 +1826,23 @@ do
                 { BorderColor3 = 'Black' }
             );
 
-            return Outer, Inner, Label
+            return Outer, Inner, Label, Ripple
+        end
+
+        local function PlayRipple(Ripple)
+            if not Ripple or not Ripple.Parent then return end
+            -- сбрасываем в центр
+            Ripple.Size = UDim2.new(0, 0, 0, 0)
+            Ripple.BackgroundTransparency = 0.35
+            local tween = TweenService:Create(
+                Ripple,
+                TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                {
+                    Size = UDim2.new(1, 0, 1, 0),
+                    BackgroundTransparency = 1,
+                }
+            )
+            tween:Play()
         end
 
         local function InitEvents(Button)
@@ -1843,6 +1872,9 @@ do
                 if not ValidateClick(Input) then return end
                 if Button.Locked then return end
 
+                -- [FIX] ripple-анимация
+                PlayRipple(Button.Ripple)
+
                 if Button.DoubleClick then
                     Library:RemoveFromRegistry(Button.Label)
                     Library:AddToRegistry(Button.Label, { TextColor3 = 'AccentColor' })
@@ -1859,6 +1891,7 @@ do
                     task.defer(rawset, Button, 'Locked', false)
 
                     if clicked then
+                        PlayRipple(Button.Ripple)
                         Library:SafeCallback(Button.Func)
                     end
                     return
@@ -1868,7 +1901,7 @@ do
             end)
         end
 
-        Button.Outer, Button.Inner, Button.Label = CreateBaseButton(Button)
+        Button.Outer, Button.Inner, Button.Label, Button.Ripple = CreateBaseButton(Button)
         Button.Outer.Parent = Container
 
         InitEvents(Button)
@@ -1884,7 +1917,7 @@ do
             local SubButton = {}
             ProcessButtonParams('SubButton', SubButton, ...)
             self.Outer.Size = UDim2.new(0.5, -2, 0, 20)
-            SubButton.Outer, SubButton.Inner, SubButton.Label = CreateBaseButton(SubButton)
+            SubButton.Outer, SubButton.Inner, SubButton.Label, SubButton.Ripple = CreateBaseButton(SubButton)
             SubButton.Outer.Position = UDim2.new(1, 3, 0, 0)
             SubButton.Outer.Size = UDim2.fromOffset(self.Outer.AbsoluteSize.X - 2, self.Outer.AbsoluteSize.Y)
             SubButton.Outer.Parent = self.Outer
@@ -2304,9 +2337,9 @@ do
                     if nValue ~= OldValue then
                         Library:SafeCallback(Slider.Callback, Slider.Value);
                         Library:SafeCallback(Slider.Changed, Slider.Value);
-                    end;
+                    end
                     RenderStepped:Wait();
-                end;
+                end
                 Library:AttemptSave();
             end;
         end);
@@ -3419,7 +3452,7 @@ function Library:CreateWindow(...)
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
                         Tab:Show();
                         Tab:Resize();
-                    end;
+                    end
                 end);
                 Tab.Container = Container;
                 Tabbox.Tabs[Name] = Tab;
