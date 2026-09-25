@@ -18,11 +18,8 @@ local ThreeDMode = false
 local Current3DPart = nil
 local Current3DSurface = nil
 
--- [FIX] общий максимум скорости для rainbow и gradient
 local SPEED_MIN = 0.1
 local SPEED_MAX = 15.0
-
--- [FIX] общий тактовый клок для синхронизации радужных/градиентных пикеров
 local RainbowClock = 0
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
@@ -79,7 +76,6 @@ local Library = {
 local RainbowStep = 0
 local Hue = 0
 
--- [FIX] сначала обновляем общий клок, чтобы все пикеры в этом кадре видели одно и то же значение
 table.insert(Library.Signals, RenderStepped:Connect(function(Delta)
     RainbowClock = RainbowClock + Delta
 end))
@@ -242,11 +238,13 @@ end;
 
 function Library:MouseIsOverOpenedFrame()
     for Frame, _ in next, Library.OpenedFrames do
-        local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
-        if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
-            and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
-            return true;
-        end;
+        if Frame and Frame.Parent then
+            local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
+            if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
+                and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
+                return true;
+            end;
+        end
     end;
 end;
 
@@ -343,6 +341,618 @@ Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(Instance)
     if Library.RegistryMap[Instance] then Library:RemoveFromRegistry(Instance); end;
 end))
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- [NEW] KEYBIND / BIND SYSTEM
+-- Right-click on Toggle / Slider / Dropdown / Button opens a floating window
+-- with per-control keybinds. Each bind = key + mode + value. Multiple binds
+-- per control. Modes: Toggle / Hold / Always. Values: bool / dropdown entry /
+-- numeric (slider) / click (button).
+-- ═══════════════════════════════════════════════════════════════════════════
+
+Library.BindSystem = Library.BindSystem or {}
+local BindSystem = Library.BindSystem
+BindSystem.Windows = {}        -- control → outer window frame
+BindSystem.AllBindings = {}    -- array of bindings (persist across window close)
+BindSystem.ActiveCapture = nil -- binding currently waiting for key input
+
+local function GetBindInputName(Input)
+    if Input.UserInputType == Enum.UserInputType.Keyboard then
+        return Input.KeyCode.Name
+    elseif Input.UserInputType == Enum.UserInputType.MouseButton1 then
+        return 'MB1'
+    elseif Input.UserInputType == Enum.UserInputType.MouseButton2 then
+        return 'MB2'
+    elseif Input.UserInputType == Enum.UserInputType.MouseButton3 then
+        return 'MB3'
+    end
+    return nil
+end
+BindSystem.GetKeyName = GetBindInputName
+
+function BindSystem:IsKeyDown(name)
+    if name == 'MB1' then return InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) end
+    if name == 'MB2' then return InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) end
+    if name == 'MB3' then return InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton3) end
+    local kc = Enum.KeyCode[name]
+    return kc and InputService:IsKeyDown(kc) or false
+end
+
+function BindSystem:GetControlTitle(control)
+    if control.TextLabel and control.TextLabel.Text and control.TextLabel.Text ~= '' then
+        return control.TextLabel.Text
+    end
+    if control.Label and control.Label.Text and control.Label.Text ~= '' then
+        return control.Label.Text
+    end
+    if control.Text and control.Text ~= '' then return control.Text end
+    return control.Type or 'Control'
+end
+
+function BindSystem:GetDefaultValue(control)
+    if control.Type == 'Toggle' then return not control.Value end
+    if control.Type == 'Dropdown' then
+        if control.Values and #control.Values > 0 then return control.Values[1] end
+        return nil
+    end
+    if control.Type == 'Slider' then return control.Value end
+    return nil
+end
+
+function BindSystem:FormatValue(control, value)
+    if value == nil then return '—' end
+    return tostring(value)
+end
+
+function BindSystem:CycleValue(control, current)
+    if control.Type == 'Toggle' then
+        return not current
+    elseif control.Type == 'Dropdown' then
+        if not control.Values or #control.Values == 0 then return current end
+        local idx = 1
+        for i, v in ipairs(control.Values) do
+            if v == current then idx = i break end
+        end
+        return control.Values[(idx % #control.Values) + 1]
+    end
+    return current
+end
+
+function BindSystem:ApplyTrigger(binding, pressed)
+    local control = binding.Control
+    if not control then return end
+    local value = binding.Value
+    local mode = binding.Mode
+
+    if control.Type == 'Button' then
+        if pressed then
+            Library:SafeCallback(control.Func)
+        end
+        return
+    end
+
+    if control.Type == 'Toggle' then
+        if mode == 'Hold' then
+            if pressed then
+                binding._prevValue = control.Value
+                control:SetValue(value)
+            else
+                if binding._prevValue ~= nil then
+                    control:SetValue(binding._prevValue)
+                    binding._prevValue = nil
+                end
+            end
+        elseif mode == 'Always' then
+            if pressed then control:SetValue(value) end
+        else -- Toggle
+            if pressed then
+                if control.Value == value then
+                    if binding._prevValue ~= nil then
+                        control:SetValue(binding._prevValue)
+                        binding._prevValue = nil
+                    else
+                        control:SetValue(not value)
+                    end
+                else
+                    binding._prevValue = control.Value
+                    control:SetValue(value)
+                end
+            end
+        end
+
+    elseif control.Type == 'Slider' then
+        if mode == 'Hold' then
+            if pressed then
+                binding._prevValue = control.Value
+                control:SetValue(value)
+            else
+                if binding._prevValue ~= nil then
+                    control:SetValue(binding._prevValue)
+                    binding._prevValue = nil
+                end
+            end
+        else
+            if pressed then control:SetValue(value) end
+        end
+
+    elseif control.Type == 'Dropdown' then
+        if mode == 'Hold' then
+            if pressed then
+                binding._prevValue = control.Value
+                control:SetValue(value)
+            else
+                if binding._prevValue ~= nil then
+                    control:SetValue(binding._prevValue)
+                    binding._prevValue = nil
+                end
+            end
+        elseif mode == 'Toggle' then
+            if pressed then
+                if control.Value == value then
+                    if binding._prevValue ~= nil then
+                        control:SetValue(binding._prevValue)
+                        binding._prevValue = nil
+                    else
+                        control:SetValue(nil)
+                    end
+                else
+                    binding._prevValue = control.Value
+                    control:SetValue(value)
+                end
+            end
+        else
+            if pressed then control:SetValue(value) end
+        end
+    end
+    Library:AttemptSave()
+end
+
+function BindSystem:HandleInput(Input, pressed)
+    local name = GetBindInputName(Input)
+    if not name then return end
+    for _, binding in ipairs(self.AllBindings) do
+        if binding.Key == name then
+            if pressed then
+                if not binding._down then
+                    binding._down = true
+                    self:ApplyTrigger(binding, true)
+                end
+            else
+                if binding._down then
+                    binding._down = false
+                    if binding.Mode == 'Hold' then
+                        self:ApplyTrigger(binding, false)
+                    end
+                end
+            end
+        end
+    end
+end
+
+function BindSystem:StartCapture(binding, label)
+    self.ActiveCapture = binding
+    binding._captureLbl = label
+    task.spawn(function()
+        local dots = ''
+        while self.ActiveCapture == binding do
+            dots = dots .. '.'
+            if #dots > 3 then dots = '' end
+            if label and label.Parent then
+                label.Text = 'press' .. dots
+            end
+            task.wait(0.35)
+        end
+    end)
+end
+
+function BindSystem:CloseWindow(control)
+    local win = self.Windows[control]
+    if win then
+        Library.OpenedFrames[win] = nil
+        if win.Parent then win:Destroy() end
+        self.Windows[control] = nil
+    end
+end
+
+function BindSystem:CloseAllWindows()
+    local keys = {}
+    for k in pairs(self.Windows) do table.insert(keys, k) end
+    for _, k in ipairs(keys) do self:CloseWindow(k) end
+end
+
+function BindSystem:AddRow(control, Scroll, AddBtn, existingBinding)
+    local binding = existingBinding or {
+        Control = control,
+        Key = 'None',
+        Mode = 'Toggle',
+        Value = self:GetDefaultValue(control),
+    }
+    if not existingBinding then
+        table.insert(self.AllBindings, binding)
+    end
+
+    -- compute next layout order (below existing rows, above AddBtn)
+    local maxOrder = 0
+    for _, child in ipairs(Scroll:GetChildren()) do
+        if child:IsA('GuiObject') and child ~= AddBtn then
+            if child.LayoutOrder > maxOrder and child.LayoutOrder < AddBtn.LayoutOrder then
+                maxOrder = child.LayoutOrder
+            end
+        end
+    end
+
+    local Row = Library:Create('Frame', {
+        BackgroundColor3 = Color3.new(0, 0, 0),
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, -4, 0, 22),
+        LayoutOrder = maxOrder + 1,
+        ZIndex = 206,
+        Parent = Scroll,
+    })
+
+    local RowInner = Library:Create('Frame', {
+        BackgroundColor3 = Library.MainColor,
+        Position = UDim2.fromOffset(1, 1),
+        Size = UDim2.new(1, -2, 1, -2),
+        ZIndex = 207,
+        Parent = Row,
+    })
+    Library:AddToRegistry(RowInner, { BackgroundColor3 = 'MainColor' })
+
+    -- Key box
+    local KeyBox = Library:Create('Frame', {
+        BackgroundColor3 = Library.BackgroundColor,
+        Position = UDim2.fromOffset(2, 2),
+        Size = UDim2.fromOffset(60, 16),
+        ZIndex = 208,
+        Parent = RowInner,
+    })
+    Library:AddToRegistry(KeyBox, { BackgroundColor3 = 'BackgroundColor' })
+    local KeyLbl = Library:CreateLabel({
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = binding.Key,
+        TextSize = 12,
+        ZIndex = 209,
+        Parent = KeyBox,
+    })
+
+    -- Mode box
+    local ModeBox = Library:Create('Frame', {
+        BackgroundColor3 = Library.BackgroundColor,
+        Position = UDim2.fromOffset(66, 2),
+        Size = UDim2.fromOffset(60, 16),
+        ZIndex = 208,
+        Parent = RowInner,
+    })
+    Library:AddToRegistry(ModeBox, { BackgroundColor3 = 'BackgroundColor' })
+    local ModeLbl = Library:CreateLabel({
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = binding.Mode,
+        TextSize = 12,
+        ZIndex = 209,
+        Parent = ModeBox,
+    })
+
+    -- Value box
+    local ValueBox = Library:Create('Frame', {
+        BackgroundColor3 = Library.BackgroundColor,
+        Position = UDim2.fromOffset(130, 2),
+        Size = UDim2.new(1, -156, 0, 16),
+        ZIndex = 208,
+        Parent = RowInner,
+    })
+    Library:AddToRegistry(ValueBox, { BackgroundColor3 = 'BackgroundColor' })
+    local ValueLbl = Library:CreateLabel({
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = self:FormatValue(control, binding.Value),
+        TextSize = 12,
+        ZIndex = 209,
+        Parent = ValueBox,
+    })
+
+    -- Delete button
+    local DelBtn = Library:Create('Frame', {
+        BackgroundColor3 = Library.BackgroundColor,
+        Position = UDim2.new(1, -22, 0, 2),
+        Size = UDim2.fromOffset(20, 16),
+        ZIndex = 208,
+        Parent = RowInner,
+    })
+    Library:AddToRegistry(DelBtn, { BackgroundColor3 = 'BackgroundColor' })
+    Library:CreateLabel({
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = 'X',
+        TextSize = 12,
+        TextColor3 = Color3.fromRGB(255, 80, 80),
+        ZIndex = 209,
+        Parent = DelBtn,
+    })
+
+    -- Handlers
+    KeyBox.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            task.spawn(function()
+                task.wait()
+                self:StartCapture(binding, KeyLbl)
+            end)
+        end
+    end)
+
+    ModeBox.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local modes = { 'Toggle', 'Hold', 'Always' }
+            local idx = 1
+            for i, m in ipairs(modes) do
+                if m == binding.Mode then idx = i break end
+            end
+            idx = (idx % #modes) + 1
+            binding.Mode = modes[idx]
+            ModeLbl.Text = binding.Mode
+        end
+    end)
+
+    if control.Type == 'Slider' then
+        local Box = Library:Create('TextBox', {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(2, 0),
+            Size = UDim2.new(1, -4, 1, 0),
+            Font = Library.Font,
+            Text = tostring(binding.Value),
+            TextColor3 = Library.FontColor,
+            TextSize = 12,
+            TextStrokeTransparency = 0,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            ClearTextOnFocus = false,
+            ZIndex = 210,
+            Parent = ValueBox,
+        })
+        Library:ApplyTextStroke(Box)
+        Box.FocusLost:Connect(function()
+            local n = tonumber(Box.Text)
+            if n then
+                binding.Value = math.clamp(n, control.Min, control.Max)
+            else
+                binding.Value = control.Value
+            end
+            Box.Text = tostring(binding.Value)
+        end)
+    else
+        ValueBox.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                binding.Value = self:CycleValue(control, binding.Value)
+                ValueLbl.Text = self:FormatValue(control, binding.Value)
+            end
+        end)
+    end
+
+    DelBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            for i, b in ipairs(self.AllBindings) do
+                if b == binding then
+                    table.remove(self.AllBindings, i)
+                    break
+                end
+            end
+            Row:Destroy()
+        end
+    end)
+
+    return binding
+end
+
+function BindSystem:Open(control)
+    if self.Windows[control] then
+        self:CloseWindow(control)
+        return
+    end
+    self:CloseAllWindows()
+
+    local winWidth, winHeight = 300, 240
+    local vpX = workspace.CurrentCamera.ViewportSize.X
+    local vpY = workspace.CurrentCamera.ViewportSize.Y
+    local posX = math.clamp(Mouse.X + 5, 0, math.max(0, vpX - winWidth))
+    local posY = math.clamp(Mouse.Y + 5, 0, math.max(0, vpY - winHeight))
+
+    local Outer = Library:Create('Frame', {
+        Name = 'BindWindow',
+        BackgroundColor3 = Color3.new(0, 0, 0), -- black outline
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(posX, posY),
+        Size = UDim2.fromOffset(winWidth, winHeight),
+        ZIndex = 200,
+        Parent = ScreenGui,
+    })
+    Library.OpenedFrames[Outer] = true
+
+    local Inner = Library:Create('Frame', {
+        BackgroundColor3 = Library.BackgroundColor, -- background color
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(2, 2),
+        Size = UDim2.new(1, -4, 1, -4),
+        ZIndex = 201,
+        Parent = Outer,
+    })
+    Library:AddToRegistry(Inner, { BackgroundColor3 = 'BackgroundColor' })
+
+    local Header = Library:Create('Frame', {
+        BackgroundColor3 = Library.MainColor,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(1, 0, 0, 20),
+        ZIndex = 202,
+        Parent = Inner,
+    })
+    Library:AddToRegistry(Header, { BackgroundColor3 = 'MainColor' })
+
+    Library:CreateLabel({
+        Position = UDim2.fromOffset(6, 0),
+        Size = UDim2.new(1, -26, 1, 0),
+        Text = 'Keybinds: ' .. self:GetControlTitle(control),
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 203,
+        Parent = Header,
+    })
+
+    local CloseBtn = Library:Create('Frame', {
+        BackgroundColor3 = Library.MainColor,
+        Position = UDim2.new(1, -20, 0, 0),
+        Size = UDim2.fromOffset(20, 20),
+        ZIndex = 204,
+        Parent = Header,
+    })
+    Library:AddToRegistry(CloseBtn, { BackgroundColor3 = 'MainColor' })
+    Library:CreateLabel({
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = 'X',
+        TextSize = 13,
+        ZIndex = 205,
+        Parent = CloseBtn,
+    })
+    CloseBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            self:CloseWindow(control)
+        end
+    end)
+
+    local Scroll = Library:Create('ScrollingFrame', {
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(4, 24),
+        Size = UDim2.new(1, -8, 1, -28),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Library.AccentColor,
+        TopImage = '',
+        BottomImage = '',
+        ZIndex = 202,
+        Parent = Inner,
+    })
+    Library:AddToRegistry(Scroll, { ScrollBarImageColor3 = 'AccentColor' })
+    local Layout = Library:Create('UIListLayout', {
+        Padding = UDim.new(0, 3),
+        FillDirection = Enum.FillDirection.Vertical,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = Scroll,
+    })
+    Library:Create('UIPadding', {
+        PaddingLeft = UDim.new(0, 2),
+        PaddingRight = UDim.new(0, 2),
+        PaddingTop = UDim.new(0, 2),
+        Parent = Scroll,
+    })
+
+    Layout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
+        Scroll.CanvasSize = UDim2.fromOffset(0, Layout.AbsoluteContentSize.Y + 4)
+    end)
+
+    -- Add button, pinned at bottom (LayoutOrder = 999999)
+    local AddBtn = Library:Create('Frame', {
+        BackgroundColor3 = Color3.new(0, 0, 0),
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, -4, 0, 20),
+        LayoutOrder = 999999,
+        ZIndex = 203,
+        Parent = Scroll,
+    })
+    local AddInner = Library:Create('Frame', {
+        BackgroundColor3 = Library.MainColor,
+        Position = UDim2.fromOffset(1, 1),
+        Size = UDim2.new(1, -2, 1, -2),
+        ZIndex = 204,
+        Parent = AddBtn,
+    })
+    Library:AddToRegistry(AddInner, { BackgroundColor3 = 'MainColor' })
+    Library:CreateLabel({
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = '+ Add keybind',
+        TextSize = 13,
+        ZIndex = 205,
+        Parent = AddInner,
+    })
+
+    AddInner.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            self:AddRow(control, Scroll, AddBtn)
+        end
+    end)
+
+    Library:OnHighlight(AddInner, AddInner,
+        { BackgroundColor3 = 'AccentColor' },
+        { BackgroundColor3 = 'MainColor' }
+    )
+
+    Library:MakeDraggable(Outer, 22)
+
+    -- Restore existing binds for this control into the new window
+    for _, binding in ipairs(self.AllBindings) do
+        if binding.Control == control then
+            self:AddRow(control, Scroll, AddBtn, binding)
+        end
+    end
+
+    self.Windows[control] = Outer
+end
+
+-- Global input: capture keys / trigger binds
+Library:GiveSignal(InputService.InputBegan:Connect(function(Input, gp)
+    if BindSystem.ActiveCapture then
+        local binding = BindSystem.ActiveCapture
+        if Input.UserInputType == Enum.UserInputType.Keyboard then
+            if Input.KeyCode == Enum.KeyCode.Escape then
+                if binding._captureLbl then
+                    binding._captureLbl.Text = binding.Key
+                    binding._captureLbl = nil
+                end
+                BindSystem.ActiveCapture = nil
+                return
+            end
+            binding.Key = Input.KeyCode.Name
+        elseif Input.UserInputType == Enum.UserInputType.MouseButton1 then
+            binding.Key = 'MB1'
+        elseif Input.UserInputType == Enum.UserInputType.MouseButton2 then
+            binding.Key = 'MB2'
+        elseif Input.UserInputType == Enum.UserInputType.MouseButton3 then
+            binding.Key = 'MB3'
+        else
+            return
+        end
+        if binding._captureLbl then
+            binding._captureLbl.Text = binding.Key
+            binding._captureLbl = nil
+        end
+        BindSystem.ActiveCapture = nil
+        return
+    end
+    if gp then return end
+    BindSystem:HandleInput(Input, true)
+end))
+
+Library:GiveSignal(InputService.InputEnded:Connect(function(Input)
+    if BindSystem.ActiveCapture then return end
+    BindSystem:HandleInput(Input, false)
+end))
+
+-- Close bind windows when clicking outside
+Library:GiveSignal(InputService.InputBegan:Connect(function(Input)
+    if Input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    local keys = {}
+    for k in pairs(BindSystem.Windows) do table.insert(keys, k) end
+    for _, control in ipairs(keys) do
+        local win = BindSystem.Windows[control]
+        if win and win.Parent then
+            local aPos, aSize = win.AbsolutePosition, win.AbsoluteSize
+            if Mouse.X < aPos.X or Mouse.X > aPos.X + aSize.X
+                or Mouse.Y < aPos.Y or Mouse.Y > aPos.Y + aSize.Y then
+                BindSystem:CloseWindow(control)
+            end
+        end
+    end
+end))
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- BASE ADDONS
+-- ═══════════════════════════════════════════════════════════════════════════
+
 local BaseAddons = {};
 
 do
@@ -374,8 +984,6 @@ do
     end;
     ColorPicker:SetHSVFromRGB(ColorPicker.Value);
 
-    -- [FIX] увеличил высоту для случаев с transparency, чтобы бокс не вылезал снизу.
-    -- Rainbow был 150 → 160, Gradient 380 → 384, Standard 315 → 322.
     local function PickerHeight(mode)
         if mode == 'Rainbow' then
             return Info.Transparency and 160 or 132
@@ -436,7 +1044,6 @@ do
         Parent = PickerFrameInner;
     });
 
-    -- Title
     Library:CreateLabel({
         Size = UDim2.new(1, 0, 0, 14);
         Position = UDim2.fromOffset(5, 5);
@@ -448,7 +1055,6 @@ do
         Parent = PickerFrameInner;
     });
 
-    -- Mode dropdown
     local ModeBtn = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
         BorderColor3 = Library.OutlineColor;
@@ -871,7 +1477,6 @@ do
         });
     end
 
-    -- Hue gradients
     local SequenceTable = {};
     for Hue = 0, 1, 0.1 do
         table.insert(SequenceTable, ColorSequenceKeypoint.new(Hue, Color3.fromHSV(Hue, 1, 1)));
@@ -892,8 +1497,6 @@ do
     ColorPicker._gradientPhase = 0
     ColorPicker._lastTick = tick()
 
-    -- [FIX] используем общий RainbowClock вместо tick() — радуга и градиент синхронны по фазе
-    -- для одинаковых скоростей. яркость у каждого пикера остаётся своя.
     function ColorPicker:GetEffectiveColor()
         if ColorPicker.Mode == 'Standard' then
             return Color3.fromHSV(ColorPicker.Hue, ColorPicker.Sat, ColorPicker.Vib)
@@ -961,6 +1564,55 @@ do
 
         Library:SafeCallback(ColorPicker.Callback, ColorPicker.Value, ColorPicker.Transparency);
         Library:SafeCallback(ColorPicker.Changed, ColorPicker.Value, ColorPicker.Transparency);
+    end
+
+    -- [NEW] Serialize full ColorPicker state (mode + speed + brightness + gradient etc.)
+    function ColorPicker:GetSaveData()
+        return {
+            value = ColorPicker.Value:ToHex(),
+            transparency = ColorPicker.Transparency,
+            mode = ColorPicker.Mode,
+            hue = ColorPicker.Hue,
+            sat = ColorPicker.Sat,
+            vib = ColorPicker.Vib,
+            rainbowSpeed = ColorPicker.RainbowSpeed,
+            rainbowBrightness = ColorPicker.RainbowBrightness,
+            gradientSpeed = ColorPicker.GradientSpeed,
+            gradientColorA = ColorPicker.GradientColorA:ToHex(),
+            gradientColorB = ColorPicker.GradientColorB:ToHex(),
+            gradientEditTarget = ColorPicker.GradientEditTarget,
+        }
+    end
+
+    -- [NEW] Restore full ColorPicker state
+    function ColorPicker:LoadSaveData(data)
+        if type(data) ~= 'table' then return end
+
+        if data.hue ~= nil then ColorPicker.Hue = data.hue end
+        if data.sat ~= nil then ColorPicker.Sat = data.sat end
+        if data.vib ~= nil then ColorPicker.Vib = data.vib end
+        if data.transparency ~= nil then ColorPicker.Transparency = data.transparency end
+        if data.rainbowSpeed ~= nil then ColorPicker.RainbowSpeed = data.rainbowSpeed end
+        if data.rainbowBrightness ~= nil then ColorPicker.RainbowBrightness = data.rainbowBrightness end
+        if data.gradientSpeed ~= nil then ColorPicker.GradientSpeed = data.gradientSpeed end
+
+        if data.gradientColorA then
+            local ok, c = pcall(Color3.fromHex, data.gradientColorA)
+            if ok then ColorPicker.GradientColorA = c end
+        end
+        if data.gradientColorB then
+            local ok, c = pcall(Color3.fromHex, data.gradientColorB)
+            if ok then ColorPicker.GradientColorB = c end
+        end
+        if data.gradientEditTarget then
+            ColorPicker.GradientEditTarget = data.gradientEditTarget
+        end
+
+        if data.mode then
+            ColorPicker:SetMode(data.mode)
+        else
+            ColorPicker:Display()
+        end
     end
 
     -- ===== Mode switching =====
@@ -1346,7 +1998,6 @@ do
     ColorPicker:Display();
     ColorPicker.DisplayFrame = DisplayFrame
 
-    -- [FIX] live-tick — используем общий RainbowClock, чтобы все пикеры были в одной фазе при одинаковой скорости
     Library:GiveSignal(RenderStepped:Connect(function()
         if ColorPicker.Mode == 'Standard' then return end
 
@@ -1634,7 +2285,7 @@ end;
                 end);
             elseif Input.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then
                 ModeSelectOuter.Visible = true;
-            end;
+            end
         end);
 
         Library:GiveSignal(InputService.InputBegan:Connect(function(Input)
@@ -1646,12 +2297,12 @@ end;
                         or Key == 'MB2' and Input.UserInputType == Enum.UserInputType.MouseButton2 then
                             KeyPicker.Toggled = not KeyPicker.Toggled
                             KeyPicker:DoClick()
-                        end;
+                        end
                     elseif Input.UserInputType == Enum.UserInputType.Keyboard and Key ~= 'None' then
                         if Input.KeyCode.Name == Key then
                             KeyPicker.Toggled = not KeyPicker.Toggled;
                             KeyPicker:DoClick()
-                        end;
+                        end
                     end;
                 end;
                 KeyPicker:Update();
@@ -1767,11 +2418,11 @@ do
         end
 
         ProcessButtonParams('Button', Button, ...)
+        Button.Type = 'Button'  -- [NEW] for BindSystem
 
         local Groupbox = self;
         local Container = Groupbox.Container;
 
-        -- [FIX] добавили Ripple-фрейм: начинается в центре кнопки, растягивается до полного размера.
         local function CreateBaseButton(Button)
             local Outer = Library:Create('Frame', {
                 BackgroundColor3 = Color3.new(0, 0, 0);
@@ -1789,7 +2440,6 @@ do
                 Parent = Outer;
             });
 
-            -- ripple
             local Ripple = Library:Create('Frame', {
                 BackgroundColor3 = Color3.new(1, 1, 1);
                 BackgroundTransparency = 1;
@@ -1797,7 +2447,7 @@ do
                 AnchorPoint = Vector2.new(0.5, 0.5);
                 Position = UDim2.new(0.5, 0, 0.5, 0);
                 Size = UDim2.new(0, 0, 0, 0);
-                ZIndex = 5; -- ниже Label (ZIndex 6), чтобы текст всегда был сверху
+                ZIndex = 5;
                 Parent = Inner;
             });
 
@@ -1831,7 +2481,6 @@ do
 
         local function PlayRipple(Ripple)
             if not Ripple or not Ripple.Parent then return end
-            -- сбрасываем в центр
             Ripple.Size = UDim2.new(0, 0, 0, 0)
             Ripple.BackgroundTransparency = 0.35
             local tween = TweenService:Create(
@@ -1869,10 +2518,14 @@ do
             end
 
             Button.Outer.InputBegan:Connect(function(Input)
+                -- [NEW] right-click opens bind window
+                if Input.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then
+                    Library.BindSystem:Open(Button)
+                    return
+                end
                 if not ValidateClick(Input) then return end
                 if Button.Locked then return end
 
-                -- [FIX] ripple-анимация
                 PlayRipple(Button.Ripple)
 
                 if Button.DoubleClick then
@@ -1916,6 +2569,7 @@ do
         function Button:AddButton(...)
             local SubButton = {}
             ProcessButtonParams('SubButton', SubButton, ...)
+            SubButton.Type = 'Button'  -- [NEW]
             self.Outer.Size = UDim2.new(0.5, -2, 0, 20)
             SubButton.Outer, SubButton.Inner, SubButton.Label, SubButton.Ripple = CreateBaseButton(SubButton)
             SubButton.Outer.Position = UDim2.new(1, 3, 0, 0)
@@ -2190,6 +2844,9 @@ do
             if Input.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
                 Toggle:SetValue(not Toggle.Value)
                 Library:AttemptSave();
+            -- [NEW] right-click opens bind window
+            elseif Input.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then
+                Library.BindSystem:Open(Toggle)
             end;
         end);
         if Toggle.Risky then
@@ -2221,6 +2878,7 @@ do
             Rounding = Info.Rounding;
             MaxSize = 232;
             Type = 'Slider';
+            Text = Info.Text;  -- [NEW] for BindSystem title
             Callback = Info.Callback or function(Value) end;
         };
         local Groupbox = self;
@@ -2341,6 +2999,9 @@ do
                     RenderStepped:Wait();
                 end
                 Library:AttemptSave();
+            -- [NEW] right-click opens bind window
+            elseif Input.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then
+                Library.BindSystem:Open(Slider)
             end;
         end);
         Slider:Display();
@@ -2366,6 +3027,7 @@ do
             Value = Info.Multi and {};
             Multi = Info.Multi;
             Type = 'Dropdown';
+            Text = Info.Text or '';  -- [NEW] for BindSystem title
             SpecialType = Info.SpecialType;
             Callback = Info.Callback or function(Value) end;
         };
@@ -2610,6 +3272,9 @@ do
         DropdownOuter.InputBegan:Connect(function(Input)
             if Input.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
                 if ListOuter.Visible then Dropdown:CloseDropdown(); else Dropdown:OpenDropdown(); end;
+            -- [NEW] right-click opens bind window
+            elseif Input.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then
+                Library.BindSystem:Open(Dropdown)
             end;
         end);
         InputService.InputBegan:Connect(function(Input)
@@ -2802,7 +3467,7 @@ function Library:Notify(Text, Time)
             return ColorSequence.new({
                 ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
                 ColorSequenceKeypoint.new(1, Library.MainColor),
-            });
+            })
         end
     });
 
@@ -2927,7 +3592,7 @@ Library:AddToRegistry(Gradient, {
         return ColorSequence.new({
             ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
             ColorSequenceKeypoint.new(1, Library.MainColor),
-        });
+        })
     end
 });
 local WatermarkLabel = Library:CreateLabel({
@@ -3470,9 +4135,9 @@ function Library:CreateWindow(...)
         function Tab:AddRightTabbox(Name) return Tab:AddTabbox({ Name = Name, Side = 2; }); end;
 
         TabButton.InputBegan:Connect(function(Input)
-            if Input.UserInputType == Enum.UserInputType.MouseButton1 then Tab:ShowTab(); end;
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 then Tab:ShowTab(); end
         end);
-        if #TabContainer:GetChildren() == 1 then Tab:ShowTab(); end;
+        if #TabContainer:GetChildren() == 1 then Tab:ShowTab(); end
         Window.Tabs[Name] = Tab;
         return Tab;
     end;
