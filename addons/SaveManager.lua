@@ -34,13 +34,34 @@ local SaveManager = {} do
 				end
 			end,
 		},
+
+		-- [FIX] ColorPicker теперь сохраняет ВСЁ состояние: режим (Standard/Rainbow/Gradient),
+		-- скорость и яркость радуги, скорость градиента, цвет A/B градиента, hue/sat/vib, transparency.
+		-- Раньше сохранялась только ToHex() + transparency, поэтому при загрузке всегда падало в Standard.
 		ColorPicker = {
 			Save = function(idx, object)
-				return { type = 'ColorPicker', idx = idx, value = object.Value:ToHex(), transparency = object.Transparency }
+				if type(object.GetSaveData) == 'function' then
+					local d = object:GetSaveData()
+					d.type = 'ColorPicker'
+					d.idx = idx
+					return d
+				end
+				-- fallback для совместимости (если кто-то подсунул свой объект)
+				return {
+					type = 'ColorPicker';
+					idx = idx;
+					value = object.Value:ToHex();
+					transparency = object.Transparency;
+				}
 			end,
 			Load = function(idx, data)
-				if Options[idx] then 
-					Options[idx]:SetValueRGB(Color3.fromHex(data.value), data.transparency)
+				if not Options[idx] then return end
+				local cp = Options[idx]
+				if type(cp.LoadSaveData) == 'function' then
+					cp:LoadSaveData(data)
+				else
+					local ok, col = pcall(Color3.fromHex, data.value or '#FFFFFF')
+					if ok then cp:SetValueRGB(col, data.transparency or 0) end
 				end
 			end,
 		},
@@ -248,20 +269,19 @@ local SaveManager = {} do
 
 		-- Кнопка создания конфига
 		section:AddButton('Save/Create config', function()
-    local name = Options.SaveManager_ConfigName.Value
-    if name:gsub(' ', '') == '' then 
-        return self.Library:Notify('Invalid config name (empty)', 2)
-    end
-    local success, err = self:Save(name)
-    if not success then
-        return self.Library:Notify('Failed to save config: ' .. err)
-    end
-    self.Library:Notify(string.format('Saved/created config %q', name))
-    local newList = self:RefreshConfigList()
-    Options.SaveManager_ConfigList:SetValues(newList)
-    Options.SaveManager_ConfigList:SetValue(name)
-    -- поле ввода НЕ очищаем — оно автоматически заполнится выбранным конфигом
-end)
+			local name = Options.SaveManager_ConfigName.Value
+			if name:gsub(' ', '') == '' then 
+				return self.Library:Notify('Invalid config name (empty)', 2)
+			end
+			local success, err = self:Save(name)
+			if not success then
+				return self.Library:Notify('Failed to save config: ' .. err)
+			end
+			self.Library:Notify(string.format('Saved/created config %q', name))
+			local newList = self:RefreshConfigList()
+			Options.SaveManager_ConfigList:SetValues(newList)
+			Options.SaveManager_ConfigList:SetValue(name)
+		end)
 
 		-- Кнопка загрузки конфига
 		section:AddButton('Load config', function()
@@ -273,18 +293,12 @@ end)
 			self.Library:Notify(string.format('Loaded config %q', name))
 		end)
 
-		-- Кнопка перезаписи конфига
-		
-
 		-- Кнопка обновления списка
 		section:AddButton('Refresh list', function()
 			Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
 			Options.SaveManager_ConfigList:SetValue(nil)
 			Options.SaveManager_ConfigName:SetValue('')
 		end)
-
-
-		
 
 		section:AddButton('Set as autoload', function()
 			local name = Options.SaveManager_ConfigList.Value
