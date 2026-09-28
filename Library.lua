@@ -228,7 +228,7 @@ function Library:MouseIsOverOpenedFrame()
                 and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
                 return true;
             end;
-        end
+        end;
     end;
 end;
 
@@ -1506,6 +1506,7 @@ end;
             ContainerLabel.Visible = true;
             ContainerLabel.TextColor3 = State and Library.AccentColor or Library.FontColor;
             Library.RegistryMap[ContainerLabel].Properties.TextColor3 = State and 'AccentColor' or 'FontColor';
+
             local YSize = 0
             local XSize = 0
             local hasVisible = false
@@ -1518,7 +1519,8 @@ end;
             end;
             if hasVisible then
                 Library.KeybindFrame.Visible = true
-                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 10, 210), 0, YSize + 23)
+                -- +20 за заголовок "Keybinds" + 8 на отступы
+                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 14, 210), 0, YSize + 30)
             else
                 Library.KeybindFrame.Visible = false
             end
@@ -1742,12 +1744,16 @@ do
         local Groupbox = self;
         local Container = Groupbox.Container;
 
+        -- [FIX] Added Active + ClipsDescendants=false and forced size/visible
         local function CreateBaseButton(Button)
             local Outer = Library:Create('Frame', {
                 BackgroundColor3 = Color3.new(0, 0, 0);
                 BorderColor3 = Color3.new(0, 0, 0);
                 Size = UDim2.new(1, -4, 0, 20);
                 ZIndex = 5;
+                Active = true;                -- ← FIX: чтобы фрейм ловил клики
+                ClipsDescendants = false;     -- ← FIX: чтобы ripple не обрезался
+                Visible = true;
             });
 
             local Inner = Library:Create('Frame', {
@@ -1864,6 +1870,10 @@ do
 
         Button.Outer, Button.Inner, Button.Label, Button.Ripple = CreateBaseButton(Button)
         Button.Outer.Parent = Container
+        -- [FIX] принудительно задаём LayoutOrder и видимость, чтобы кнопка не «съедалась»
+        Button.Outer.LayoutOrder = (#Container:GetChildren()) * 10
+        Button.Outer.Visible = true
+        Button.Outer.Size = UDim2.new(1, -4, 0, 20)
 
         InitEvents(Button)
 
@@ -2691,6 +2701,7 @@ do
             BorderColor3 = Color3.new(0, 0, 0);
             Size = UDim2.new(1, -4, 0, 20);
             ZIndex = 5;
+            Active = true;                -- [FIX] клики
             Parent = Container;
         });
         Library:AddToRegistry(BoxOuter, { BorderColor3 = 'Black'; });
@@ -3238,6 +3249,7 @@ function BindSystem:Open(control)
         Size = UDim2.new(1, -4, 0, 20),
         LayoutOrder = 999999,
         ZIndex = 203,
+        Active = true,               -- [FIX]
         Parent = Scroll,
     })
     local AddInner = Library:Create('Frame', {
@@ -3527,6 +3539,7 @@ Library.Watermark = WatermarkOuter;
 Library.WatermarkText = WatermarkLabel;
 Library:MakeDraggable(Library.Watermark);
 
+-- [FIX] KeybindContainer ZIndex было 1 → теперь выше KeybindInner (101)
 local KeybindOuter = Library:Create('Frame', {
     AnchorPoint = Vector2.new(0, 0.5);
     BorderColor3 = Color3.new(0, 0, 0);
@@ -3565,7 +3578,7 @@ local KeybindContainer = Library:Create('Frame', {
     BackgroundTransparency = 1;
     Size = UDim2.new(1, 0, 1, -20);
     Position = UDim2.new(0, 0, 0, 20);
-    ZIndex = 1;
+    ZIndex = 105;        -- ← FIX: было 1, теперь > KeybindInner.ZIndex (101)
     Parent = KeybindInner;
 });
 Library:Create('UIListLayout', {
