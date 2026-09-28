@@ -1455,9 +1455,9 @@ end;
             Size = UDim2.new(1, 0, 0, 18);
             TextSize = 13;
             Visible = false;
-            ZIndex = 110;
+            ZIndex = 200;
             Parent = Library.KeybindContainer,
-        },  true);
+        }, true);
 
         local Modes = Info.Modes or { 'Always', 'Toggle', 'Hold' };
         local ModeButtons = {};
@@ -1505,7 +1505,10 @@ end;
             ContainerLabel.Text = string.format('[%s] %s (%s)', KeyPicker.Value, Info.Text, KeyPicker.Mode);
             ContainerLabel.Visible = true;
             ContainerLabel.TextColor3 = State and Library.AccentColor or Library.FontColor;
-            Library.RegistryMap[ContainerLabel].Properties.TextColor3 = State and 'AccentColor' or 'FontColor';
+            local Reg = Library.RegistryMap[ContainerLabel]
+            if Reg and Reg.Properties then
+                Reg.Properties.TextColor3 = State and 'AccentColor' or 'FontColor';
+            end
 
             local YSize = 0
             local XSize = 0
@@ -1519,8 +1522,7 @@ end;
             end;
             if hasVisible then
                 Library.KeybindFrame.Visible = true
-                -- +20 за заголовок "Keybinds" + 8 на отступы
-                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 14, 210), 0, YSize + 30)
+                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 16, 210), 0, YSize + 28)
             else
                 Library.KeybindFrame.Visible = false
             end
@@ -1744,16 +1746,13 @@ do
         local Groupbox = self;
         local Container = Groupbox.Container;
 
-        -- [FIX] Added Active + ClipsDescendants=false and forced size/visible
+        -- КАК БЫЛО В ОРИГИНАЛЕ - ничего лишнего
         local function CreateBaseButton(Button)
             local Outer = Library:Create('Frame', {
                 BackgroundColor3 = Color3.new(0, 0, 0);
                 BorderColor3 = Color3.new(0, 0, 0);
                 Size = UDim2.new(1, -4, 0, 20);
                 ZIndex = 5;
-                Active = true;                -- ← FIX: чтобы фрейм ловил клики
-                ClipsDescendants = false;     -- ← FIX: чтобы ripple не обрезался
-                Visible = true;
             });
 
             local Inner = Library:Create('Frame', {
@@ -1870,10 +1869,6 @@ do
 
         Button.Outer, Button.Inner, Button.Label, Button.Ripple = CreateBaseButton(Button)
         Button.Outer.Parent = Container
-        -- [FIX] принудительно задаём LayoutOrder и видимость, чтобы кнопка не «съедалась»
-        Button.Outer.LayoutOrder = (#Container:GetChildren()) * 10
-        Button.Outer.Visible = true
-        Button.Outer.Size = UDim2.new(1, -4, 0, 20)
 
         InitEvents(Button)
 
@@ -2672,7 +2667,7 @@ do
         return Depbox;
     end;
 
-    -- [NEW] Simple keybind widget for bind windows
+    -- Simple keybind widget for bind windows
     function Funcs:AddKeybind(Idx, Info)
         assert(Info.Text, 'AddKeybind: Missing `Text` string.');
         local Keybind = {
@@ -2701,7 +2696,7 @@ do
             BorderColor3 = Color3.new(0, 0, 0);
             Size = UDim2.new(1, -4, 0, 20);
             ZIndex = 5;
-            Active = true;                -- [FIX] клики
+            Active = true;
             Parent = Container;
         });
         Library:AddToRegistry(BoxOuter, { BorderColor3 = 'Black'; });
@@ -2792,7 +2787,7 @@ do
         return Funcs[Key](...);
     end;
 
-    -- [NEW] Create a mini groupbox for use inside the bind window
+    -- Create a mini groupbox for use inside the bind window
     function Library:CreateMiniGroupbox(parent, title)
         local Outer = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
@@ -2861,13 +2856,13 @@ do
 end;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- [NEW] BIND SYSTEM — uses real Linoria widgets inside mini groupboxes
+-- BIND SYSTEM
 -- ═══════════════════════════════════════════════════════════════════════════
 
 Library.BindSystem = Library.BindSystem or {}
 local BindSystem = Library.BindSystem
-BindSystem.Windows = {}       -- control → outer window frame
-BindSystem.AllBindings = {}   -- array of bindings
+BindSystem.Windows = {}
+BindSystem.AllBindings = {}
 BindSystem._idxCounter = 0
 
 local function NextBindIdx()
@@ -3041,7 +3036,6 @@ function BindSystem:CloseAllWindows()
     for _, k in ipairs(keys) do self:CloseWindow(k) end
 end
 
--- [NEW] Build one binding's UI card using real Linoria widgets
 function BindSystem:BuildBindCard(Scroll, AddBtn, control, existingBinding)
     local binding = existingBinding or {
         Control = control,
@@ -3053,7 +3047,6 @@ function BindSystem:BuildBindCard(Scroll, AddBtn, control, existingBinding)
         table.insert(self.AllBindings, binding)
     end
 
-    -- layout order: place above AddBtn
     local maxOrder = 0
     for _, child in ipairs(Scroll:GetChildren()) do
         if child:IsA('GuiObject') and child ~= AddBtn then
@@ -3067,7 +3060,6 @@ function BindSystem:BuildBindCard(Scroll, AddBtn, control, existingBinding)
     local gb = Library:CreateMiniGroupbox(Scroll, 'Bind #' .. tostring(#self.AllBindings))
     gb.Outer.LayoutOrder = maxOrder + 1
 
-    -- Keybind widget for the key
     gb:AddKeybind(NextBindIdx(), {
         Text = 'Key',
         Default = binding.Key,
@@ -3076,7 +3068,6 @@ function BindSystem:BuildBindCard(Scroll, AddBtn, control, existingBinding)
         end,
     })
 
-    -- Mode dropdown
     gb:AddDropdown(NextBindIdx(), {
         Text = 'Mode',
         Values = { 'Toggle', 'Hold', 'Always' },
@@ -3086,7 +3077,6 @@ function BindSystem:BuildBindCard(Scroll, AddBtn, control, existingBinding)
         end,
     })
 
-    -- Value widget depending on control type
     if control.Type == 'Toggle' then
         gb:AddToggle(NextBindIdx(), {
             Text = 'Value',
@@ -3121,7 +3111,6 @@ function BindSystem:BuildBindCard(Scroll, AddBtn, control, existingBinding)
         gb:AddLabel('Triggers button callback', true)
     end
 
-    -- Remove button
     gb:AddButton('Remove bind', function()
         for i, b in ipairs(self.AllBindings) do
             if b == binding then
@@ -3169,6 +3158,7 @@ function BindSystem:Open(control)
     })
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'BackgroundColor' })
 
+    -- Пустая полоска сверху — просто как drag-зона, без кнопки закрытия и без заголовка
     local Header = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor,
         BorderSizePixel = 0,
@@ -3178,37 +3168,6 @@ function BindSystem:Open(control)
         Parent = Inner,
     })
     Library:AddToRegistry(Header, { BackgroundColor3 = 'MainColor' })
-
-    Library:CreateLabel({
-        Position = UDim2.fromOffset(6, 0),
-        Size = UDim2.new(1, -26, 1, 0),
-        Text = 'Keybinds: ' .. self:GetControlTitle(control),
-        TextSize = 13,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 203,
-        Parent = Header,
-    })
-
-    local CloseBtn = Library:Create('Frame', {
-        BackgroundColor3 = Library.MainColor,
-        Position = UDim2.new(1, -20, 0, 0),
-        Size = UDim2.fromOffset(20, 20),
-        ZIndex = 204,
-        Parent = Header,
-    })
-    Library:AddToRegistry(CloseBtn, { BackgroundColor3 = 'MainColor' })
-    Library:CreateLabel({
-        Size = UDim2.new(1, 0, 1, 0),
-        Text = 'X',
-        TextSize = 13,
-        ZIndex = 205,
-        Parent = CloseBtn,
-    })
-    CloseBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            self:CloseWindow(control)
-        end
-    end)
 
     local Scroll = Library:Create('ScrollingFrame', {
         BackgroundTransparency = 1,
@@ -3242,14 +3201,13 @@ function BindSystem:Open(control)
         Scroll.CanvasSize = UDim2.fromOffset(0, Layout.AbsoluteContentSize.Y + 4)
     end)
 
-    -- Add button pinned at bottom via LayoutOrder
     local AddBtn = Library:Create('Frame', {
         BackgroundColor3 = Color3.new(0, 0, 0),
         BorderSizePixel = 0,
         Size = UDim2.new(1, -4, 0, 20),
         LayoutOrder = 999999,
         ZIndex = 203,
-        Active = true,               -- [FIX]
+        Active = true,
         Parent = Scroll,
     })
     local AddInner = Library:Create('Frame', {
@@ -3279,7 +3237,6 @@ function BindSystem:Open(control)
 
     Library:MakeDraggable(Outer, 22)
 
-    -- restore existing binds
     for _, binding in ipairs(self.AllBindings) do
         if binding.Control == control then
             self:BuildBindCard(Scroll, AddBtn, control, binding)
@@ -3289,7 +3246,6 @@ function BindSystem:Open(control)
     self.Windows[control] = Outer
 end
 
--- input: capture + trigger
 Library:GiveSignal(InputService.InputBegan:Connect(function(Input, gp)
     if gp then return end
     BindSystem:HandleInput(Input, true)
@@ -3298,7 +3254,7 @@ Library:GiveSignal(InputService.InputEnded:Connect(function(Input)
     BindSystem:HandleInput(Input, false)
 end))
 
--- close window when clicking outside
+-- Закрытие окна биндов по клику снаружи (уже работает, оставляем)
 Library:GiveSignal(InputService.InputBegan:Connect(function(Input)
     if Input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     local keys = {}
@@ -3539,12 +3495,12 @@ Library.Watermark = WatermarkOuter;
 Library.WatermarkText = WatermarkLabel;
 Library:MakeDraggable(Library.Watermark);
 
--- [FIX] KeybindContainer ZIndex было 1 → теперь выше KeybindInner (101)
+-- ─── KEYBIND HUD ───
 local KeybindOuter = Library:Create('Frame', {
     AnchorPoint = Vector2.new(0, 0.5);
     BorderColor3 = Color3.new(0, 0, 0);
     Position = UDim2.new(0, 10, 0.5, 0);
-    Size = UDim2.new(0, 210, 0, 20);
+    Size = UDim2.new(0, 210, 0, 44);   -- стартовый размер с запасом
     Visible = false;
     ZIndex = 100;
     Parent = OverlayGui;
@@ -3567,18 +3523,18 @@ local ColorFrame = Library:Create('Frame', {
 });
 Library:AddToRegistry(ColorFrame, { BackgroundColor3 = 'AccentColor'; }, true);
 local KeybindLabel = Library:CreateLabel({
-    Size = UDim2.new(1, 0, 0, 20);
-    Position = UDim2.fromOffset(5, 2),
+    Size = UDim2.new(1, 0, 0, 18);
+    Position = UDim2.fromOffset(5, 4),
     TextXAlignment = Enum.TextXAlignment.Left,
     Text = 'Keybinds';
-    ZIndex = 104;
+    ZIndex = 103;
     Parent = KeybindInner;
 });
 local KeybindContainer = Library:Create('Frame', {
     BackgroundTransparency = 1;
-    Size = UDim2.new(1, 0, 1, -20);
-    Position = UDim2.new(0, 0, 0, 20);
-    ZIndex = 105;        -- ← FIX: было 1, теперь > KeybindInner.ZIndex (101)
+    Size = UDim2.new(1, 0, 1, -22);
+    Position = UDim2.new(0, 0, 0, 22);
+    ZIndex = 105;
     Parent = KeybindInner;
 });
 Library:Create('UIListLayout', {
@@ -3588,7 +3544,7 @@ Library:Create('UIListLayout', {
 });
 Library:Create('UIPadding', {
     PaddingLeft = UDim.new(0, 5),
-    Parent = KeybindContainer,
+    Parent = KeybindContainer;
 });
 Library.KeybindFrame = KeybindOuter;
 Library.KeybindContainer = KeybindContainer;
