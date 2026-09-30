@@ -140,13 +140,22 @@ function Library:ApplyTextStroke(Inst)
     });
 end;
 
--- [FIX] CreateLabel с поддержкой StartImage / EndImage
+-- [FIX] CreateLabel с StartImage / EndImage + Offset + Color
 function Library:CreateLabel(Properties, IsHud)
     local props = Properties or {}
     local startImg = props.StartImage
     local endImg = props.EndImage
+    local startImgColor = props.StartImageColor
+    local endImgColor = props.EndImageColor
+    local startImgOffset = props.StartImageOffset -- Vector2
+    local endImgOffset = props.EndImageOffset     -- Vector2
+
     props.StartImage = nil
     props.EndImage = nil
+    props.StartImageColor = nil
+    props.EndImageColor = nil
+    props.StartImageOffset = nil
+    props.EndImageOffset = nil
 
     local function valid(id)
         if id == nil then return false end
@@ -190,24 +199,32 @@ function Library:CreateLabel(Properties, IsHud)
     local rightPad = hasEnd and (px + pad) or 0
     local zidx = (props.ZIndex or 1) + 1
 
+    -- [FIX] StartImage: смещение и цвет применяются только к картинке
     if hasStart then
+        local sx = startImgOffset and startImgOffset.X or 0
+        local sy = startImgOffset and startImgOffset.Y or 0
         Library:Create('ImageLabel', {
             BackgroundTransparency = 1;
-            Position = UDim2.fromOffset(0, 0);
+            Position = UDim2.fromOffset(sx, sy);
             Size = UDim2.fromOffset(px, px);
             Image = startImg;
+            ImageColor3 = startImgColor or Color3.new(1, 1, 1);
             ZIndex = zidx;
             Parent = wrapper;
         })
     end
 
+    -- [FIX] EndImage: смещение и цвет применяются только к картинке
     if hasEnd then
+        local ex = endImgOffset and endImgOffset.X or 0
+        local ey = endImgOffset and endImgOffset.Y or 0
         Library:Create('ImageLabel', {
             BackgroundTransparency = 1;
             AnchorPoint = Vector2.new(1, 0);
-            Position = UDim2.new(1, 0, 0, 0);
+            Position = UDim2.new(1, ex, 0, ey);
             Size = UDim2.fromOffset(px, px);
             Image = endImg;
+            ImageColor3 = endImgColor or Color3.new(1, 1, 1);
             ZIndex = zidx;
             Parent = wrapper;
         })
@@ -1476,7 +1493,6 @@ end;
             Info.Mode = 'Toggle'
         end
 
-        -- [FIX] PickOuter шире (36) чтобы "None"/"RightShift" не обрезались
         local PickOuter = Library:Create('Frame', {
             BackgroundColor3 = Library.OutlineColor;
             BorderColor3 = Library.OutlineColor;
@@ -1541,7 +1557,6 @@ end;
             Parent = ModeSelectInner;
         });
 
-        -- [FIX] HUD-строка — чистый TextLabel без RichText, без обёртки
         local ContainerLabel = Library:Create('TextLabel', {
             BackgroundTransparency = 1;
             Font = Library.Font;
@@ -1620,14 +1635,12 @@ end;
                 if Label:IsA('TextLabel') and Label.Visible then
                     hasVisible = true
                     YSize = YSize + 18;
-                    -- [FIX] прямое измерение через TextService
                     local tb = TextService:GetTextSize(Label.Text, Label.TextSize, Label.Font, Vector2.new(math.huge, math.huge))
                     if tb.X > XSize then XSize = tb.X end
                 end;
             end;
             if hasVisible then
                 Library.KeybindFrame.Visible = true
-                -- [FIX] запас +45 чтобы RightShift и т.п. не вылезали
                 Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 45, 220), 0, YSize + 28)
             else
                 Library.KeybindFrame.Visible = false
@@ -1784,11 +1797,23 @@ do
         });
     end;
 
-    -- [FIX] AddLabel с поддержкой StartImage/EndImage
-    function Funcs:AddLabel(Text, DoesWrap, StartImage, EndImage)
+    -- [FIX] AddLabel с картинками + offset + color
+    function Funcs:AddLabel(Text, DoesWrap, StartImage, EndImage, StartImageColor, EndImageColor, StartImageOffset, EndImageOffset)
         local Label = {};
         local Groupbox = self;
         local Container = Groupbox.Container;
+
+        -- поддержка передачи таблицы вторым аргументом: AddLabel('Text', { StartImage = ... })
+        if type(DoesWrap) == 'table' then
+            local opts = DoesWrap
+            DoesWrap = opts.Wrap
+            StartImage = opts.StartImage
+            EndImage = opts.EndImage
+            StartImageColor = opts.StartImageColor
+            EndImageColor = opts.EndImageColor
+            StartImageOffset = opts.StartImageOffset
+            EndImageOffset = opts.EndImageOffset
+        end
 
         local TextLabel = Library:CreateLabel({
             Size = UDim2.new(1, -4, 0, 15);
@@ -1798,6 +1823,10 @@ do
             TextXAlignment = Enum.TextXAlignment.Left;
             StartImage = StartImage;
             EndImage = EndImage;
+            StartImageColor = StartImageColor;
+            EndImageColor = EndImageColor;
+            StartImageOffset = StartImageOffset;
+            EndImageOffset = EndImageOffset;
             ZIndex = 5;
             Parent = Container;
         });
@@ -1851,6 +1880,10 @@ do
                 Obj.Value = second.Default
                 Obj.StartImage = second.StartImage
                 Obj.EndImage = second.EndImage
+                Obj.StartImageColor = second.StartImageColor
+                Obj.EndImageColor = second.EndImageColor
+                Obj.StartImageOffset = second.StartImageOffset
+                Obj.EndImageOffset = second.EndImageOffset
             elseif type(first) == 'table' then
                 Obj.Text = first.Text
                 Obj.Func = first.Func
@@ -1860,6 +1893,10 @@ do
                 Obj.Value = first.Default
                 Obj.StartImage = first.StartImage
                 Obj.EndImage = first.EndImage
+                Obj.StartImageColor = first.StartImageColor
+                Obj.EndImageColor = first.EndImageColor
+                Obj.StartImageOffset = first.StartImageOffset
+                Obj.EndImageOffset = first.EndImageOffset
             else
                 Obj.Text = first
                 Obj.Func = second
@@ -1869,6 +1906,10 @@ do
                 Obj.SaveState = third.SaveState
                 Obj.StartImage = third.StartImage
                 Obj.EndImage = third.EndImage
+                Obj.StartImageColor = third.StartImageColor
+                Obj.EndImageColor = third.EndImageColor
+                Obj.StartImageOffset = third.StartImageOffset
+                Obj.EndImageOffset = third.EndImageOffset
                 if third.Default ~= nil then Obj.Value = third.Default end
             end
         end
@@ -1917,6 +1958,10 @@ do
                 Text = Button.Text;
                 StartImage = Button.StartImage;
                 EndImage = Button.EndImage;
+                StartImageColor = Button.StartImageColor;
+                EndImageColor = Button.EndImageColor;
+                StartImageOffset = Button.StartImageOffset;
+                EndImageOffset = Button.EndImageOffset;
                 ZIndex = 6;
                 Parent = Inner;
             });
@@ -2107,6 +2152,10 @@ do
             TextXAlignment = Enum.TextXAlignment.Left;
             StartImage = Info.StartImage;
             EndImage = Info.EndImage;
+            StartImageColor = Info.StartImageColor;
+            EndImageColor = Info.EndImageColor;
+            StartImageOffset = Info.StartImageOffset;
+            EndImageOffset = Info.EndImageOffset;
             ZIndex = 5;
             Parent = Container;
         });
@@ -2258,6 +2307,10 @@ do
             TextXAlignment = Enum.TextXAlignment.Left;
             StartImage = Info.StartImage;
             EndImage = Info.EndImage;
+            StartImageColor = Info.StartImageColor;
+            EndImageColor = Info.EndImageColor;
+            StartImageOffset = Info.StartImageOffset;
+            EndImageOffset = Info.EndImageOffset;
             ZIndex = 6;
             Parent = ToggleInner;
         });
@@ -2355,6 +2408,10 @@ do
                 TextYAlignment = Enum.TextYAlignment.Bottom;
                 StartImage = Info.StartImage;
                 EndImage = Info.EndImage;
+                StartImageColor = Info.StartImageColor;
+                EndImageColor = Info.EndImageColor;
+                StartImageOffset = Info.StartImageOffset;
+                EndImageOffset = Info.EndImageOffset;
                 ZIndex = 5;
                 Parent = Container;
             });
@@ -2506,6 +2563,10 @@ do
                 TextYAlignment = Enum.TextYAlignment.Bottom;
                 StartImage = Info.StartImage;
                 EndImage = Info.EndImage;
+                StartImageColor = Info.StartImageColor;
+                EndImageColor = Info.EndImageColor;
+                StartImageOffset = Info.StartImageOffset;
+                EndImageOffset = Info.EndImageOffset;
                 ZIndex = 5;
                 Parent = Container;
             });
@@ -2855,6 +2916,10 @@ do
             TextYAlignment = Enum.TextYAlignment.Bottom;
             StartImage = Info.StartImage;
             EndImage = Info.EndImage;
+            StartImageColor = Info.StartImageColor;
+            EndImageColor = Info.EndImageColor;
+            StartImageOffset = Info.StartImageOffset;
+            EndImageOffset = Info.EndImageOffset;
             ZIndex = 5;
             Parent = Container;
         });
@@ -3796,7 +3861,7 @@ function Create3DObjects()
     end
 end
 
--- [FIX] CreateWindow с поддержкой TitleStartImage / TitleEndImage / TitleTextSize
+-- [FIX] CreateWindow: title + картинки + offset + color
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
@@ -3845,11 +3910,14 @@ function Library:CreateWindow(...)
     local InnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Inner });
     table.insert(Library.UICorners, InnerCorner)
 
-    -- [FIX] title с картинками
     local titleHeight = 25
     local titleTextSize = Config.TitleTextSize or 16
     local titleStartImg = Config.TitleStartImage
     local titleEndImg = Config.TitleEndImage
+    local titleStartImgColor = Config.TitleStartImageColor
+    local titleEndImgColor = Config.TitleEndImageColor
+    local titleStartImgOffset = Config.TitleStartImageOffset -- Vector2
+    local titleEndImgOffset = Config.TitleEndImageOffset     -- Vector2
 
     local function titleImgValid(id)
         if id == nil then return false end
@@ -3876,22 +3944,28 @@ function Library:CreateWindow(...)
         local rightPad = hasTitleEnd and (px + pad) or 0
 
         if hasTitleStart then
+            local sx = titleStartImgOffset and titleStartImgOffset.X or 0
+            local sy = titleStartImgOffset and titleStartImgOffset.Y or 0
             Library:Create('ImageLabel', {
                 BackgroundTransparency = 1;
-                Position = UDim2.fromOffset(0, (titleHeight - px) / 2);
+                Position = UDim2.fromOffset(sx, (titleHeight - px) / 2 + sy);
                 Size = UDim2.fromOffset(px, px);
                 Image = titleStartImg;
+                ImageColor3 = titleStartImgColor or Color3.new(1, 1, 1);
                 ZIndex = 2;
                 Parent = titleContainer;
             })
         end
         if hasTitleEnd then
+            local ex = titleEndImgOffset and titleEndImgOffset.X or 0
+            local ey = titleEndImgOffset and titleEndImgOffset.Y or 0
             Library:Create('ImageLabel', {
                 BackgroundTransparency = 1;
                 AnchorPoint = Vector2.new(1, 0);
-                Position = UDim2.new(1, 0, 0, (titleHeight - px) / 2);
+                Position = UDim2.new(1, ex, 0, (titleHeight - px) / 2 + ey);
                 Size = UDim2.fromOffset(px, px);
                 Image = titleEndImg;
+                ImageColor3 = titleEndImgColor or Color3.new(1, 1, 1);
                 ZIndex = 2;
                 Parent = titleContainer;
             })
