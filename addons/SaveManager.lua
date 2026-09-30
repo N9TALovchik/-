@@ -1,5 +1,49 @@
 local httpService = game:GetService('HttpService')
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- BASE64 (использует crypt.* если доступен, иначе встроенный фоллбэк)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local b64encode, b64decode
+
+if crypt and crypt.base64encode and crypt.base64decode then
+	b64encode = function(data) return crypt.base64encode(data) end
+	b64decode = function(data) return crypt.base64decode(data) end
+else
+	-- фоллбэк для executors без crypt
+	local b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+	b64encode = function(data)
+		return ((data:gsub('.', function(x)
+			local r, byte = '', x:byte()
+			for i = 8, 1, -1 do r = r .. (byte % 2^i - byte % 2^(i-1) > 0 and '1' or '0') end
+			return r
+		end) .. '0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+			if (#x < 6) then return '' end
+			local c = 0
+			for i = 1, 6 do c = c + (x:sub(i,i) == '1' and 2^(6-i) or 0) end
+			return b64chars:sub(c+1, c+1)
+		end) .. ({ '', '==', '=' })[#data % 3 + 1])
+	end
+	b64decode = function(data)
+		data = string.gsub(data, '[^' .. b64chars .. '=]', '')
+		return (data:gsub('.', function(x)
+			if (x == '=') then return '' end
+			local r, f = '', (b64chars:find(x) - 1)
+			for i = 6, 1, -1 do r = r .. (f % 2^i - f % 2^(i-1) > 0 and '1' or '0') end
+			return r
+		end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+			if (#x ~= 8) then return '' end
+			local c = 0
+			for i = 1, 8 do c = c + (x:sub(i,i) == '1' and 2^(8-i) or 0) end
+			return string.char(c)
+		end))
+	end
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SAVEMANAGER
+-- ═══════════════════════════════════════════════════════════════════════════
+
 local SaveManager = {} do
 	SaveManager.Folder = 'LinoriaLibSettings'
 	SaveManager.Ignore = {}
@@ -41,6 +85,15 @@ local SaveManager = {} do
 			Save = function(idx, object) return { type = 'Input', idx = idx, text = object.Value } end,
 			Load = function(idx, data) if Options[idx] and type(data.text) == 'string' then Options[idx]:SetValue(data.text) end end,
 		},
+		Button = {
+			Save = function(idx, object)
+				if not object.SaveState then return nil end
+				return { type = 'Button', idx = idx, value = object.Value }
+			end,
+			Load = function(idx, data)
+				if Options[idx] and Options[idx].SaveState then Options[idx]:SetValue(data.value) end
+			end,
+		},
 	}
 
 	function SaveManager:SetIgnoreIndexes(list) for _, key in next, list do self.Ignore[key] = true end end
@@ -57,11 +110,13 @@ local SaveManager = {} do
 		for idx, option in next, Options do
 			if not self.Parser[option.Type] then continue end
 			if self.Ignore[idx] then continue end
-			table.insert(data.objects, self.Parser[option.Type].Save(idx, option))
+			local entry = self.Parser[option.Type].Save(idx, option)
+			if entry then table.insert(data.objects, entry) end
 		end
 		local success, encoded = pcall(httpService.JSONEncode, httpService, data)
 		if not success then return false, 'failed to encode data' end
-		writefile(fullPath, encoded)
+		local b64 = b64encode(encoded)
+		writefile(fullPath, b64)
 		return true
 	end
 
@@ -69,7 +124,10 @@ local SaveManager = {} do
 		if (not name) then return false, 'no config file is selected' end
 		local file = self.Folder .. '/settings/' .. name .. '.json'
 		if not isfile(file) then return false, 'invalid file' end
-		local success, decoded = pcall(httpService.JSONDecode, httpService, readfile(file))
+		local raw = readfile(file)
+		if not raw or raw == '' then return false, 'empty file' end
+		local decodedB64 = b64decode(raw)
+		local success, decoded = pcall(httpService.JSONDecode, httpService, decodedB64)
 		if not success then return false, 'decode error' end
 		for _, option in next, decoded.objects do
 			if self.Parser[option.type] then
@@ -86,12 +144,15 @@ local SaveManager = {} do
 		local content = readfile(file)
 		if not content then return false, 'failed to read file' end
 		local success = pcall(function() setclipboard(content) end)
-		if success then self.Library:Notify(string.format('Config "%s" copied to clipboard', name)); return true
+		if success then self.Library:Notify(string.format('Config "%s" (base64) copied to clipboard', name)); return true
 		else return false, 'clipboard not supported' end
 	end
 
-	function SaveManager:ImportFromString(jsonString)
-		if not jsonString or jsonString:gsub(' ', '') == '' then return false, 'empty string' end
+	function SaveManager:ImportFromString(b64String)
+		if not b64String or b64String:gsub('%s', '') == '' then return false, 'empty string' end
+		local cleaned = b64String:gsub('%s+', '')
+		local ok, jsonString = pcall(b64decode, cleaned)
+		if not ok then return false, 'base64 decode error' end
 		local success, decoded = pcall(httpService.JSONDecode, httpService, jsonString)
 		if not success then return false, 'invalid JSON' end
 		if not decoded.objects or type(decoded.objects) ~= 'table' then return false, 'invalid config structure' end
@@ -100,7 +161,7 @@ local SaveManager = {} do
 				task.spawn(function() self.Parser[option.type].Load(option.idx, option) end)
 			end
 		end
-		self.Library:Notify('Config imported from string')
+		self.Library:Notify('Config imported from base64')
 		return true
 	end
 
@@ -193,15 +254,15 @@ local SaveManager = {} do
 			else self.Library:Notify('No autoload config to clear', 2) end
 			SaveManager.AutoloadLabel:SetText('Current autoload config: none')
 		end)
-		section:AddInput('SaveManager_ImportString', { Text = ' ', Placeholder = 'Paste config here' })
-		section:AddButton('Import config ', function()
-			local json = Options.SaveManager_ImportString.Value
-			if not json or json:gsub(' ', '') == '' then return self.Library:Notify('Empty import string', 2) end
-			local success, err = self:ImportFromString(json)
+		section:AddInput('SaveManager_ImportString', { Text = ' ', Placeholder = 'Paste base64 config here' })
+		section:AddButton('Import config (base64)', function()
+			local b64 = Options.SaveManager_ImportString.Value
+			if not b64 or b64:gsub('%s', '') == '' then return self.Library:Notify('Empty import string', 2) end
+			local success, err = self:ImportFromString(b64)
 			if not success then self.Library:Notify('Import failed: ' .. err, 3)
 			else Options.SaveManager_ImportString:SetValue('') end
 		end)
-		section:AddButton('Export config', function()
+		section:AddButton('Export config (base64)', function()
 			local name = Options.SaveManager_ConfigList.Value
 			if not name then return self.Library:Notify('Select a config first', 2) end
 			local success, err = self:ExportConfig(name)
