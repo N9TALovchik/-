@@ -10,7 +10,6 @@ if crypt and crypt.base64encode and crypt.base64decode then
 	b64encode = function(data) return crypt.base64encode(data) end
 	b64decode = function(data) return crypt.base64decode(data) end
 else
-	-- фоллбэк для executors без crypt
 	local b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 	b64encode = function(data)
 		return ((data:gsub('.', function(x)
@@ -126,9 +125,27 @@ local SaveManager = {} do
 		if not isfile(file) then return false, 'invalid file' end
 		local raw = readfile(file)
 		if not raw or raw == '' then return false, 'empty file' end
-		local decodedB64 = b64decode(raw)
-		local success, decoded = pcall(httpService.JSONDecode, httpService, decodedB64)
-		if not success then return false, 'decode error' end
+
+		-- [FIX] сначала пробуем как чистый JSON (старые конфиги),
+		-- если получилось — конвертируем файл в base64 JSON и перезаписываем
+		local decoded
+		local okJson, parsedJson = pcall(httpService.JSONDecode, httpService, raw)
+		if okJson and type(parsedJson) == 'table' and parsedJson.objects then
+			decoded = parsedJson
+			-- авто-миграция: пересохраняем как base64
+			local reencoded = httpService:JSONEncode(parsedJson)
+			writefile(file, b64encode(reencoded))
+		else
+			local okB64, decodedB64 = pcall(b64decode, raw)
+			if not okB64 then return false, 'decode error (not json, not base64)' end
+			local okDecode, parsed = pcall(httpService.JSONDecode, httpService, decodedB64)
+			if not okDecode then return false, 'decode error (invalid base64 json)' end
+			if type(parsed) ~= 'table' or not parsed.objects then
+				return false, 'invalid config structure'
+			end
+			decoded = parsed
+		end
+
 		for _, option in next, decoded.objects do
 			if self.Parser[option.type] then
 				task.spawn(function() self.Parser[option.type].Load(option.idx, option) end)
@@ -143,25 +160,41 @@ local SaveManager = {} do
 		if not isfile(file) then return false, 'config file not found' end
 		local content = readfile(file)
 		if not content then return false, 'failed to read file' end
+		-- если файл ещё в JSON (старый), конвертим в base64 на лету
+		local okJson, parsedJson = pcall(httpService.JSONDecode, httpService, content)
+		if okJson and type(parsedJson) == 'table' and parsedJson.objects then
+			content = b64encode(content)
+		end
 		local success = pcall(function() setclipboard(content) end)
 		if success then self.Library:Notify(string.format('Config "%s" (base64) copied to clipboard', name)); return true
 		else return false, 'clipboard not supported' end
 	end
 
-	function SaveManager:ImportFromString(b64String)
-		if not b64String or b64String:gsub('%s', '') == '' then return false, 'empty string' end
-		local cleaned = b64String:gsub('%s+', '')
-		local ok, jsonString = pcall(b64decode, cleaned)
-		if not ok then return false, 'base64 decode error' end
-		local success, decoded = pcall(httpService.JSONDecode, httpService, jsonString)
-		if not success then return false, 'invalid JSON' end
-		if not decoded.objects or type(decoded.objects) ~= 'table' then return false, 'invalid config structure' end
+	function SaveManager:ImportFromString(input)
+		if not input or input:gsub('%s', '') == '' then return false, 'empty string' end
+		local cleaned = input:gsub('%s+', '')
+
+		local decoded
+		local okJson, parsedJson = pcall(httpService.JSONDecode, httpService, input)
+		if okJson and type(parsedJson) == 'table' and parsedJson.objects then
+			decoded = parsedJson
+		else
+			local okB64, decodedB64 = pcall(b64decode, cleaned)
+			if not okB64 then return false, 'base64 decode error' end
+			local okDecode, parsed = pcall(httpService.JSONDecode, httpService, decodedB64)
+			if not okDecode then return false, 'invalid base64 or JSON' end
+			if type(parsed) ~= 'table' or not parsed.objects then
+				return false, 'invalid config structure'
+			end
+			decoded = parsed
+		end
+
 		for _, option in next, decoded.objects do
 			if self.Parser[option.type] then
 				task.spawn(function() self.Parser[option.type].Load(option.idx, option) end)
 			end
 		end
-		self.Library:Notify('Config imported from base64')
+		self.Library:Notify('Config imported')
 		return true
 	end
 
@@ -254,11 +287,11 @@ local SaveManager = {} do
 			else self.Library:Notify('No autoload config to clear', 2) end
 			SaveManager.AutoloadLabel:SetText('Current autoload config: none')
 		end)
-		section:AddInput('SaveManager_ImportString', { Text = ' ', Placeholder = 'Paste base64 config here' })
-		section:AddButton('Import config (base64)', function()
-			local b64 = Options.SaveManager_ImportString.Value
-			if not b64 or b64:gsub('%s', '') == '' then return self.Library:Notify('Empty import string', 2) end
-			local success, err = self:ImportFromString(b64)
+		section:AddInput('SaveManager_ImportString', { Text = ' ', Placeholder = 'Paste base64 or JSON config here' })
+		section:AddButton('Import config', function()
+			local str = Options.SaveManager_ImportString.Value
+			if not str or str:gsub('%s', '') == '' then return self.Library:Notify('Empty import string', 2) end
+			local success, err = self:ImportFromString(str)
 			if not success then self.Library:Notify('Import failed: ' .. err, 3)
 			else Options.SaveManager_ImportString:SetValue('') end
 		end)
