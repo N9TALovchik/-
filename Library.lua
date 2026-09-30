@@ -1476,10 +1476,11 @@ end;
             Info.Mode = 'Toggle'
         end
 
+        -- [FIX] PickOuter шире (36) чтобы "None"/"RightShift" не обрезались
         local PickOuter = Library:Create('Frame', {
             BackgroundColor3 = Library.OutlineColor;
             BorderColor3 = Library.OutlineColor;
-            Size = UDim2.new(0, 28, 0, 15);
+            Size = UDim2.new(0, 36, 0, 15);
             ZIndex = 6;
             Parent = ToggleLabel;
         });
@@ -1498,7 +1499,6 @@ end;
             BorderColor3 = 'OutlineColor';
         });
 
-        -- [FIX] DisplayLabel без TextWrapped — иначе он ломает ширину пикера
         local DisplayLabel = Library:CreateLabel({
             Size = UDim2.new(1, 0, 1, 0);
             TextSize = 13;
@@ -1541,14 +1541,14 @@ end;
             Parent = ModeSelectInner;
         });
 
-        -- [FIX] ContainerLabel — единственный лейбл в HUD, с RichText=false и правильным форматом
+        -- [FIX] HUD-строка — чистый TextLabel без RichText, без обёртки
         local ContainerLabel = Library:Create('TextLabel', {
             BackgroundTransparency = 1;
             Font = Library.Font;
             TextColor3 = Library.FontColor;
             TextSize = 13;
             TextStrokeTransparency = 0;
-            RichText = false; -- [FIX] отключаем, чтобы RichText не съедал [KEY] и (Mode)
+            RichText = false;
             TextXAlignment = Enum.TextXAlignment.Left;
             Size = UDim2.new(1, 0, 0, 18);
             Visible = false;
@@ -1620,15 +1620,15 @@ end;
                 if Label:IsA('TextLabel') and Label.Visible then
                     hasVisible = true
                     YSize = YSize + 18;
-                    -- [FIX] считаем ширину через TextService напрямую, TextBounds обновляется с задержкой
+                    -- [FIX] прямое измерение через TextService
                     local tb = TextService:GetTextSize(Label.Text, Label.TextSize, Label.Font, Vector2.new(math.huge, math.huge))
                     if tb.X > XSize then XSize = tb.X end
                 end;
             end;
             if hasVisible then
                 Library.KeybindFrame.Visible = true
-                -- [FIX] +25 = паддинг 5 слева + 5 справа + запас 15 чтобы длинные бинды типа RightShift не вылезали
-                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 25, 210), 0, YSize + 28)
+                -- [FIX] запас +45 чтобы RightShift и т.п. не вылезали
+                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 45, 220), 0, YSize + 28)
             else
                 Library.KeybindFrame.Visible = false
             end
@@ -1765,7 +1765,7 @@ end;
 end;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- BASE GROUPBOX + custom AddKeybind widget
+-- BASE GROUPBOX
 -- ═══════════════════════════════════════════════════════════════════════════
 
 local BaseGroupbox = {};
@@ -1784,7 +1784,8 @@ do
         });
     end;
 
-    function Funcs:AddLabel(Text, DoesWrap)
+    -- [FIX] AddLabel с поддержкой StartImage/EndImage
+    function Funcs:AddLabel(Text, DoesWrap, StartImage, EndImage)
         local Label = {};
         local Groupbox = self;
         local Container = Groupbox.Container;
@@ -1795,6 +1796,8 @@ do
             Text = Text;
             TextWrapped = DoesWrap or false,
             TextXAlignment = Enum.TextXAlignment.Left;
+            StartImage = StartImage;
+            EndImage = EndImage;
             ZIndex = 5;
             Parent = Container;
         });
@@ -1846,6 +1849,8 @@ do
                 Obj.Tooltip = second.Tooltip
                 Obj.SaveState = second.SaveState
                 Obj.Value = second.Default
+                Obj.StartImage = second.StartImage
+                Obj.EndImage = second.EndImage
             elseif type(first) == 'table' then
                 Obj.Text = first.Text
                 Obj.Func = first.Func
@@ -1853,6 +1858,8 @@ do
                 Obj.Tooltip = first.Tooltip
                 Obj.SaveState = first.SaveState
                 Obj.Value = first.Default
+                Obj.StartImage = first.StartImage
+                Obj.EndImage = first.EndImage
             else
                 Obj.Text = first
                 Obj.Func = second
@@ -1860,6 +1867,8 @@ do
             local third = select(3, ...)
             if type(third) == 'table' then
                 Obj.SaveState = third.SaveState
+                Obj.StartImage = third.StartImage
+                Obj.EndImage = third.EndImage
                 if third.Default ~= nil then Obj.Value = third.Default end
             end
         end
@@ -1906,6 +1915,8 @@ do
                 Size = UDim2.new(1, 0, 1, 0);
                 TextSize = 14;
                 Text = Button.Text;
+                StartImage = Button.StartImage;
+                EndImage = Button.EndImage;
                 ZIndex = 6;
                 Parent = Inner;
             });
@@ -2094,6 +2105,8 @@ do
             TextSize = 14;
             Text = Info.Text;
             TextXAlignment = Enum.TextXAlignment.Left;
+            StartImage = Info.StartImage;
+            EndImage = Info.EndImage;
             ZIndex = 5;
             Parent = Container;
         });
@@ -2243,6 +2256,8 @@ do
             TextSize = 14;
             Text = Info.Text;
             TextXAlignment = Enum.TextXAlignment.Left;
+            StartImage = Info.StartImage;
+            EndImage = Info.EndImage;
             ZIndex = 6;
             Parent = ToggleInner;
         });
@@ -2338,6 +2353,8 @@ do
                 Text = Info.Text;
                 TextXAlignment = Enum.TextXAlignment.Left;
                 TextYAlignment = Enum.TextYAlignment.Bottom;
+                StartImage = Info.StartImage;
+                EndImage = Info.EndImage;
                 ZIndex = 5;
                 Parent = Container;
             });
@@ -2487,6 +2504,8 @@ do
                 Text = Info.Text;
                 TextXAlignment = Enum.TextXAlignment.Left;
                 TextYAlignment = Enum.TextYAlignment.Bottom;
+                StartImage = Info.StartImage;
+                EndImage = Info.EndImage;
                 ZIndex = 5;
                 Parent = Container;
             });
@@ -2834,6 +2853,8 @@ do
             Text = Info.Text;
             TextXAlignment = Enum.TextXAlignment.Left;
             TextYAlignment = Enum.TextYAlignment.Bottom;
+            StartImage = Info.StartImage;
+            EndImage = Info.EndImage;
             ZIndex = 5;
             Parent = Container;
         });
@@ -3775,6 +3796,7 @@ function Create3DObjects()
     end
 end
 
+-- [FIX] CreateWindow с поддержкой TitleStartImage / TitleEndImage / TitleTextSize
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
@@ -3823,14 +3845,79 @@ function Library:CreateWindow(...)
     local InnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Inner });
     table.insert(Library.UICorners, InnerCorner)
 
-    local WindowLabel = Library:CreateLabel({
-        Position = UDim2.new(0, 7, 0, 0);
-        Size = UDim2.new(0, 0, 0, 25);
-        Text = Config.Title or '';
-        TextXAlignment = Enum.TextXAlignment.Left;
-        ZIndex = 1;
-        Parent = Inner;
-    });
+    -- [FIX] title с картинками
+    local titleHeight = 25
+    local titleTextSize = Config.TitleTextSize or 16
+    local titleStartImg = Config.TitleStartImage
+    local titleEndImg = Config.TitleEndImage
+
+    local function titleImgValid(id)
+        if id == nil then return false end
+        local s = tostring(id)
+        if s == '' or s == '0' or s == 'rbxassetid://0' or s == 'rbxassetid://' then return false end
+        return true
+    end
+
+    local hasTitleStart = titleImgValid(titleStartImg)
+    local hasTitleEnd = titleImgValid(titleEndImg)
+
+    local WindowLabel
+    if hasTitleStart or hasTitleEnd then
+        local titleContainer = Library:Create('Frame', {
+            BackgroundTransparency = 1;
+            Position = UDim2.new(0, 7, 0, 0);
+            Size = UDim2.new(1, -14, 0, titleHeight);
+            ZIndex = 1;
+            Parent = Inner;
+        })
+        local px = titleTextSize + 4
+        local pad = 4
+        local leftPad = hasTitleStart and (px + pad) or 0
+        local rightPad = hasTitleEnd and (px + pad) or 0
+
+        if hasTitleStart then
+            Library:Create('ImageLabel', {
+                BackgroundTransparency = 1;
+                Position = UDim2.fromOffset(0, (titleHeight - px) / 2);
+                Size = UDim2.fromOffset(px, px);
+                Image = titleStartImg;
+                ZIndex = 2;
+                Parent = titleContainer;
+            })
+        end
+        if hasTitleEnd then
+            Library:Create('ImageLabel', {
+                BackgroundTransparency = 1;
+                AnchorPoint = Vector2.new(1, 0);
+                Position = UDim2.new(1, 0, 0, (titleHeight - px) / 2);
+                Size = UDim2.fromOffset(px, px);
+                Image = titleEndImg;
+                ZIndex = 2;
+                Parent = titleContainer;
+            })
+        end
+
+        WindowLabel = Library:CreateLabel({
+            Position = UDim2.fromOffset(leftPad, 0);
+            Size = UDim2.new(1, -leftPad - rightPad, 1, 0);
+            TextSize = titleTextSize;
+            Text = Config.Title or '';
+            TextXAlignment = Enum.TextXAlignment.Left;
+            TextYAlignment = Enum.TextYAlignment.Center;
+            ZIndex = 2;
+            Parent = titleContainer;
+        });
+    else
+        WindowLabel = Library:CreateLabel({
+            Position = UDim2.new(0, 7, 0, 0);
+            Size = UDim2.new(0, 0, 0, 25);
+            Text = Config.Title or '';
+            TextXAlignment = Enum.TextXAlignment.Left;
+            ZIndex = 1;
+            Parent = Inner;
+        });
+    end
+
     local MainSectionOuter = Library:Create('Frame', {
         BackgroundColor3 = Library.BackgroundColor;
         BorderColor3 = Library.OutlineColor;
