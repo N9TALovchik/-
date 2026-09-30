@@ -26,13 +26,25 @@ local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
 local ScreenGui = Instance.new('ScreenGui');
 local OverlayGui = Instance.new('ScreenGui');
+local BindGui = Instance.new('ScreenGui'); -- [FIX] отдельный ScreenGui для бинд-окна
 ProtectGui(ScreenGui);
 ProtectGui(OverlayGui);
+ProtectGui(BindGui); -- [FIX]
 
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 OverlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+BindGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; -- [FIX] sibling чтобы элементы рисовались поверх родителя
+BindGui.DisplayOrder = 10; -- [FIX] выше основного
+BindGui.ResetOnSpawn = false; -- [FIX]
 ScreenGui.Parent = CoreGui;
 OverlayGui.Parent = CoreGui;
+BindGui.Parent = CoreGui; -- [FIX]
+
+-- [FIX] хелпер для определения родительского ScreenGui
+local function getScreenGui(obj)
+    while obj and not obj:IsA('ScreenGui') do obj = obj.Parent end
+    return obj or ScreenGui
+end
 
 local UIRoot = ScreenGui
 
@@ -171,7 +183,7 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         BorderColor3 = Library.OutlineColor,
         Size = UDim2.fromOffset(X + 5, Y + 4),
         ZIndex = 100,
-        Parent = Library.ScreenGui,
+        Parent = getScreenGui(HoverInstance), -- [FIX]
         Visible = false,
     })
     local Label = Library:CreateLabel({
@@ -310,6 +322,7 @@ function Library:Unload()
     if Library.OnUnload then Library.OnUnload() end
     ScreenGui:Destroy()
     OverlayGui:Destroy()
+    BindGui:Destroy() -- [FIX]
 end
 
 function Library:OnUnload(Callback) Library.OnUnload = Callback end
@@ -389,7 +402,7 @@ do
         Size = UDim2.fromOffset(230, PickerHeight(ColorPicker.Mode));
         Visible = false;
         ZIndex = 15;
-        Parent = ScreenGui,
+        Parent = getScreenGui(ToggleLabel), -- [FIX]
     });
 
     DisplayFrame:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
@@ -1038,7 +1051,7 @@ do
             BorderColor3 = Color3.new(),
             ZIndex = 14,
             Visible = false,
-            Parent = ScreenGui
+            Parent = getScreenGui(ToggleLabel), -- [FIX]
         })
         ContextMenu.Inner = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
@@ -1423,7 +1436,7 @@ end;
             Size = UDim2.new(0, 60, 0, 45 + 2);
             Visible = false;
             ZIndex = 14;
-            Parent = ScreenGui;
+            Parent = getScreenGui(ToggleLabel), -- [FIX]
         });
 
         ToggleLabel:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
@@ -1746,7 +1759,6 @@ do
         local Groupbox = self;
         local Container = Groupbox.Container;
 
-        -- КАК БЫЛО В ОРИГИНАЛЕ - ничего лишнего
         local function CreateBaseButton(Button)
             local Outer = Library:Create('Frame', {
                 BackgroundColor3 = Color3.new(0, 0, 0);
@@ -2402,7 +2414,7 @@ do
             BorderColor3 = Color3.new(0, 0, 0);
             ZIndex = 220;
             Visible = false;
-            Parent = ScreenGui;
+            Parent = getScreenGui(DropdownOuter), -- [FIX]
         });
         local function RecalculateListPosition()
             ListOuter.Position = UDim2.fromOffset(DropdownOuter.AbsolutePosition.X, DropdownOuter.AbsolutePosition.Y + DropdownOuter.Size.Y.Offset + 1);
@@ -2667,7 +2679,6 @@ do
         return Depbox;
     end;
 
-    -- Simple keybind widget for bind windows
     function Funcs:AddKeybind(Idx, Info)
         assert(Info.Text, 'AddKeybind: Missing `Text` string.');
         local Keybind = {
@@ -2787,7 +2798,6 @@ do
         return Funcs[Key](...);
     end;
 
-    -- Create a mini groupbox for use inside the bind window
     function Library:CreateMiniGroupbox(parent, title)
         local Outer = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
@@ -3145,7 +3155,7 @@ function BindSystem:Open(control)
         Position = UDim2.fromOffset(posX, posY),
         Size = UDim2.fromOffset(winWidth, winHeight),
         ZIndex = 200,
-        Parent = ScreenGui,
+        Parent = BindGui, -- [FIX] родитель - BindGui со Sibling-режимом
     })
 
     local Inner = Library:Create('Frame', {
@@ -3158,7 +3168,6 @@ function BindSystem:Open(control)
     })
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'BackgroundColor' })
 
-    -- Пустая полоска сверху — просто как drag-зона, без кнопки закрытия и без заголовка
     local Header = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor,
         BorderSizePixel = 0,
@@ -3254,7 +3263,6 @@ Library:GiveSignal(InputService.InputEnded:Connect(function(Input)
     BindSystem:HandleInput(Input, false)
 end))
 
--- Закрытие окна биндов по клику снаружи (уже работает, оставляем)
 Library:GiveSignal(InputService.InputBegan:Connect(function(Input)
     if Input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     local keys = {}
@@ -3500,7 +3508,7 @@ local KeybindOuter = Library:Create('Frame', {
     AnchorPoint = Vector2.new(0, 0.5);
     BorderColor3 = Color3.new(0, 0, 0);
     Position = UDim2.new(0, 10, 0.5, 0);
-    Size = UDim2.new(0, 210, 0, 44);   -- стартовый размер с запасом
+    Size = UDim2.new(0, 210, 0, 44);
     Visible = false;
     ZIndex = 100;
     Parent = OverlayGui;
