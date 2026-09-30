@@ -140,18 +140,87 @@ function Library:ApplyTextStroke(Inst)
     });
 end;
 
+-- [FIX] CreateLabel с поддержкой StartImage / EndImage
 function Library:CreateLabel(Properties, IsHud)
+    local props = Properties or {}
+    local startImg = props.StartImage
+    local endImg = props.EndImage
+    props.StartImage = nil
+    props.EndImage = nil
+
+    local function valid(id)
+        if id == nil then return false end
+        local s = tostring(id)
+        if s == '' or s == '0' or s == 'rbxassetid://0' or s == 'rbxassetid://' then return false end
+        return true
+    end
+
+    local hasStart = valid(startImg)
+    local hasEnd = valid(endImg)
+
     local _Instance = Library:Create('TextLabel', {
         BackgroundTransparency = 1;
         Font = Library.Font;
         TextColor3 = Library.FontColor;
         TextSize = 16;
         TextStrokeTransparency = 0;
-        RichText = true; -- [FIX] RichText для всех лейблов
+        RichText = true;
     });
     Library:ApplyTextStroke(_Instance);
     Library:AddToRegistry(_Instance, { TextColor3 = 'FontColor'; }, IsHud);
-    return Library:Create(_Instance, Properties);
+
+    if not (hasStart or hasEnd) then
+        return Library:Create(_Instance, props)
+    end
+
+    -- картинка(и) есть — оборачиваем в Frame
+    local wrapper = Library:Create('Frame', {
+        BackgroundTransparency = 1;
+        Position = props.Position or UDim2.new();
+        Size = props.Size or UDim2.new(1, 0, 0, 16);
+        AnchorPoint = props.AnchorPoint or Vector2.new();
+        ZIndex = props.ZIndex;
+        Parent = props.Parent;
+    })
+
+    local textSize = props.TextSize or 16
+    local px = textSize
+    local pad = 4
+    local leftPad = hasStart and (px + pad) or 0
+    local rightPad = hasEnd and (px + pad) or 0
+    local zidx = (props.ZIndex or 1) + 1
+
+    if hasStart then
+        Library:Create('ImageLabel', {
+            BackgroundTransparency = 1;
+            Position = UDim2.fromOffset(0, 0);
+            Size = UDim2.fromOffset(px, px);
+            Image = startImg;
+            ZIndex = zidx;
+            Parent = wrapper;
+        })
+    end
+
+    if hasEnd then
+        Library:Create('ImageLabel', {
+            BackgroundTransparency = 1;
+            AnchorPoint = Vector2.new(1, 0);
+            Position = UDim2.new(1, 0, 0, 0);
+            Size = UDim2.fromOffset(px, px);
+            Image = endImg;
+            ZIndex = zidx;
+            Parent = wrapper;
+        })
+    end
+
+    props.Parent = wrapper
+    props.Position = UDim2.fromOffset(leftPad, 0)
+    props.Size = UDim2.new(1, -leftPad - rightPad, 1, 0)
+    props.AnchorPoint = nil
+    props.ZIndex = zidx
+
+    Library:Create(_Instance, props)
+    return _Instance
 end;
 
 function Library:MakeDraggable(Instance, Cutoff)
@@ -983,12 +1052,12 @@ do
         if data.mode then ColorPicker:SetMode(data.mode) else ColorPicker:Display() end
     end
 
-    local savedStandardHSV = nil -- [FIX] сохранённый HSV до входа в Rainbow/Gradient
+    local savedStandardHSV = nil
 
     local function SetMode(newMode)
         if ColorPicker.OnlyStandart and newMode ~= 'Standard' then return end
-        local prev = ColorPicker.Mode -- [FIX]
-        if prev == 'Standard' and newMode ~= 'Standard' then -- [FIX]
+        local prev = ColorPicker.Mode
+        if prev == 'Standard' and newMode ~= 'Standard' then
             savedStandardHSV = {ColorPicker.Hue, ColorPicker.Sat, ColorPicker.Vib}
         end
         ColorPicker.Mode = newMode
@@ -1007,7 +1076,7 @@ do
             else
                 ColorPicker:SetHSVFromRGB(ColorPicker.GradientColorB)
             end
-        elseif newMode == 'Standard' then -- [FIX] восстанавливаем HSV, который был до Rainbow/Gradient
+        elseif newMode == 'Standard' then
             if savedStandardHSV then
                 ColorPicker.Hue, ColorPicker.Sat, ColorPicker.Vib = savedStandardHSV[1], savedStandardHSV[2], savedStandardHSV[3]
             end
@@ -1408,8 +1477,8 @@ end;
         end
 
         local PickOuter = Library:Create('Frame', {
-            BackgroundColor3 = Color3.new(0, 0, 0);
-            BorderColor3 = Color3.new(0, 0, 0);
+            BackgroundColor3 = Library.OutlineColor;
+            BorderColor3 = Library.OutlineColor;
             Size = UDim2.new(0, 28, 0, 15);
             ZIndex = 6;
             Parent = ToggleLabel;
@@ -1429,11 +1498,12 @@ end;
             BorderColor3 = 'OutlineColor';
         });
 
+        -- [FIX] DisplayLabel без TextWrapped — иначе он ломает ширину пикера
         local DisplayLabel = Library:CreateLabel({
             Size = UDim2.new(1, 0, 1, 0);
             TextSize = 13;
             Text = Info.Default;
-            TextWrapped = true;
+            TextWrapped = false;
             ZIndex = 8;
             Parent = PickInner;
         });
@@ -1471,14 +1541,22 @@ end;
             Parent = ModeSelectInner;
         });
 
-        local ContainerLabel = Library:CreateLabel({
+        -- [FIX] ContainerLabel — единственный лейбл в HUD, с RichText=false и правильным форматом
+        local ContainerLabel = Library:Create('TextLabel', {
+            BackgroundTransparency = 1;
+            Font = Library.Font;
+            TextColor3 = Library.FontColor;
+            TextSize = 13;
+            TextStrokeTransparency = 0;
+            RichText = false; -- [FIX] отключаем, чтобы RichText не съедал [KEY] и (Mode)
             TextXAlignment = Enum.TextXAlignment.Left;
             Size = UDim2.new(1, 0, 0, 18);
-            TextSize = 13;
             Visible = false;
             ZIndex = 200;
-            Parent = Library.KeybindContainer,
-        }, true);
+            Parent = Library.KeybindContainer;
+        });
+        Library:ApplyTextStroke(ContainerLabel);
+        Library:AddToRegistry(ContainerLabel, { TextColor3 = 'FontColor'; }, true);
 
         local Modes = Info.Modes or { 'Toggle', 'Hold' };
         local ModeButtons = {};
@@ -1542,12 +1620,15 @@ end;
                 if Label:IsA('TextLabel') and Label.Visible then
                     hasVisible = true
                     YSize = YSize + 18;
-                    if (Label.TextBounds.X > XSize) then XSize = Label.TextBounds.X end
+                    -- [FIX] считаем ширину через TextService напрямую, TextBounds обновляется с задержкой
+                    local tb = TextService:GetTextSize(Label.Text, Label.TextSize, Label.Font, Vector2.new(math.huge, math.huge))
+                    if tb.X > XSize then XSize = tb.X end
                 end;
             end;
             if hasVisible then
                 Library.KeybindFrame.Visible = true
-                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 16, 210), 0, YSize + 28)
+                -- [FIX] +25 = паддинг 5 слева + 5 справа + запас 15 чтобы длинные бинды типа RightShift не вылезали
+                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 25, 210), 0, YSize + 28)
             else
                 Library.KeybindFrame.Visible = false
             end
@@ -2067,7 +2148,7 @@ do
             TextStrokeTransparency = 0;
             TextXAlignment = Enum.TextXAlignment.Left;
             ZIndex = 7;
-            RichText = true; -- [FIX]
+            RichText = true;
             Parent = Container;
         });
         Library:ApplyTextStroke(Box);
@@ -2369,7 +2450,7 @@ do
             end;
         end);
         Slider:Display();
-        Slider.Container = Container -- [FIX]
+        Slider.Container = Container
         Groupbox:AddBlank(Info.BlankSize or 6);
         Groupbox:Resize();
         Options[Idx] = Slider;
@@ -2650,7 +2731,7 @@ do
                 end;
             end;
         end);
-        Dropdown.Container = Container -- [FIX]
+        Dropdown.Container = Container
         Dropdown:BuildDropdownList();
         Dropdown:Display();
         local Defaults = {}
@@ -2812,7 +2893,7 @@ do
 
         local Picking = false
         BoxInner.InputBegan:Connect(function(Input)
-            if Input.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then -- [FIX]
+            if Input.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then
                 Library.BindSystem:Open(Keybind)
                 return
             end
@@ -2850,7 +2931,7 @@ do
             end)
         end)
 
-        Keybind.Container = Container -- [FIX]
+        Keybind.Container = Container
         Groupbox:AddBlank(5)
         Groupbox:Resize()
         Options[Idx] = Keybind
@@ -2984,7 +3065,7 @@ function BindSystem:GetDefaultValue(control)
         return nil
     end
     if control.Type == 'Slider' then return control.Value end
-    if control.Type == 'Keybind' then return nil end -- [FIX]
+    if control.Type == 'Keybind' then return nil end
     return nil
 end
 
@@ -2998,7 +3079,7 @@ function BindSystem:ApplyTrigger(binding, pressed)
         if pressed then Library:SafeCallback(control.Func) end
         return
     end
-    if control.Type == 'Keybind' then -- [FIX]
+    if control.Type == 'Keybind' then
         if pressed then Library:SafeCallback(control.Callback, true) end
         return
     end
@@ -3136,7 +3217,6 @@ function BindSystem:BuildBindCard(Scroll, AddBtn, control, existingBinding)
         end
     end
 
-    -- [FIX] локальная нумерация биндов для этой кнопки
     local bindCount = 0
     for _, b in ipairs(self.AllBindings) do
         if b.Control == control then bindCount = bindCount + 1 end
@@ -3210,7 +3290,6 @@ function BindSystem:BuildBindCard(Scroll, AddBtn, control, existingBinding)
 end
 
 function BindSystem:Open(control)
-    -- [FIX] запрет открывать бинд внутри окна биндов
     local anyRef = control.TextLabel or control.Container or control.Outer or control.DisplayFrame
     if anyRef and getScreenGui(anyRef) == BindGui then return end
 
@@ -3717,7 +3796,7 @@ function Library:CreateWindow(...)
     local Window = { Tabs = {}; };
     local Outer = Library:Create('Frame', {
         AnchorPoint = Config.AnchorPoint,
-        BackgroundColor3 = Library.OutlineColor; -- [FIX] outline главного окна
+        BackgroundColor3 = Library.OutlineColor;
         BorderSizePixel = 0;
         Position = Config.Position,
         Size = Config.Size,
@@ -4164,7 +4243,7 @@ function Library:CreateWindow(...)
 
         task.wait(FadeTime);
         if not Toggled and not ThreeDMode then Outer.Visible = false end
-        if not Toggled and Library.BindSystem then -- [FIX] закрываем бинд-окна при закрытии меню
+        if not Toggled and Library.BindSystem then
             Library.BindSystem:CloseAllWindows()
         end
         Fading = false;
