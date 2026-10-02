@@ -140,15 +140,14 @@ function Library:ApplyTextStroke(Inst)
     });
 end;
 
--- [FIX] CreateLabel с StartImage / EndImage + Offset + Color
 function Library:CreateLabel(Properties, IsHud)
     local props = Properties or {}
     local startImg = props.StartImage
     local endImg = props.EndImage
     local startImgColor = props.StartImageColor
     local endImgColor = props.EndImageColor
-    local startImgOffset = props.StartImageOffset -- Vector2
-    local endImgOffset = props.EndImageOffset     -- Vector2
+    local startImgOffset = props.StartImageOffset
+    local endImgOffset = props.EndImageOffset
 
     props.StartImage = nil
     props.EndImage = nil
@@ -182,7 +181,6 @@ function Library:CreateLabel(Properties, IsHud)
         return Library:Create(_Instance, props)
     end
 
-    -- картинка(и) есть — оборачиваем в Frame
     local wrapper = Library:Create('Frame', {
         BackgroundTransparency = 1;
         Position = props.Position or UDim2.new();
@@ -199,7 +197,6 @@ function Library:CreateLabel(Properties, IsHud)
     local rightPad = hasEnd and (px + pad) or 0
     local zidx = (props.ZIndex or 1) + 1
 
-    -- [FIX] StartImage: смещение и цвет применяются только к картинке
     if hasStart then
         local sx = startImgOffset and startImgOffset.X or 0
         local sy = startImgOffset and startImgOffset.Y or 0
@@ -214,7 +211,6 @@ function Library:CreateLabel(Properties, IsHud)
         })
     end
 
-    -- [FIX] EndImage: смещение и цвет применяются только к картинке
     if hasEnd then
         local ex = endImgOffset and endImgOffset.X or 0
         local ey = endImgOffset and endImgOffset.Y or 0
@@ -462,12 +458,14 @@ do
         end
     end
 
+    -- [FIX] Active = true
     local DisplayFrame = Library:Create('Frame', {
         BackgroundColor3 = ColorPicker.Value;
         BorderColor3 = Library:GetDarkerColor(ColorPicker.Value);
         BorderMode = Enum.BorderMode.Inset;
         Size = UDim2.new(0, 28, 0, 14);
         ZIndex = 6;
+        Active = true;
         Parent = ToggleLabel;
     });
 
@@ -523,6 +521,7 @@ do
         Parent = PickerFrameInner;
     });
 
+    -- [FIX] Active = true
     local ModeBtn = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
         BorderColor3 = Library.OutlineColor;
@@ -530,6 +529,7 @@ do
         Position = UDim2.fromOffset(4, 25);
         Size = UDim2.new(1, -8, 0, 18);
         ZIndex = 30;
+        Active = true;
         Parent = PickerFrameInner;
     });
     Library:AddToRegistry(ModeBtn, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor'; });
@@ -591,6 +591,7 @@ do
         BorderMode = Enum.BorderMode.Inset;
         Size = UDim2.new(1, 0, 1, 0);
         ZIndex = 18;
+        Active = true;
         Parent = SatVibMapOuter;
     });
     local SatVibMap = Library:Create('ImageLabel', {
@@ -630,6 +631,7 @@ do
         BorderSizePixel = 0;
         Size = UDim2.new(1, 0, 1, 0);
         ZIndex = 18;
+        Active = true;
         Parent = HueSelectorOuter;
     });
     local HueCursor = Library:Create('Frame', {
@@ -646,7 +648,7 @@ do
         Position = UDim2.fromOffset(4, 203),
         Size = UDim2.new(0.5, -6, 0, 20),
         ZIndex = 18,
-        Parent = StdContent;
+        Parent = StdContent,
     });
     local HueBoxInner = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
@@ -710,6 +712,7 @@ do
         ZIndex = 18;
         Parent = RainContent;
     });
+    -- [FIX] Active = true
     local RSpeedOuter = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
         BorderColor3 = Library.OutlineColor;
@@ -717,6 +720,7 @@ do
         Position = UDim2.fromOffset(5, 16);
         Size = UDim2.new(1, -10, 0, 12);
         ZIndex = 18;
+        Active = true;
         Parent = RainContent;
     });
     Library:AddToRegistry(RSpeedOuter, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor'; });
@@ -738,6 +742,7 @@ do
         ZIndex = 18;
         Parent = RainContent;
     });
+    -- [FIX] Active = true
     local RBrightOuter = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
         BorderColor3 = Library.OutlineColor;
@@ -745,6 +750,7 @@ do
         Position = UDim2.fromOffset(5, 50);
         Size = UDim2.new(1, -10, 0, 12);
         ZIndex = 18;
+        Active = true;
         Parent = RainContent;
     });
     Library:AddToRegistry(RBrightOuter, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor'; });
@@ -766,6 +772,7 @@ do
         Parent = PickerFrameInner;
     });
 
+    -- [FIX] Active = true
     local GradColorABtn = Library:Create('Frame', {
         BackgroundColor3 = ColorPicker.GradientColorA;
         BorderColor3 = Library.AccentColor;
@@ -773,6 +780,7 @@ do
         Position = UDim2.fromOffset(4, 2);
         Size = UDim2.new(0.5, -6, 0, 22);
         ZIndex = 18;
+        Active = true;
         Parent = GradContent;
     });
     Library:CreateLabel({
@@ -786,6 +794,7 @@ do
         Parent = GradColorABtn;
     });
 
+    -- [FIX] Active = true
     local GradColorBBtn = Library:Create('Frame', {
         BackgroundColor3 = ColorPicker.GradientColorB;
         BorderColor3 = Library.OutlineColor;
@@ -793,6 +802,7 @@ do
         Position = UDim2.new(0.5, 2, 0, 2);
         Size = UDim2.new(0.5, -6, 0, 22);
         ZIndex = 18;
+        Active = true;
         Parent = GradContent;
     });
     Library:CreateLabel({
@@ -819,6 +829,7 @@ do
         BorderMode = Enum.BorderMode.Inset;
         Size = UDim2.new(1, 0, 1, 0);
         ZIndex = 18;
+        Active = true;
         Parent = GSatVibMapOuter;
     });
     local GSatVibMap = Library:Create('ImageLabel', {
@@ -858,6 +869,7 @@ do
         BorderSizePixel = 0;
         Size = UDim2.new(1, 0, 1, 0);
         ZIndex = 18;
+        Active = true;
         Parent = GHueOuter;
     });
     local GHueCursor = Library:Create('Frame', {
@@ -878,6 +890,7 @@ do
         ZIndex = 18;
         Parent = GradContent;
     });
+    -- [FIX] Active = true
     local GSpeedOuter = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
         BorderColor3 = Library.OutlineColor;
@@ -885,6 +898,7 @@ do
         Position = UDim2.fromOffset(5, 252);
         Size = UDim2.new(1, -10, 0, 12);
         ZIndex = 18;
+        Active = true;
         Parent = GradContent;
     });
     Library:AddToRegistry(GSpeedOuter, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor'; });
@@ -921,6 +935,7 @@ do
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
             ZIndex = 30;
+            Active = true;
             Parent = TransparencyBoxOuter;
         });
         Library:AddToRegistry(TransparencyBoxInner, { BorderColor3 = 'OutlineColor' });
@@ -1103,10 +1118,12 @@ do
 
     local modeOptions = {'Standard', 'Rainbow', 'Gradient'}
     for _, opt in ipairs(modeOptions) do
+        -- [FIX] Active = true
         local OptBtn = Library:Create('Frame', {
             BackgroundColor3 = Library.MainColor;
             Size = UDim2.new(1, 0, 0, 18);
             ZIndex = 33;
+            Active = true;
             Parent = ModeList;
         });
         local OptLbl = Library:CreateLabel({
@@ -1142,7 +1159,7 @@ do
     do
         ContextMenu.Options = {}
         ContextMenu.Container = Library:Create('Frame', {
-            BorderColor3 = Library.OutlineColor,
+            BorderColor3 = Library.OutlineColor;
             ZIndex = 14,
             Visible = false,
             Parent = getScreenGui(ToggleLabel),
@@ -1493,20 +1510,24 @@ end;
             Info.Mode = 'Toggle'
         end
 
+        -- [FIX] Active = true, ширина 52 под RightControl
         local PickOuter = Library:Create('Frame', {
             BackgroundColor3 = Library.OutlineColor;
             BorderColor3 = Library.OutlineColor;
-            Size = UDim2.new(0, 36, 0, 15);
+            Size = UDim2.new(0, 52, 0, 15);
             ZIndex = 6;
+            Active = true;
             Parent = ToggleLabel;
         });
 
+        -- [FIX] ClipsDescendants чтобы текст не вылезал
         local PickInner = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
             BorderColor3 = Library.OutlineColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
             ZIndex = 7;
+            ClipsDescendants = true;
             Parent = PickOuter;
         });
 
@@ -1515,11 +1536,13 @@ end;
             BorderColor3 = 'OutlineColor';
         });
 
+        -- [FIX] TextTruncate
         local DisplayLabel = Library:CreateLabel({
             Size = UDim2.new(1, 0, 1, 0);
             TextSize = 13;
             Text = Info.Default;
             TextWrapped = false;
+            TextTruncate = Enum.TextTruncate.AtEnd;
             ZIndex = 8;
             Parent = PickInner;
         });
@@ -1797,13 +1820,11 @@ do
         });
     end;
 
-    -- [FIX] AddLabel с картинками + offset + color
     function Funcs:AddLabel(Text, DoesWrap, StartImage, EndImage, StartImageColor, EndImageColor, StartImageOffset, EndImageOffset)
         local Label = {};
         local Groupbox = self;
         local Container = Groupbox.Container;
 
-        -- поддержка передачи таблицы вторым аргументом: AddLabel('Text', { StartImage = ... })
         if type(DoesWrap) == 'table' then
             local opts = DoesWrap
             DoesWrap = opts.Wrap
@@ -1925,11 +1946,13 @@ do
         local Container = Groupbox.Container;
 
         local function CreateBaseButton(Button)
+            -- [FIX] Active = true
             local Outer = Library:Create('Frame', {
                 BackgroundColor3 = Library.OutlineColor;
                 BorderColor3 = Library.OutlineColor;
                 Size = UDim2.new(1, -4, 0, 20);
                 ZIndex = 5;
+                Active = true;
             });
 
             local Inner = Library:Create('Frame', {
@@ -2197,10 +2220,11 @@ do
             ZIndex = 7;
             Parent = TextBoxInner;
         })
+        -- [FIX] обычный размер TextBox
         local Box = Library:Create('TextBox', {
             BackgroundTransparency = 1;
             Position = UDim2.fromOffset(0, 0),
-            Size = UDim2.fromScale(5, 1),
+            Size = UDim2.new(1, 0, 1, 0),
             Font = Library.Font;
             PlaceholderColor3 = Color3.fromRGB(190, 190, 190);
             PlaceholderText = Info.Placeholder or '';
@@ -2282,11 +2306,13 @@ do
         };
         local Groupbox = self;
         local Container = Groupbox.Container;
+        -- [FIX] Active = true
         local ToggleOuter = Library:Create('Frame', {
             BackgroundColor3 = Library.OutlineColor;
             BorderColor3 = Library.OutlineColor;
             Size = UDim2.new(0, 13, 0, 13);
             ZIndex = 5;
+            Active = true;
             Parent = Container;
         });
         Library:AddToRegistry(ToggleOuter, { BorderColor3 = 'OutlineColor'; });
@@ -2321,10 +2347,12 @@ do
             SortOrder = Enum.SortOrder.LayoutOrder;
             Parent = ToggleLabel;
         });
+        -- [FIX] Active = true
         local ToggleRegion = Library:Create('Frame', {
             BackgroundTransparency = 1;
             Size = UDim2.new(0, 170, 1, 0);
             ZIndex = 8;
+            Active = true;
             Parent = ToggleOuter;
         });
         Library:OnHighlight(ToggleRegion, ToggleOuter,
@@ -2417,20 +2445,24 @@ do
             });
             Groupbox:AddBlank(3);
         end
+        -- [FIX] Active = true
         local SliderOuter = Library:Create('Frame', {
             BackgroundColor3 = Library.OutlineColor;
             BorderColor3 = Library.OutlineColor;
             Size = UDim2.new(1, -4, 0, 13);
             ZIndex = 5;
+            Active = true;
             Parent = Container;
         });
         Library:AddToRegistry(SliderOuter, { BorderColor3 = 'OutlineColor'; });
+        -- [FIX] Active = true
         local SliderInner = Library:Create('Frame', {
             BackgroundColor3 = Library.MainColor;
             BorderColor3 = Library.OutlineColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
             ZIndex = 6;
+            Active = true;
             Parent = SliderOuter;
         });
         Library:AddToRegistry(SliderInner, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor'; });
@@ -2575,11 +2607,13 @@ do
         for _, Element in next, Container:GetChildren() do
             if not Element:IsA('UIListLayout') then RelativeOffset = RelativeOffset + Element.Size.Y.Offset; end;
         end;
+        -- [FIX] Active = true
         local DropdownOuter = Library:Create('Frame', {
             BackgroundColor3 = Library.OutlineColor;
             BorderColor3 = Library.OutlineColor;
             Size = UDim2.new(1, -4, 0, 20);
             ZIndex = 5;
+            Active = true;
             Parent = Container;
         });
         Library:AddToRegistry(DropdownOuter, { BorderColor3 = 'OutlineColor'; });
@@ -2702,6 +2736,7 @@ do
             for Idx, Value in next, Values do
                 local Table = {};
                 Count = Count + 1;
+                -- [FIX] Active уже был
                 local Button = Library:Create('Frame', {
                     BackgroundColor3 = Library.MainColor;
                     BorderColor3 = Library.OutlineColor;
@@ -2925,6 +2960,7 @@ do
         });
         Groupbox:AddBlank(3);
 
+        -- [FIX] Active = true
         local BoxOuter = Library:Create('Frame', {
             BackgroundColor3 = Library.OutlineColor;
             BorderColor3 = Library.OutlineColor;
@@ -2934,12 +2970,15 @@ do
             Parent = Container;
         });
         Library:AddToRegistry(BoxOuter, { BorderColor3 = 'OutlineColor'; });
+        -- [FIX] Active + ClipsDescendants
         local BoxInner = Library:Create('Frame', {
             BackgroundColor3 = Library.MainColor;
             BorderColor3 = Library.OutlineColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
             ZIndex = 6;
+            Active = true;
+            ClipsDescendants = true;
             Parent = BoxOuter;
         });
         Library:AddToRegistry(BoxInner, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor'; });
@@ -2951,12 +2990,14 @@ do
             Rotation = 90;
             Parent = BoxInner;
         });
+        -- [FIX] TextTruncate
         local Label = Library:CreateLabel({
             Position = UDim2.new(0, 6, 0, 0);
             Size = UDim2.new(1, -12, 1, 0);
             TextSize = 14;
             Text = Keybind.Value;
             TextXAlignment = Enum.TextXAlignment.Left;
+            TextTruncate = Enum.TextTruncate.AtEnd;
             ZIndex = 8;
             Parent = BoxInner;
         });
@@ -3861,7 +3902,6 @@ function Create3DObjects()
     end
 end
 
--- [FIX] CreateWindow: title + картинки + offset + color
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
@@ -3875,6 +3915,10 @@ function Library:CreateWindow(...)
     if type(Config.MenuFadeTime) ~= 'number' then Config.MenuFadeTime = 0.2 end
     if typeof(Config.Position) ~= 'UDim2' then Config.Position = UDim2.fromOffset(175, 50) end
     if typeof(Config.Size) ~= 'UDim2' then Config.Size = UDim2.fromOffset(550, 600) end
+    -- [FIX] фоновые опции
+    if Config.BackgroundImage == nil then Config.BackgroundImage = '' end
+    if type(Config.BackgroundImageTransparency) ~= 'number' then Config.BackgroundImageTransparency = 0.5 end
+    if typeof(Config.BackgroundImageColor) ~= 'Color3' then Config.BackgroundImageColor = Color3.new(1,1,1) end
     if Config.Center then
         Config.AnchorPoint = Vector2.new(0.5, 0.5)
         Config.Position = UDim2.fromScale(0.5, 0.5)
@@ -3910,14 +3954,52 @@ function Library:CreateWindow(...)
     local InnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICornerRadius * 10), Parent = Inner });
     table.insert(Library.UICorners, InnerCorner)
 
+    -- [FIX] Фоновая картинка — самая нижняя по ZIndex
+    local BgImage = Library:Create('ImageLabel', {
+        Name = 'BackgroundImage';
+        BackgroundTransparency = 1;
+        BorderSizePixel = 0;
+        Position = UDim2.new(0, 0, 0, 0);
+        Size = UDim2.new(1, 0, 1, 0);
+        Image = Config.BackgroundImage or '';
+        ImageTransparency = Config.BackgroundImageTransparency or 0.5;
+        ImageColor3 = Config.BackgroundImageColor;
+        ScaleType = Enum.ScaleType.Crop;
+        ZIndex = 0;
+        Visible = (Config.BackgroundImage and Config.BackgroundImage ~= '') or false;
+        Parent = Inner;
+    });
+    -- маска для картинки чтобы не выходила за углы
+    local BgMask = Library:Create('UICorner', {
+        CornerRadius = UDim.new(0, Library.UICornerRadius * 10),
+        Parent = BgImage,
+    });
+    Window.BackgroundImage = BgImage;
+
+    -- [FIX] затемняющий оверлей поверх картинки (для читаемости)
+    local BgOverlay = Library:Create('Frame', {
+        Name = 'BackgroundOverlay';
+        BackgroundColor3 = Color3.new(0, 0, 0);
+        BackgroundTransparency = 1; -- по умолчанию выключен
+        BorderSizePixel = 0;
+        Size = UDim2.new(1, 0, 1, 0);
+        ZIndex = 0;
+        Parent = Inner;
+    })
+    local BgOverlayCorner = Library:Create('UICorner', {
+        CornerRadius = UDim.new(0, Library.UICornerRadius * 10),
+        Parent = BgOverlay,
+    })
+    Window.BackgroundOverlay = BgOverlay
+
     local titleHeight = 25
     local titleTextSize = Config.TitleTextSize or 16
     local titleStartImg = Config.TitleStartImage
     local titleEndImg = Config.TitleEndImage
     local titleStartImgColor = Config.TitleStartImageColor
     local titleEndImgColor = Config.TitleEndImageColor
-    local titleStartImgOffset = Config.TitleStartImageOffset -- Vector2
-    local titleEndImgOffset = Config.TitleEndImageOffset     -- Vector2
+    local titleStartImgOffset = Config.TitleStartImageOffset
+    local titleEndImgOffset = Config.TitleEndImageOffset
 
     local function titleImgValid(id)
         if id == nil then return false end
@@ -4042,6 +4124,70 @@ function Library:CreateWindow(...)
 
     function Window:SetWindowTitle(Title) WindowLabel.Text = Title; end;
 
+    -- [FIX] управление фоном
+    function Window:SetBackgroundImage(imageId, transparency)
+        local bg = Window.BackgroundImage
+        if not bg then return end
+        imageId = imageId or ''
+        if imageId == '' then
+            bg.Visible = false
+            bg.Image = ''
+        else
+            bg.Image = imageId
+            bg.Visible = true
+            if type(transparency) == 'number' then
+                bg.ImageTransparency = math.clamp(transparency, 0, 1)
+            end
+        end
+    end
+
+    function Window:SetBackgroundTransparency(transparency)
+        local bg = Window.BackgroundImage
+        if not bg then return end
+        bg.ImageTransparency = math.clamp(transparency or 0, 0, 1)
+    end
+
+    function Window:SetBackgroundScaleType(scaleType)
+        local bg = Window.BackgroundImage
+        if not bg then return end
+        bg.ScaleType = scaleType or Enum.ScaleType.Crop
+    end
+
+    function Window:SetBackgroundColor(color)
+        local bg = Window.BackgroundImage
+        if not bg then return end
+        bg.ImageColor3 = color or Color3.new(1,1,1)
+    end
+
+    function Window:SetOverlayTransparency(t)
+        if Window.BackgroundOverlay then
+            Window.BackgroundOverlay.BackgroundTransparency = math.clamp(t or 1, 0, 1)
+        end
+    end
+
+    function Window:SetBackgroundImageSmooth(imageId, transparency, fadeTime)
+        local bg = Window.BackgroundImage
+        if not bg then return end
+        fadeTime = fadeTime or 0.3
+        TweenService:Create(bg, TweenInfo.new(fadeTime / 2, Enum.EasingStyle.Quad), {
+            ImageTransparency = 1
+        }):Play()
+        task.delay(fadeTime / 2, function()
+            if imageId == '' then
+                bg.Visible = false
+            else
+                bg.Image = imageId
+                bg.Visible = true
+                if type(transparency) == 'number' then
+                    bg.ImageTransparency = 1
+                    TweenService:Create(bg, TweenInfo.new(fadeTime / 2, Enum.EasingStyle.Quad), {
+                        ImageTransparency = math.clamp(transparency, 0, 1)
+                    }):Play()
+                end
+            end
+        end)
+    end
+
     function Window:AddTab(Name)
         if Window.Tabs[Name] then
             warn("[LinoriaLib] Tab with name '" .. Name .. "' already exists. Returning existing tab.")
@@ -4049,11 +4195,13 @@ function Library:CreateWindow(...)
         end
         local Tab = { Groupboxes = {}; Tabboxes = {}; };
         local TabButtonWidth = Library:GetTextBounds(Name, Library.Font, 16);
+        -- [FIX] Active = true
         local TabButton = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
             BorderColor3 = Library.OutlineColor;
             Size = UDim2.new(0, TabButtonWidth + 8 + 4, 1, 0);
             ZIndex = 1;
+            Active = true;
             Parent = TabArea;
         });
         Library:AddToRegistry(TabButton, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor'; });
@@ -4258,11 +4406,13 @@ function Library:CreateWindow(...)
 
             function Tabbox:AddTab(Name)
                 local Tab = {};
+                -- [FIX] Active = true
                 local Button = Library:Create('Frame', {
                     BackgroundColor3 = Library.MainColor;
                     BorderColor3 = Library.OutlineColor;
                     Size = UDim2.new(0.5, 0, 1, 0);
                     ZIndex = 6;
+                    Active = true;
                     Parent = TabboxButtons;
                 });
                 Library:AddToRegistry(Button, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor'; });
