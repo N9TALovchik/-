@@ -6,6 +6,7 @@ local CoreGui = game:GetService('CoreGui')
 local Workspace = game:GetService('Workspace')
 local RunService = game:GetService('RunService')
 local SoundService = game:GetService('SoundService')
+local CollectionService = game:GetService('CollectionService')
 local Options = getgenv().Options
 local Toggles = getgenv().Toggles
 
@@ -52,6 +53,19 @@ local ThemeManager = {} do
 	local soundHistory = {}
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
 	local bgSettingsFile = ThemeManager.Folder .. '/settings/background.json'
+	local cornerSettingsFile = ThemeManager.Folder .. '/settings/corners.json'
+
+	-- [FIX] мапа kind → tag для обновления UICorner в реальном времени
+	local cornerTagMap = {
+		Button = 'UICornerKind_Button',
+		Toggle = 'UICornerKind_Toggle',
+		Slider = 'UICornerKind_Slider',
+		Dropdown = 'UICornerKind_Dropdown',
+		DropdownList = 'UICornerKind_DropdownList',
+		Groupbox = 'UICornerKind_Groupbox',
+		KeyPicker = 'UICornerKind_KeyPicker',
+		Keybind = 'UICornerKind_Keybind',
+	}
 
 	local function safeOnChanged(ctrl, cb)
 		if ctrl and ctrl.OnChanged then ctrl:OnChanged(cb) end
@@ -70,9 +84,7 @@ local ThemeManager = {} do
 	loadSoundHistory()
 
 	local function saveSoundHistory()
-		pcall(function()
-			writefile(historyFile, httpService:JSONEncode(soundHistory))
-		end)
+		pcall(function() writefile(historyFile, httpService:JSONEncode(soundHistory)) end)
 	end
 
 	local function loadBgSettings()
@@ -118,16 +130,11 @@ local ThemeManager = {} do
 	local function addToHistory(soundId, soundName)
 		if not soundId or soundId == "" then return end
 		local id = soundId
-		if id:find("rbxassetid://") then
-			id = id:match("rbxassetid://(%d+)") or id
-		end
+		if id:find("rbxassetid://") then id = id:match("rbxassetid://(%d+)") or id end
 		if soundHistory[id] then
 			soundHistory[id].lastPlayed = tick()
 		else
-			soundHistory[id] = {
-				name = soundName or id,
-				lastPlayed = tick()
-			}
+			soundHistory[id] = { name = soundName or id, lastPlayed = tick() }
 		end
 		saveSoundHistory()
 		if Options.SoundHistoryDropdown then
@@ -151,9 +158,7 @@ local ThemeManager = {} do
 		return list
 	end
 
-	local function getSoundIdFromDisplay(display)
-		return display:match("%((%d+)%)$")
-	end
+	local function getSoundIdFromDisplay(display) return display:match("%((%d+)%)$") end
 
 	local function playSoundInternal(soundId, volume, onEnd, onError, looped)
 		if not soundId or soundId == "" then
@@ -161,9 +166,7 @@ local ThemeManager = {} do
 			return nil
 		end
 		local id = soundId
-		if not id:find("rbxassetid://") then
-			id = "rbxassetid://" .. id
-		end
+		if not id:find("rbxassetid://") then id = "rbxassetid://" .. id end
 
 		local sound = Instance.new('Sound')
 		sound.SoundId = id
@@ -173,11 +176,8 @@ local ThemeManager = {} do
 
 		if not sound.IsLoaded then
 			local timeout = tick() + 5
-			while not sound.IsLoaded and tick() < timeout and sound.Parent do
-				task.wait(0.05)
-			end
+			while not sound.IsLoaded and tick() < timeout and sound.Parent do task.wait(0.05) end
 		end
-
 		if not sound.Parent then return nil end
 
 		local ok = pcall(function() sound:Play() end)
@@ -198,7 +198,6 @@ local ThemeManager = {} do
 			sound:Destroy()
 			if onEnd then onEnd() end
 		end)
-
 		return sound
 	end
 
@@ -213,27 +212,17 @@ local ThemeManager = {} do
 			local time = radioSound.TimePosition or 0
 			local duration = radioSound.TimeLength or 0
 			local displayName = radioName ~= "" and radioName or radioSoundId
-			label.TextLabel.Text = string.format("%s [%.1fs/%.1fs]%s",
-				displayName, time, duration, radioLooped and " [LOOP]" or "")
+			label.TextLabel.Text = string.format("%s [%.1fs/%.1fs]%s", displayName, time, duration, radioLooped and " [LOOP]" or "")
 		else
 			label.TextLabel.Text = "Idle"
 		end
 	end
 
 	local function stopRadio()
-		if radioSound then
-			radioSound:Stop()
-			radioSound:Destroy()
-			radioSound = nil
-		end
+		if radioSound then radioSound:Stop() radioSound:Destroy() radioSound = nil end
 		radioPlaying = false
-		if Options.RadioPlayButton and Options.RadioPlayButton.Label then
-			Options.RadioPlayButton.Label.Text = "Play Sound"
-		end
-		if radioUpdateConnection then
-			radioUpdateConnection:Disconnect()
-			radioUpdateConnection = nil
-		end
+		if Options.RadioPlayButton and Options.RadioPlayButton.Label then Options.RadioPlayButton.Label.Text = "Play Sound" end
+		if radioUpdateConnection then radioUpdateConnection:Disconnect() radioUpdateConnection = nil end
 		updateRadioUI()
 	end
 
@@ -251,33 +240,21 @@ local ThemeManager = {} do
 
 		local function onEnd()
 			radioPlaying = false
-			if Options.RadioPlayButton and Options.RadioPlayButton.Label then
-				Options.RadioPlayButton.Label.Text = "Play Sound"
-			end
-			if radioUpdateConnection then
-				radioUpdateConnection:Disconnect()
-				radioUpdateConnection = nil
-			end
+			if Options.RadioPlayButton and Options.RadioPlayButton.Label then Options.RadioPlayButton.Label.Text = "Play Sound" end
+			if radioUpdateConnection then radioUpdateConnection:Disconnect() radioUpdateConnection = nil end
 			updateRadioUI()
 		end
-
 		local function onError(err)
 			radioPlaying = false
-			if Options.RadioPlayButton and Options.RadioPlayButton.Label then
-				Options.RadioPlayButton.Label.Text = "Play Sound"
-			end
+			if Options.RadioPlayButton and Options.RadioPlayButton.Label then Options.RadioPlayButton.Label.Text = "Play Sound" end
 			if ThemeManager.Library then ThemeManager.Library:Notify("Error: " .. err, 3) end
 			updateRadioUI()
 		end
-
 		local sound = playSoundInternal(id, volume, onEnd, onError, radioLooped)
-
 		if sound then
 			radioSound = sound
 			radioPlaying = true
-			if Options.RadioPlayButton and Options.RadioPlayButton.Label then
-				Options.RadioPlayButton.Label.Text = "Stop Sound"
-			end
+			if Options.RadioPlayButton and Options.RadioPlayButton.Label then Options.RadioPlayButton.Label.Text = "Stop Sound" end
 			radioName = sound.Name or id
 			radioDuration = sound.TimeLength or 0
 			if radioUpdateConnection then radioUpdateConnection:Disconnect() end
@@ -294,14 +271,9 @@ local ThemeManager = {} do
 		gui.ResetOnSpawn = false
 		gui.DisplayOrder = 2147483647
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-		if gethui then
-			gui.Parent = gethui()
-		elseif syn and syn.protect_gui then
-			syn.protect_gui(gui)
-			gui.Parent = CoreGui
-		else
-			gui.Parent = CoreGui
-		end
+		if gethui then gui.Parent = gethui()
+		elseif syn and syn.protect_gui then syn.protect_gui(gui) gui.Parent = CoreGui
+		else gui.Parent = CoreGui end
 		ClickEffectGui = gui
 		return gui
 	end
@@ -309,25 +281,19 @@ local ThemeManager = {} do
 	function ThemeManager:InitClickEffect()
 		if inputConnection then inputConnection:Disconnect() inputConnection = nil end
 		lastClickTime = 0
-
 		inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			if not clickEffectEnabled then return end
 			if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 			if gameProcessed then return end
-
 			local now = tick()
 			if now - lastClickTime < DEBOUNCE_TIME then return end
 			lastClickTime = now
-
 			local mousePos = UserInputService:GetMouseLocation()
 			ThemeManager:CreateClickEffect(mousePos.X, mousePos.Y)
-
 			if ThemeManager.Library and ThemeManager.Library.ClickSoundId and ThemeManager.Library.ClickSoundId ~= "" then
 				local sound = playSound(ThemeManager.Library.ClickSoundId, 0.5)
 				if sound then
-					task.delay(sound.TimeLength or 1, function()
-						pcall(function() sound:Destroy() end)
-					end)
+					task.delay(sound.TimeLength or 1, function() pcall(function() sound:Destroy() end) end)
 				end
 			end
 		end)
@@ -335,11 +301,8 @@ local ThemeManager = {} do
 
 	function ThemeManager:CreateClickEffect(x, y)
 		if not ThemeManager.Library then return end
-
 		local gui = ensureClickEffectGui()
-		local color = ThemeManager.Library.ClickEffectColor
-			or ThemeManager.Library.BackgroundColor
-			or Color3.fromRGB(255,255,255)
+		local color = ThemeManager.Library.ClickEffectColor or ThemeManager.Library.BackgroundColor or Color3.fromRGB(255,255,255)
 
 		local holder = Instance.new('Frame')
 		holder.Name = 'Ripple'
@@ -369,36 +332,50 @@ local ThemeManager = {} do
 		stroke.LineJoinMode = Enum.LineJoinMode.Round
 		stroke.Parent = holder
 
-		TweenService:Create(
-			holder,
-			TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ Size = UDim2.fromOffset(CLICK_EFFECT_MAX_SIZE, CLICK_EFFECT_MAX_SIZE) }
-		):Play()
-
-		TweenService:Create(
-			stroke,
-			TweenInfo.new(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ Transparency = 1 }
-		):Play()
-
-		TweenService:Create(
-			fill,
-			TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ BackgroundTransparency = 1 }
-		):Play()
+		TweenService:Create(holder, TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(CLICK_EFFECT_MAX_SIZE, CLICK_EFFECT_MAX_SIZE) }):Play()
+		TweenService:Create(stroke, TweenInfo.new(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+		TweenService:Create(fill, TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
 
 		task.delay(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME + 0.05, function()
-			if holder and holder.Parent then
-				holder:Destroy()
-			end
+			if holder and holder.Parent then holder:Destroy() end
 		end)
+	end
+
+	-- [FIX] обновление всех UICorner конкретного вида
+	function ThemeManager:UpdateCornerRadius(kind, radiusPx)
+		if not ThemeManager.Library then return end
+		local tag = cornerTagMap[kind]
+		if not tag then return end
+		for _, obj in ipairs(CollectionService:GetTagged(tag)) do
+			if obj:IsA('UICorner') then
+				obj.CornerRadius = UDim.new(0, radiusPx)
+			end
+		end
+	end
+
+	-- [FIX] загрузка/сохранение corner settings
+	local function loadCornerSettings()
+		if isfile(cornerSettingsFile) then
+			local ok, data = pcall(httpService.JSONDecode, httpService, readfile(cornerSettingsFile))
+			if ok and type(data) == 'table' and ThemeManager.Library then
+				for k, v in pairs(data) do
+					if ThemeManager.Library.UICorner then
+						ThemeManager.Library.UICorner[k] = v
+					end
+				end
+			end
+		end
+	end
+
+	local function saveCornerSettings()
+		if not ThemeManager.Library or not ThemeManager.Library.UICorner then return end
+		pcall(function() writefile(cornerSettingsFile, httpService:JSONEncode(ThemeManager.Library.UICorner)) end)
 	end
 
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = ThemeManager:GetCustomTheme(theme)
 		local data = customThemeData or ThemeManager.BuiltInThemes[theme]
 		if not data then return end
-
 		local scheme = data[2]
 		local themeData = customThemeData or scheme
 
@@ -419,7 +396,7 @@ local ThemeManager = {} do
 		if Options.ClickEffectColor then Options.ClickEffectColor:SetValueRGB(ThemeManager.Library.ClickEffectColor) end
 
 		if themeData.UICornerRadius and Options.UICornerRadius then
-			Options.UICornerRadius:SetValue(tonumber(themeData.UICornerRadius) or 0.8)
+			Options.UICornerRadius:SetValue(tonumber(themeData.UICornerRadius) or 8)
 		end
 
 		ThemeManager:ThemeUpdate()
@@ -428,15 +405,13 @@ local ThemeManager = {} do
 	function ThemeManager:ThemeUpdate()
 		local colorFields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
 		for _, field in next, colorFields do
-			if Options and Options[field] then
-				ThemeManager.Library[field] = Options[field].Value
-			end
+			if Options and Options[field] then ThemeManager.Library[field] = Options[field].Value end
 		end
 		ThemeManager.Library.AccentColorDark = ThemeManager.Library:GetDarkerColor(ThemeManager.Library.AccentColor)
 		ThemeManager.Library:UpdateColorsUsingRegistry()
 
 		if Options.UICornerRadius and ThemeManager.Library.SetUICornerRadius then
-			ThemeManager.Library:SetUICornerRadius(Options.UICornerRadius.Value)
+			ThemeManager.Library:SetUICornerRadius(Options.UICornerRadius.Value / 10)
 		end
 	end
 
@@ -449,22 +424,12 @@ local ThemeManager = {} do
 		local content = isfile(ThemeManager.Folder .. '/themes/default.txt') and readfile(ThemeManager.Folder .. '/themes/default.txt')
 		local isDefault = true
 		if content then
-			if ThemeManager.BuiltInThemes[content] then
-				theme = content
-			elseif ThemeManager:GetCustomTheme(content) then
-				theme = content
-				isDefault = false
-			end
-		elseif ThemeManager.BuiltInThemes[ThemeManager.DefaultTheme] then
-			theme = ThemeManager.DefaultTheme
-		end
+			if ThemeManager.BuiltInThemes[content] then theme = content
+			elseif ThemeManager:GetCustomTheme(content) then theme = content isDefault = false end
+		elseif ThemeManager.BuiltInThemes[ThemeManager.DefaultTheme] then theme = ThemeManager.DefaultTheme end
 		if isDefault then
-			if Options.ThemeManager_ThemeList then
-				Options.ThemeManager_ThemeList:SetValue(theme)
-			end
-		else
-			ThemeManager:ApplyTheme(theme)
-		end
+			if Options.ThemeManager_ThemeList then Options.ThemeManager_ThemeList:SetValue(theme) end
+		else ThemeManager:ApplyTheme(theme) end
 	end
 
 	local function loadSetting(key, default)
@@ -477,66 +442,51 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:CreateThemeManager(groupbox)
-		-- BACKGROUND IMAGE
+		-- BACKGROUND
 		groupbox:AddLabel('Window Background')
 		groupbox:AddInput('WindowBgImage', {
-			Text = 'Image ID',
-			Default = bgState.imageId or '',
-			Placeholder = 'rbxassetid:// or ID',
-			Finished = true,
+			Text = 'Image ID', Default = bgState.imageId or '',
+			Placeholder = 'rbxassetid:// or ID', Finished = true,
 			Tooltip = 'Вставь rbxassetid:// или просто число'
 		})
 		safeOnChanged(Options.WindowBgImage, function()
 			local v = Options.WindowBgImage.Value or ''
-			if v == '' or v == 'none' or v == 'clear' then
-				bgState.imageId = ''
+			if v == '' or v == 'none' or v == 'clear' then bgState.imageId = ''
 			else
 				if not v:find('rbxassetid://') and not v:find('rbxasset://') and not v:find('http') then
 					local digits = v:gsub('%D', '')
-					if #digits > 0 then
-						v = 'rbxassetid://' .. digits
-					end
+					if #digits > 0 then v = 'rbxassetid://' .. digits end
 				end
 				bgState.imageId = v
 			end
-			applyBg()
-			saveBgSettings()
+			applyBg(); saveBgSettings()
 		end)
 
 		groupbox:AddSlider('WindowBgTransparency', {
-			Text = 'Image Transparency',
-			Min = 0, Max = 1, Default = bgState.transparency or 0.5, Rounding = 2,
-			Suffix = '',
-			Tooltip = '0 = картинка полностью видна, 1 = прозрачная'
+			Text = 'Image Transparency', Min = 0, Max = 1, Default = bgState.transparency or 0.5, Rounding = 2,
+			Suffix = '', Tooltip = '0 = картинка полностью видна, 1 = прозрачная'
 		})
 		safeOnChanged(Options.WindowBgTransparency, function()
 			bgState.transparency = Options.WindowBgTransparency.Value
-			applyBg()
-			saveBgSettings()
+			applyBg(); saveBgSettings()
 		end)
 
 		groupbox:AddSlider('WindowBgOverlay', {
-			Text = 'Overlay Darkening',
-			Min = 0, Max = 1, Default = bgState.overlay or 0.5, Rounding = 2,
-			Suffix = '',
-			Tooltip = 'Затемнение поверх картинки для читаемости'
+			Text = 'Overlay Darkening', Min = 0, Max = 1, Default = bgState.overlay or 0.5, Rounding = 2,
+			Suffix = '', Tooltip = 'Затемнение поверх картинки для читаемости'
 		})
 		safeOnChanged(Options.WindowBgOverlay, function()
 			bgState.overlay = Options.WindowBgOverlay.Value
-			applyBg()
-			saveBgSettings()
+			applyBg(); saveBgSettings()
 		end)
 
 		groupbox:AddSlider('WindowBgUIOpacity', {
-			Text = 'UI Opacity',
-			Min = 0, Max = 1, Default = bgState.uiOpacity or 0.6, Rounding = 2,
-			Suffix = '',
-			Tooltip = 'Насколько прозрачны панели поверх картинки'
+			Text = 'UI Opacity', Min = 0, Max = 0.9, Default = bgState.uiOpacity or 0.6, Rounding = 2,
+			Suffix = '', Tooltip = 'Насколько прозрачны панели поверх картинки'
 		})
 		safeOnChanged(Options.WindowBgUIOpacity, function()
 			bgState.uiOpacity = Options.WindowBgUIOpacity.Value
-			applyBg()
-			saveBgSettings()
+			applyBg(); saveBgSettings()
 		end)
 
 		groupbox:AddLabel('Overlay Color'):AddColorPicker('WindowBgOverlayColor', {
@@ -544,17 +494,13 @@ local ThemeManager = {} do
 		})
 		safeOnChanged(Options.WindowBgOverlayColor, function()
 			bgState.overlayColor = Options.WindowBgOverlayColor.Value
-			applyBg()
-			saveBgSettings()
+			applyBg(); saveBgSettings()
 		end)
 
 		groupbox:AddButton('Clear Background', function()
 			bgState.imageId = ''
-			applyBg()
-			saveBgSettings()
-			if Options.WindowBgImage then
-				Options.WindowBgImage:SetValue('')
-			end
+			applyBg(); saveBgSettings()
+			if Options.WindowBgImage then Options.WindowBgImage:SetValue('') end
 			if ThemeManager.Library then ThemeManager.Library:Notify('Background cleared') end
 		end)
 
@@ -566,32 +512,81 @@ local ThemeManager = {} do
 		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = ThemeManager.Library.AccentColor })
 		groupbox:AddLabel('Outline color'):AddColorPicker('OutlineColor', { Default = ThemeManager.Library.OutlineColor })
 		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = ThemeManager.Library.FontColor })
-		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = ThemeManager.Library.ClickEffectColor or ThemeManager.Library.BackgroundColor or Color3.fromRGB(255,255,255) })
+		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = ThemeManager.Library.ClickEffectColor or Color3.fromRGB(255,255,255) })
 
 		groupbox:AddDivider()
 		groupbox:AddLabel('UI Corner Radius')
+
+		-- [FIX] Window corner
+		local winDefault = ThemeManager.Library.UICornerRadius and (ThemeManager.Library.UICornerRadius * 10) or 8
 		groupbox:AddSlider('UICornerRadius', {
-			Text = 'Corner radius',
-			Min = 0,
-			Max = 3,
-			Default = ThemeManager.Library.UICornerRadius or 0.8,
-			Rounding = 2,
-			Suffix = ''
+			Text = 'Window Corner',
+			Min = 0, Max = 24, Default = winDefault, Rounding = 0, Suffix = ' px'
 		})
 		safeOnChanged(Options.UICornerRadius, function()
-			ThemeManager.Library.UICornerRadius = Options.UICornerRadius.Value
-			ThemeManager.Library:SetUICornerRadius(ThemeManager.Library.UICornerRadius)
+			if not ThemeManager.Library then return end
+			ThemeManager.Library.UICornerRadius = Options.UICornerRadius.Value / 10
+			if ThemeManager.Library.SetUICornerRadius then
+				ThemeManager.Library:SetUICornerRadius(ThemeManager.Library.UICornerRadius)
+			end
+		end)
+
+		-- [FIX] per-widget corners
+		local cornerItems = {
+			{ 'UICornerButton',         'Button',        8 },
+			{ 'UICornerToggle',         'Toggle',        3 },
+			{ 'UICornerSlider',         'Slider',        8 },
+			{ 'UICornerDropdown',       'Dropdown',      4 },
+			{ 'UICornerDropdownList',   'Dropdown List', 4 },
+			{ 'UICornerGroupbox',       'Groupbox',      6 },
+			{ 'UICornerKeyPicker',      'KeyPicker',     3 },
+			{ 'UICornerKeybind',        'Keybind',       4 },
+		}
+
+		for _, item in ipairs(cornerItems) do
+			local idx, label, default = item[1], item[2], item[3]
+			local key = label:gsub(' ', '')
+			local current = (ThemeManager.Library.UICorner and ThemeManager.Library.UICorner[key]) or default
+
+			groupbox:AddSlider(idx, {
+				Text = label .. ' Corner',
+				Min = 0, Max = 24, Default = current, Rounding = 0, Suffix = ' px'
+			})
+
+			safeOnChanged(Options[idx], function()
+				if not ThemeManager.Library then return end
+				local val = Options[idx].Value
+				ThemeManager.Library.UICorner = ThemeManager.Library.UICorner or {}
+				ThemeManager.Library.UICorner[key] = val
+				ThemeManager:UpdateCornerRadius(key, val)
+				saveCornerSettings()
+			end)
+		end
+
+		groupbox:AddButton('Reset All Corners', function()
+			if not ThemeManager.Library then return end
+			local defaults = {
+				UICornerButton = 8, UICornerToggle = 3, UICornerSlider = 8,
+				UICornerDropdown = 4, UICornerDropdownList = 4, UICornerGroupbox = 6,
+				UICornerKeyPicker = 3, UICornerKeybind = 4,
+			}
+			for idx, val in pairs(defaults) do
+				if Options[idx] then Options[idx]:SetValue(val) end
+			end
+			ThemeManager.Library.UICorner = {
+				Button = 8, Toggle = 3, Slider = 8,
+				Dropdown = 4, DropdownList = 4, Groupbox = 6,
+				KeyPicker = 3, Keybind = 4,
+			}
+			if ThemeManager.Library.Notify then ThemeManager.Library:Notify('Corners reset to default') end
+			saveCornerSettings()
 		end)
 
 		groupbox:AddDivider()
 		groupbox:AddLabel('Cursor & Notify Sound')
+
 		local cursorDefault = ThemeManager.Library.CursorImageId or "18392993708"
-		groupbox:AddInput('CursorImageId', {
-			Text = 'Cursor Image ID',
-			Default = cursorDefault,
-			Placeholder = 'Enter asset ID',
-			Finished = true
-		})
+		groupbox:AddInput('CursorImageId', { Text = 'Cursor Image ID', Default = cursorDefault, Placeholder = 'Enter asset ID', Finished = true })
 		safeOnChanged(Options.CursorImageId, function()
 			local id = Options.CursorImageId.Value
 			if id and id ~= "" then
@@ -601,12 +596,7 @@ local ThemeManager = {} do
 		end)
 
 		local notifyDefault = ThemeManager.Library.NotifySoundId or "132463144859699"
-		groupbox:AddInput('NotifySoundId', {
-			Text = 'Notify Sound ID',
-			Default = notifyDefault,
-			Placeholder = 'Enter asset ID',
-			Finished = true
-		})
+		groupbox:AddInput('NotifySoundId', { Text = 'Notify Sound ID', Default = notifyDefault, Placeholder = 'Enter asset ID', Finished = true })
 		safeOnChanged(Options.NotifySoundId, function()
 			local id = Options.NotifySoundId.Value
 			if id and id ~= "" then
@@ -617,71 +607,47 @@ local ThemeManager = {} do
 
 		groupbox:AddDivider()
 		groupbox:AddLabel('Radio Player')
-		groupbox:AddInput('RadioSoundId', {
-			Text = 'Sound ID',
-			Default = "",
-			Placeholder = 'Enter asset ID',
-			Finished = true
-		})
-		groupbox:AddSlider('RadioVolume', {
-			Text = 'Volume',
-			Min = 0,
-			Max = 1.5,
-			Default = 0.3,
-			Rounding = 2,
-			Suffix = ''
-		})
+
+		groupbox:AddInput('RadioSoundId', { Text = 'Sound ID', Default = "", Placeholder = 'Enter asset ID', Finished = true })
+		groupbox:AddSlider('RadioVolume', { Text = 'Volume', Min = 0, Max = 1.5, Default = 0.3, Rounding = 2, Suffix = '' })
 		safeOnChanged(Options.RadioVolume, function()
-			if radioSound and radioPlaying then
-				radioSound.Volume = Options.RadioVolume.Value
-			end
+			if radioSound and radioPlaying then radioSound.Volume = Options.RadioVolume.Value end
 		end)
 
-		groupbox:AddToggle('RadioLooped', {
-			Text = 'Looped',
-			Default = false,
-			Tooltip = 'Зациклить воспроизведение звука'
-		})
+		groupbox:AddToggle('RadioLooped', { Text = 'Looped', Default = false, Tooltip = 'Зациклить воспроизведение звука' })
 		safeOnChanged(Toggles.RadioLooped, function()
 			radioLooped = Toggles.RadioLooped.Value
-			if radioSound and radioPlaying then
-				radioSound.Looped = radioLooped
-			end
+			if radioSound and radioPlaying then radioSound.Looped = radioLooped end
 		end)
 
 		local statusLabel = groupbox:AddLabel("Idle")
 		Options.RadioStatus = statusLabel
 
 		local playButton = groupbox:AddButton('Play Sound', function()
-			if radioPlaying then
-				stopRadio()
-			else
-				startRadio()
-			end
+			if radioPlaying then stopRadio() else startRadio() end
 		end)
 		Options.RadioPlayButton = playButton
 
 		groupbox:AddDivider()
 		groupbox:AddLabel('Sound History')
+
 		local historyList = ThemeManager:GetSoundHistoryList()
 		local historyDropdown = groupbox:AddDropdown('SoundHistoryDropdown', {
 			Text = 'History',
 			Values = #historyList > 0 and historyList or {"No history"},
-			Default = 1,
-			AllowNull = false
+			Default = 1, AllowNull = false
 		})
 		Options.SoundHistoryDropdown = historyDropdown
 
 		safeOnChanged(historyDropdown, function(value)
 			if not value or value == "No history" then return end
 			local id = getSoundIdFromDisplay(value)
-			if id and Options.RadioSoundId then
-				Options.RadioSoundId:SetValue(id)
-			end
+			if id and Options.RadioSoundId then Options.RadioSoundId:SetValue(id) end
 		end)
 
 		groupbox:AddDivider()
 		groupbox:AddLabel('Themes')
+
 		local ThemesArray = {}
 		for Name, Theme in next, ThemeManager.BuiltInThemes do table.insert(ThemesArray, Name) end
 		table.sort(ThemesArray, function(a,b) return ThemeManager.BuiltInThemes[a][1] < ThemeManager.BuiltInThemes[b][1] end)
@@ -697,6 +663,7 @@ local ThemeManager = {} do
 
 		groupbox:AddDivider()
 		groupbox:AddLabel('Custom Themes')
+
 		groupbox:AddInput('ThemeManager_CustomThemeName', { Text = 'Custom theme name' })
 		groupbox:AddDropdown('ThemeManager_CustomThemeList', { Text = 'Custom themes', Values = ThemeManager:ReloadCustomThemes(), AllowNull = true, Default = 1 })
 		groupbox:AddButton('Save theme', function()
@@ -721,9 +688,7 @@ local ThemeManager = {} do
 
 		ThemeManager:LoadDefault()
 
-		local function UpdateTheme()
-			ThemeManager:ThemeUpdate()
-		end
+		local function UpdateTheme() ThemeManager:ThemeUpdate() end
 		safeOnChanged(Options.BackgroundColor, UpdateTheme)
 		safeOnChanged(Options.MainColor, UpdateTheme)
 		safeOnChanged(Options.AccentColor, UpdateTheme)
@@ -732,6 +697,7 @@ local ThemeManager = {} do
 		safeOnChanged(Options.ClickEffectColor, UpdateTheme)
 
 		task.defer(applyBg)
+		task.defer(loadCornerSettings)
 	end
 
 	function ThemeManager:GetCustomTheme(file)
@@ -747,11 +713,8 @@ local ThemeManager = {} do
 		local theme = {}
 		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "UICornerRadius" }
 		for _, field in next, fields do
-			if field == "UICornerRadius" then
-				theme[field] = Options.UICornerRadius.Value
-			else
-				theme[field] = Options[field].Value:ToHex()
-			end
+			if field == "UICornerRadius" then theme[field] = Options.UICornerRadius.Value
+			else theme[field] = Options[field].Value:ToHex() end
 		end
 		theme.ClickEffectColor = Options.ClickEffectColor.Value:ToHex()
 		writefile(ThemeManager.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
@@ -785,9 +748,7 @@ local ThemeManager = {} do
 	function ThemeManager:SetLibrary(lib)
 		ThemeManager.Library = lib
 		ThemeManager:InitClickEffect()
-		if lib.OnUnload then
-			lib:OnUnload(function() ThemeManager:CleanupClickEffect() end)
-		end
+		if lib.OnUnload then lib:OnUnload(function() ThemeManager:CleanupClickEffect() end) end
 	end
 
 	function ThemeManager:BuildFolderTree()
