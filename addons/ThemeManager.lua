@@ -1,4 +1,3 @@
-
 local httpService = game:GetService('HttpService')
 local UserInputService = game:GetService('UserInputService')
 local TweenService = game:GetService('TweenService')
@@ -9,6 +8,7 @@ local RunService = game:GetService('RunService')
 local SoundService = game:GetService('SoundService')
 local Options = getgenv().Options
 local Toggles = getgenv().Toggles
+
 local ThemeManager = {} do
 	ThemeManager.Folder = 'LinoriaLibSettings'
 
@@ -20,18 +20,20 @@ local ThemeManager = {} do
 		['Neverlose'] 	= { 4, httpService:JSONDecode('{"MainColor":"080e21","AccentColor":"120d64","OutlineColor":"100c31","BackgroundColor":"0c0a1c","FontColor":"ffffff"}') },
 	}
 
-	-- Настройки клик-эффекта (Drawing)
-	local CLICK_EFFECT_MAX_SIZE = 20
+	-- ─── CLICK EFFECT (GUI-based) ───
+	local CLICK_EFFECT_MAX_SIZE = 40       -- в пикселях (диаметр)
 	local CLICK_EFFECT_GROW_TIME = 0.4
 	local CLICK_EFFECT_FADE_TIME = 0.2
 	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.4
+	local CLICK_EFFECT_THICKNESS = 1        -- толщина кольца в пикселях
 	local DEBOUNCE_TIME = 0.05
 
 	local clickEffectEnabled = true
 	local inputConnection = nil
 	local lastClickTime = 0
+	local ClickEffectGui = nil
 
-	-- Переменные для Radio-плеера
+	-- ─── RADIO ───
 	local radioSound = nil
 	local radioPlaying = false
 	local radioUpdateConnection = nil
@@ -41,11 +43,10 @@ local ThemeManager = {} do
 	local radioDuration = 0
 	local radioLooped = false
 
-	-- История звуков
+	-- ─── SOUND HISTORY ───
 	local soundHistory = {}
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
 
-	-- Загрузка истории
 	local function loadSoundHistory()
 		if isfile(historyFile) then
 			local success, data = pcall(httpService.JSONDecode, httpService, readfile(historyFile))
@@ -58,14 +59,12 @@ local ThemeManager = {} do
 	end
 	loadSoundHistory()
 
-	-- Сохранение истории
 	local function saveSoundHistory()
 		pcall(function()
 			writefile(historyFile, httpService:JSONEncode(soundHistory))
 		end)
 	end
 
-	-- Добавление звука в историю
 	local function addToHistory(soundId, soundName)
 		if not soundId or soundId == "" then return end
 		local id = soundId
@@ -86,7 +85,6 @@ local ThemeManager = {} do
 		end
 	end
 
-	-- Получение списка для дропдауна
 	function ThemeManager:GetSoundHistoryList()
 		local list = {}
 		for id, data in pairs(soundHistory) do
@@ -103,76 +101,78 @@ local ThemeManager = {} do
 		return list
 	end
 
-	-- Получение ID из строки дропдауна
 	local function getSoundIdFromDisplay(display)
 		return display:match("%((%d+)%)$")
 	end
 
-	-- Внутренняя функция воспроизведения звука
+	-- [FIX] правильный normalize звука + Loaded для TimeLength + Looped
 	local function playSoundInternal(soundId, volume, onEnd, onError, looped)
-		if not soundId or soundId == "" then 
+		if not soundId or soundId == "" then
 			if onError then onError("No Sound ID") end
-			return nil 
+			return nil
 		end
 		local id = soundId
 		if not id:find("rbxassetid://") then
 			id = "rbxassetid://" .. id
 		end
+
+		local sound = Instance.new('Sound')
+		sound.SoundId = id
+		sound.Volume = volume or 0.3
+		sound.Looped = looped and true or false  -- [FIX] нативный loop
+		sound.Parent = Workspace
+
+		-- [FIX] ждём Loaded перед play, чтобы TimeLength был валидным
+		if not sound.IsLoaded then
+			local timeout = tick() + 5
+			while not sound.IsLoaded and tick() < timeout and sound.Parent do
+				task.wait(0.05)
+			end
+		end
+
+		if not sound.Parent then return nil end
+
+		local ok = pcall(function() sound:Play() end)
+		if not ok then
+			sound:Destroy()
+			if onError then onError("Failed to play sound (invalid ID?)") end
+			return nil
+		end
+
+		-- определяем имя звука через SoundService
 		local soundName = "Unknown"
 		pcall(function()
 			local info = SoundService:GetSoundInfo(id)
 			if info and info.Name then soundName = info.Name end
 		end)
-		local sound = Instance.new('Sound')
-		sound.SoundId = id
-		sound.Volume = volume or 0.3
-		sound.Parent = Workspace
-		local success = pcall(function()
-			sound:Play()
-		end)
-		if not success then
-			sound:Destroy()
-			if onError then onError("Failed to play sound (invalid ID?)") end
-			return nil
-		end
 		addToHistory(id, soundName)
-		
+
 		sound.Ended:Connect(function()
 			sound:Destroy()
-			if looped and radioPlaying then
-				task.spawn(function()
-					task.wait(0.05)
-					if radioPlaying and looped then
-						playSoundInternal(radioSoundId, radioVolume, onEnd, onError, true)
-					end
-				end)
-			else
-				if onEnd then onEnd() end
-			end
+			if onEnd then onEnd() end
 		end)
+
 		return sound
 	end
 
-	-- Функция воспроизведения для внешнего использования (клик)
 	local function playSound(soundId, volume, callback, onError)
 		return playSoundInternal(soundId, volume, callback, onError, false)
 	end
 
-	-- Обновление статуса Radio
 	local function updateRadioUI()
 		if not Options.RadioStatus then return end
 		local label = Options.RadioStatus
-		if radioPlaying and radioSound then
+		if radioPlaying and radioSound and radioSound.Parent then
 			local time = radioSound.TimePosition or 0
 			local duration = radioSound.TimeLength or 0
 			local displayName = radioName ~= "" and radioName or radioSoundId
-			label.TextLabel.Text = string.format("%s [%.1fs/%.1fs]", displayName, time, duration)
+			label.TextLabel.Text = string.format("%s [%.1fs/%.1fs]%s",
+				displayName, time, duration, radioLooped and " [LOOP]" or "")
 		else
 			label.TextLabel.Text = "Idle"
 		end
 	end
 
-	-- Остановка радио
 	local function stopRadio()
 		if radioSound then
 			radioSound:Stop()
@@ -190,7 +190,6 @@ local ThemeManager = {} do
 		updateRadioUI()
 	end
 
-	-- Запуск радио
 	local function startRadio()
 		stopRadio()
 		local id = Options.RadioSoundId and Options.RadioSoundId.Value or ""
@@ -240,7 +239,28 @@ local ThemeManager = {} do
 		end
 	end
 
-	-- Инициализация клик-эффекта
+	-- ─── CLICK EFFECT (GUI-based) ───
+	local function ensureClickEffectGui()
+		if ClickEffectGui and ClickEffectGui.Parent then return ClickEffectGui end
+		local gui = Instance.new('ScreenGui')
+		gui.Name = 'LinoriaClickEffect'
+		gui.IgnoreGuiInset = true
+		gui.ResetOnSpawn = false
+		gui.DisplayOrder = 2147483647
+		gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+		-- защищаем от чужого CoreGui
+		if gethui then
+			gui.Parent = gethui()
+		elseif syn and syn.protect_gui then
+			syn.protect_gui(gui)
+			gui.Parent = CoreGui
+		else
+			gui.Parent = CoreGui
+		end
+		ClickEffectGui = gui
+		return gui
+	end
+
 	function ThemeManager:InitClickEffect()
 		if inputConnection then inputConnection:Disconnect() inputConnection = nil end
 		lastClickTime = 0
@@ -261,54 +281,85 @@ local ThemeManager = {} do
 				local sound = playSound(ThemeManager.Library.ClickSoundId, 0.5)
 				if sound then
 					task.delay(sound.TimeLength or 1, function()
-						pcall(sound.Destroy, sound)
+						pcall(function() sound:Destroy() end)
 					end)
 				end
 			end
 		end)
 	end
 
-	-- Создание клик-эффекта через Drawing
+	-- [FIX] клик-эффект целиком на GUI (Frame + UICorner + Stroke)
 	function ThemeManager:CreateClickEffect(x, y)
 		if not ThemeManager.Library then return end
-		if not Drawing then return end
-		if not Drawing.new then return end
 
-		local circle = Drawing.new("Circle")
-		circle.Visible = true
-		circle.Thickness = 1
-		circle.Filled = false
-		circle.NumSides = 32
-		circle.Color = ThemeManager.Library.ClickEffectColor or ThemeManager.Library.BackgroundColor or Color3.fromRGB(255,255,255)
-		circle.Transparency = CLICK_EFFECT_INITIAL_TRANSPARENCY
-		circle.Position = Vector2.new(x, y)
-		circle.Radius = 0
+		local gui = ensureClickEffectGui()
+		local color = ThemeManager.Library.ClickEffectColor
+			or ThemeManager.Library.BackgroundColor
+			or Color3.fromRGB(255,255,255)
 
-		local startTime = tick()
-		local growDuration = CLICK_EFFECT_GROW_TIME
-		local fadeDuration = CLICK_EFFECT_FADE_TIME
-		local maxRadius = CLICK_EFFECT_MAX_SIZE * 2
+		local holder = Instance.new('Frame')
+		holder.Name = 'Ripple'
+		holder.BackgroundTransparency = 1
+		holder.BorderSizePixel = 0
+		holder.AnchorPoint = Vector2.new(0.5, 0.5)
+		holder.Position = UDim2.fromOffset(x, y)
+		holder.Size = UDim2.fromOffset(0, 0)
+		holder.ZIndex = 2147483647
+		holder.Parent = gui
 
-		local connection
-		connection = RunService.RenderStepped:Connect(function(dt)
-			local elapsed = tick() - startTime
-			if elapsed < growDuration then
-				local progress = elapsed / growDuration
-				circle.Radius = maxRadius * progress
-				circle.Transparency = CLICK_EFFECT_INITIAL_TRANSPARENCY * (1 - progress * 0.5)
-			elseif elapsed < growDuration + fadeDuration then
-				local fadeProgress = (elapsed - growDuration) / fadeDuration
-				circle.Transparency = CLICK_EFFECT_INITIAL_TRANSPARENCY * 0.5 * (1 - fadeProgress)
-				circle.Radius = maxRadius
-			else
-				circle.Visible = false
-				circle:Remove()
-				connection:Disconnect()
+		-- заливка (опционально, для эффекта пульса)
+		local fill = Instance.new('Frame')
+		fill.Name = 'Fill'
+		fill.BackgroundColor3 = color
+		fill.BackgroundTransparency = 1  -- старт: невидима
+		fill.BorderSizePixel = 0
+		fill.Size = UDim2.fromScale(1, 1)
+		fill.ZIndex = holder.ZIndex
+		fill.Parent = holder
+		Instance.new('UICorner', { CornerRadius = UDim.new(1, 0), Parent = fill })
+
+		-- кольцо (обводка)
+		local stroke = Instance.new('UIStroke')
+		stroke.Color = color
+		stroke.Thickness = CLICK_EFFECT_THICKNESS
+		stroke.Transparency = CLICK_EFFECT_INITIAL_TRANSPARENCY
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.LineJoinMode = Enum.LineJoinMode.Round
+		stroke.Parent = holder
+
+		-- размер от 0 до MAX
+		local growTween = TweenService:Create(
+			holder,
+			TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = UDim2.fromOffset(CLICK_EFFECT_MAX_SIZE, CLICK_EFFECT_MAX_SIZE) }
+		)
+		growTween:Play()
+
+		-- fade (stroke transparency)
+		local fadeStroke = TweenService:Create(
+			stroke,
+			TweenInfo.new(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Transparency = 1 }
+		)
+		fadeStroke:Play()
+
+		-- лёгкая вспышка заливки в начале (потом fade out)
+		fill.BackgroundTransparency = 0.85
+		TweenService:Create(
+			fill,
+			TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 1 }
+		):Play()
+
+		-- cleanup
+		task.delay(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME + 0.05, function()
+			if holder and holder.Parent then
+				holder:Destroy()
 			end
 		end)
 	end
 
-	-- Применение темы
+	-- ─── THEME ───
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = ThemeManager:GetCustomTheme(theme)
 		local data = customThemeData or ThemeManager.BuiltInThemes[theme]
@@ -355,7 +406,6 @@ local ThemeManager = {} do
 		end
 	end
 
-	-- Сохранение/загрузка дефолтной темы
 	function ThemeManager:SaveDefault(theme)
 		writefile(ThemeManager.Folder .. '/themes/default.txt', theme)
 	end
@@ -375,13 +425,14 @@ local ThemeManager = {} do
 			theme = ThemeManager.DefaultTheme
 		end
 		if isDefault then
-			Options.ThemeManager_ThemeList:SetValue(theme)
+			if Options.ThemeManager_ThemeList then
+				Options.ThemeManager_ThemeList:SetValue(theme)
+			end
 		else
 			ThemeManager:ApplyTheme(theme)
 		end
 	end
 
-	-- Загрузка/сохранение доп. настроек (курсор, звук уведомлений)
 	local function loadSetting(key, default)
 		local path = ThemeManager.Folder .. '/settings/' .. key .. '.txt'
 		if isfile(path) then return readfile(path) end
@@ -391,7 +442,6 @@ local ThemeManager = {} do
 		writefile(ThemeManager.Folder .. '/settings/' .. key .. '.txt', value)
 	end
 
-	-- Создание UI (всё в одной группе)
 	function ThemeManager:CreateThemeManager(groupbox)
 		-- Theme Colors
 		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = ThemeManager.Library.BackgroundColor })
@@ -475,6 +525,13 @@ local ThemeManager = {} do
 			Default = false,
 			Tooltip = 'Зациклить воспроизведение звука'
 		})
+		Options.RadioLooped:OnChanged(function()
+			-- [FIX] меняем loop на лету если играет
+			radioLooped = Options.RadioLooped.Value
+			if radioSound and radioPlaying then
+				radioSound.Looped = radioLooped
+			end
+		end)
 
 		local statusLabel = groupbox:AddLabel("Idle")
 		Options.RadioStatus = statusLabel
@@ -526,12 +583,12 @@ local ThemeManager = {} do
 		groupbox:AddLabel('Custom Themes')
 		groupbox:AddInput('ThemeManager_CustomThemeName', { Text = 'Custom theme name' })
 		groupbox:AddDropdown('ThemeManager_CustomThemeList', { Text = 'Custom themes', Values = ThemeManager:ReloadCustomThemes(), AllowNull = true, Default = 1 })
-		groupbox:AddButton('Save theme', function() 
+		groupbox:AddButton('Save theme', function()
 			ThemeManager:SaveCustomTheme(Options.ThemeManager_CustomThemeName.Value)
 			Options.ThemeManager_CustomThemeList:SetValues(ThemeManager:ReloadCustomThemes())
 			Options.ThemeManager_CustomThemeList:SetValue(nil)
-		end):AddButton('Load theme', function() 
-			ThemeManager:ApplyTheme(Options.ThemeManager_CustomThemeList.Value) 
+		end):AddButton('Load theme', function()
+			ThemeManager:ApplyTheme(Options.ThemeManager_CustomThemeList.Value)
 		end)
 
 		groupbox:AddButton('Refresh list', function()
@@ -601,6 +658,10 @@ local ThemeManager = {} do
 	function ThemeManager:CleanupClickEffect()
 		if inputConnection then inputConnection:Disconnect(); inputConnection = nil end
 		clickEffectEnabled = false
+		if ClickEffectGui and ClickEffectGui.Parent then
+			ClickEffectGui:Destroy()
+			ClickEffectGui = nil
+		end
 	end
 
 	function ThemeManager:SetLibrary(lib)
