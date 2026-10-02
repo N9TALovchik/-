@@ -20,7 +20,7 @@ local ThemeManager = {} do
 		['Neverlose'] 	= { 4, httpService:JSONDecode('{"MainColor":"080e21","AccentColor":"120d64","OutlineColor":"100c31","BackgroundColor":"0c0a1c","FontColor":"ffffff"}') },
 	}
 
-	-- ─── CLICK EFFECT (GUI-based) ───
+	-- ─── CLICK EFFECT ───
 	local CLICK_EFFECT_MAX_SIZE = 40
 	local CLICK_EFFECT_GROW_TIME = 0.4
 	local CLICK_EFFECT_FADE_TIME = 0.2
@@ -43,11 +43,19 @@ local ThemeManager = {} do
 	local radioDuration = 0
 	local radioLooped = false
 
+	-- ─── BACKGROUND STATE ───
+	local bgState = {
+		imageId = '',
+		transparency = 0.5,
+		overlay = 0.5,
+		overlayColor = Color3.new(0, 0, 0),
+	}
+
 	-- ─── SOUND HISTORY ───
 	local soundHistory = {}
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
+	local bgSettingsFile = ThemeManager.Folder .. '/settings/background.json'
 
-	-- [FIX] безопасный OnChanged (Options/Toggles могут быть nil если элемент не создан)
 	local function safeOnChanged(ctrl, cb)
 		if ctrl and ctrl.OnChanged then ctrl:OnChanged(cb) end
 	end
@@ -68,6 +76,41 @@ local ThemeManager = {} do
 		pcall(function()
 			writefile(historyFile, httpService:JSONEncode(soundHistory))
 		end)
+	end
+
+	local function loadBgSettings()
+		if isfile(bgSettingsFile) then
+			local ok, data = pcall(httpService.JSONDecode, httpService, readfile(bgSettingsFile))
+			if ok and type(data) == "table" then
+				bgState.imageId = data.imageId or ''
+				bgState.transparency = data.transparency or 0.5
+				bgState.overlay = data.overlay or 0.5
+				if data.overlayColor then
+					local ok2, c = pcall(Color3.fromHex, data.overlayColor)
+					if ok2 then bgState.overlayColor = c end
+				end
+			end
+		end
+	end
+
+	local function saveBgSettings()
+		pcall(function()
+			writefile(bgSettingsFile, httpService:JSONEncode({
+				imageId = bgState.imageId,
+				transparency = bgState.transparency,
+				overlay = bgState.overlay,
+				overlayColor = bgState.overlayColor:ToHex(),
+			}))
+		end)
+	end
+	loadBgSettings()
+
+	local function applyBg()
+		if not ThemeManager.Library then return end
+		if not ThemeManager.Library.SetWindowBackground then return end
+		ThemeManager.Library:SetWindowBackground(bgState.imageId, bgState.transparency)
+		ThemeManager.Library:SetWindowOverlay(bgState.overlay)
+		ThemeManager.Library:SetWindowOverlayColor(bgState.overlayColor)
 	end
 
 	local function addToHistory(soundId, soundName)
@@ -202,7 +245,6 @@ local ThemeManager = {} do
 		local volume = Options.RadioVolume and Options.RadioVolume.Value or 0.3
 		radioSoundId = id
 		radioVolume = volume
-		-- [FIX] RadioLooped лежит в Toggles
 		radioLooped = Toggles.RadioLooped and Toggles.RadioLooped.Value or false
 
 		local function onEnd()
@@ -242,7 +284,7 @@ local ThemeManager = {} do
 		end
 	end
 
-	-- ─── CLICK EFFECT (GUI-based) ───
+	-- ─── CLICK EFFECT ───
 	local function ensureClickEffectGui()
 		if ClickEffectGui and ClickEffectGui.Parent then return ClickEffectGui end
 		local gui = Instance.new('ScreenGui')
@@ -435,7 +477,79 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:CreateThemeManager(groupbox)
-		-- Theme Colors
+		-- ─── BACKGROUND IMAGE ───
+		groupbox:AddLabel('Window Background')
+
+		groupbox:AddInput('WindowBgImage', {
+			Text = 'Image ID',
+			Default = bgState.imageId or '',
+			Placeholder = 'rbxassetid:// or ID',
+			Finished = true,
+			Tooltip = 'Вставь rbxassetid:// или просто число'
+		})
+		safeOnChanged(Options.WindowBgImage, function()
+			local v = Options.WindowBgImage.Value or ''
+			if v == '' or v == 'none' or v == 'clear' then
+				bgState.imageId = ''
+			else
+				if not v:find('rbxassetid://') and not v:find('rbxasset://') and not v:find('http') then
+					local digits = v:gsub('%D', '')
+					if #digits > 0 then
+						v = 'rbxassetid://' .. digits
+					end
+				end
+				bgState.imageId = v
+			end
+			applyBg()
+			saveBgSettings()
+		end)
+
+		groupbox:AddSlider('WindowBgTransparency', {
+			Text = 'Image Transparency',
+			Min = 0, Max = 1, Default = bgState.transparency or 0.5, Rounding = 2,
+			Suffix = '',
+			Tooltip = '0 = картинка полностью видна, 1 = прозрачная'
+		})
+		safeOnChanged(Options.WindowBgTransparency, function()
+			bgState.transparency = Options.WindowBgTransparency.Value
+			applyBg()
+			saveBgSettings()
+		end)
+
+		groupbox:AddSlider('WindowBgOverlay', {
+			Text = 'Overlay Darkening',
+			Min = 0, Max = 1, Default = bgState.overlay or 0.5, Rounding = 2,
+			Suffix = '',
+			Tooltip = 'Затемнение поверх картинки для читаемости'
+		})
+		safeOnChanged(Options.WindowBgOverlay, function()
+			bgState.overlay = Options.WindowBgOverlay.Value
+			applyBg()
+			saveBgSettings()
+		end)
+
+		groupbox:AddLabel('Overlay Color'):AddColorPicker('WindowBgOverlayColor', {
+			Default = bgState.overlayColor or Color3.new(0,0,0)
+		})
+		safeOnChanged(Options.WindowBgOverlayColor, function()
+			bgState.overlayColor = Options.WindowBgOverlayColor.Value
+			applyBg()
+			saveBgSettings()
+		end)
+
+		groupbox:AddButton('Clear Background', function()
+			bgState.imageId = ''
+			applyBg()
+			saveBgSettings()
+			if Options.WindowBgImage then
+				Options.WindowBgImage:SetValue('')
+			end
+			if ThemeManager.Library then ThemeManager.Library:Notify('Background cleared') end
+		end)
+
+		groupbox:AddDivider()
+
+		-- ─── THEME COLORS ───
 		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = ThemeManager.Library.BackgroundColor })
 		groupbox:AddLabel('Main color'):AddColorPicker('MainColor', { Default = ThemeManager.Library.MainColor })
 		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = ThemeManager.Library.AccentColor })
@@ -512,7 +626,6 @@ local ThemeManager = {} do
 			end
 		end)
 
-		-- [FIX] AddToggle пишет в Toggles, не в Options
 		groupbox:AddToggle('RadioLooped', {
 			Text = 'Looped',
 			Default = false,
@@ -606,6 +719,9 @@ local ThemeManager = {} do
 		safeOnChanged(Options.OutlineColor, UpdateTheme)
 		safeOnChanged(Options.FontColor, UpdateTheme)
 		safeOnChanged(Options.ClickEffectColor, UpdateTheme)
+
+		-- применяем сохранённый фон после создания UI
+		task.defer(applyBg)
 	end
 
 	function ThemeManager:GetCustomTheme(file)
