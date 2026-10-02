@@ -3849,7 +3849,113 @@ function Library:SetWatermark(Text)
     Library:SetWatermarkVisibility(true)
     Library.WatermarkText.Text = Text;
 end;
+-- [FIX] глобальный фон окна (доступен через Library:SetWindowBackground)
+function Library:SetWindowBackground(imageId, transparency)
+    local inner = Library.MainFrame
+    if inner then
+        inner = inner:FindFirstChild('BackgroundImage')
+    end
+    -- ищем по всем ScreenGui если напрямую не нашли
+    if not inner and Library.ScreenGui then
+        for _, gui in ipairs(Library.ScreenGui:GetDescendants()) do
+            if gui.Name == 'BackgroundImage' then inner = gui break end
+        end
+    end
+    if not inner then
+        for _, sg in ipairs(CoreGui:GetChildren()) do
+            if sg:IsA('ScreenGui') then
+                for _, obj in ipairs(sg:GetDescendants()) do
+                    if obj.Name == 'BackgroundImage' and obj:IsA('ImageLabel') then
+                        inner = obj break
+                    end
+                end
+            end
+            if inner then break end
+        end
+    end
+    if not inner then return end
 
+    imageId = imageId or ''
+    if imageId == '' then
+        inner.Visible = false
+        inner.Image = ''
+    else
+        if not imageId:find('rbxassetid://') and not imageId:find('rbxasset://') and not imageId:find('http') then
+            imageId = 'rbxassetid://' .. imageId:gsub('%D', '')
+        end
+        inner.Image = imageId
+        inner.Visible = true
+        if type(transparency) == 'number' then
+            inner.ImageTransparency = math.clamp(transparency, 0, 1)
+        end
+    end
+end
+
+function Library:SetWindowBackgroundTransparency(transparency)
+    local bg = nil
+    if Library.MainFrame then
+        bg = Library.MainFrame:FindFirstChild('BackgroundImage')
+    end
+    if not bg then
+        for _, sg in ipairs(CoreGui:GetChildren()) do
+            if sg:IsA('ScreenGui') then
+                for _, obj in ipairs(sg:GetDescendants()) do
+                    if obj.Name == 'BackgroundImage' and obj:IsA('ImageLabel') then
+                        bg = obj break
+                    end
+                end
+            end
+            if bg then break end
+        end
+    end
+    if bg then
+        bg.ImageTransparency = math.clamp(transparency or 0, 0, 1)
+    end
+end
+
+function Library:SetWindowOverlay(transparency)
+    local ov = nil
+    if Library.MainFrame then
+        ov = Library.MainFrame:FindFirstChild('BackgroundOverlay')
+    end
+    if not ov then
+        for _, sg in ipairs(CoreGui:GetChildren()) do
+            if sg:IsA('ScreenGui') then
+                for _, obj in ipairs(sg:GetDescendants()) do
+                    if obj.Name == 'BackgroundOverlay' and obj:IsA('Frame') then
+                        ov = obj break
+                    end
+                end
+            end
+            if ov then break end
+        end
+    end
+    if ov then
+        ov.BackgroundTransparency = math.clamp(transparency or 1, 0, 1)
+    end
+end
+
+function Library:SetWindowOverlayColor(color)
+    local ov = nil
+    if Library.MainFrame then
+        ov = Library.MainFrame:FindFirstChild('BackgroundOverlay')
+    end
+    if not ov then
+        for _, sg in ipairs(CoreGui:GetChildren()) do
+            if sg:IsA('ScreenGui') then
+                for _, obj in ipairs(sg:GetDescendants()) do
+                    if obj.Name == 'BackgroundOverlay' and obj:IsA('Frame') then
+                        ov = obj break
+                    end
+                end
+            end
+            if ov then break end
+        end
+    end
+    if ov then
+        ov.BackgroundColor3 = color or Color3.new(0,0,0)
+    end
+end
 function Clear3DObjects()
     if Current3DPart then Current3DPart:Destroy() end
     if Current3DSurface then Current3DSurface:Destroy() end
