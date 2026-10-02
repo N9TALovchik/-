@@ -3849,52 +3849,81 @@ function Library:SetWatermark(Text)
     Library:SetWatermarkVisibility(true)
     Library.WatermarkText.Text = Text;
 end;
--- [FIX] глобальный фон окна (доступен через Library:SetWindowBackground)
-function Library:SetWindowBackground(imageId, transparency)
-    local inner = Library.MainFrame
-    if inner then
-        inner = inner:FindFirstChild('BackgroundImage')
-    end
-    -- ищем по всем ScreenGui если напрямую не нашли
-    if not inner and Library.ScreenGui then
-        for _, gui in ipairs(Library.ScreenGui:GetDescendants()) do
-            if gui.Name == 'BackgroundImage' then inner = gui break end
-        end
-    end
-    if not inner then
-        for _, sg in ipairs(CoreGui:GetChildren()) do
-            if sg:IsA('ScreenGui') then
-                for _, obj in ipairs(sg:GetDescendants()) do
-                    if obj.Name == 'BackgroundImage' and obj:IsA('ImageLabel') then
-                        inner = obj break
-                    end
-                end
-            end
-            if inner then break end
-        end
-    end
-    if not inner then return end
+-- [FIX] делает content-фреймы полупрозрачными чтобы фон был виден
+function Library:SetContentOpacity(opacity)
+    opacity = math.clamp(opacity or 0, 0, 1)
+    Library._contentOpacity = opacity
+    local win = Library.MainFrame
+    if not win then return end
 
-    imageId = imageId or ''
-    if imageId == '' then
-        inner.Visible = false
-        inner.Image = ''
-    else
-        if not imageId:find('rbxassetid://') and not imageId:find('rbxasset://') and not imageId:find('http') then
-            imageId = 'rbxassetid://' .. imageId:gsub('%D', '')
-        end
-        inner.Image = imageId
-        inner.Visible = true
-        if type(transparency) == 'number' then
-            inner.ImageTransparency = math.clamp(transparency, 0, 1)
+    local targets = {
+        MainSectionOuter = true,
+        MainSectionInner = true,
+        TabContainer = true,
+        TabFrame = true,
+        BoxOuter = true,
+        BoxInner = true,
+    }
+    for _, obj in ipairs(win:GetDescendants()) do
+        if obj:IsA('Frame') and targets[obj.Name] then
+            obj.BackgroundTransparency = opacity
         end
     end
 end
 
-function Library:SetWindowBackgroundTransparency(transparency)
+function Library:SetUIOverlayOpacity(opacity)
+    Library:SetContentOpacity(opacity)
+end
+
+-- [FIX] глобальный фон окна
+function Library:SetWindowBackground(imageId, transparency)
+    local win = Library.MainFrame
     local bg = nil
-    if Library.MainFrame then
-        bg = Library.MainFrame:FindFirstChild('BackgroundImage')
+    if win then
+        bg = win:FindFirstChild('BackgroundImage', true)
+    end
+    if not bg and Library.ScreenGui then
+        for _, gui in ipairs(Library.ScreenGui:GetDescendants()) do
+            if gui.Name == 'BackgroundImage' and gui:IsA('ImageLabel') then bg = gui break end
+        end
+    end
+    if not bg then
+        for _, sg in ipairs(CoreGui:GetChildren()) do
+            if sg:IsA('ScreenGui') then
+                for _, obj in ipairs(sg:GetDescendants()) do
+                    if obj.Name == 'BackgroundImage' and obj:IsA('ImageLabel') then
+                        bg = obj break
+                    end
+                end
+            end
+            if bg then break end
+        end
+    end
+    if not bg then return end
+
+    imageId = imageId or ''
+    if imageId == '' then
+        bg.Visible = false
+        bg.Image = ''
+        Library:SetContentOpacity(0)
+    else
+        if not imageId:find('rbxassetid://') and not imageId:find('rbxasset://') and not imageId:find('http') then
+            imageId = 'rbxassetid://' .. imageId:gsub('%D', '')
+        end
+        bg.Image = imageId
+        bg.Visible = true
+        if type(transparency) == 'number' then
+            bg.ImageTransparency = math.clamp(transparency, 0, 1)
+        end
+        Library:SetContentOpacity(Library._contentOpacity or 0.6)
+    end
+end
+
+function Library:SetWindowBackgroundTransparency(transparency)
+    local win = Library.MainFrame
+    local bg = nil
+    if win then
+        bg = win:FindFirstChild('BackgroundImage', true)
     end
     if not bg then
         for _, sg in ipairs(CoreGui:GetChildren()) do
@@ -3914,9 +3943,10 @@ function Library:SetWindowBackgroundTransparency(transparency)
 end
 
 function Library:SetWindowOverlay(transparency)
+    local win = Library.MainFrame
     local ov = nil
-    if Library.MainFrame then
-        ov = Library.MainFrame:FindFirstChild('BackgroundOverlay')
+    if win then
+        ov = win:FindFirstChild('BackgroundOverlay', true)
     end
     if not ov then
         for _, sg in ipairs(CoreGui:GetChildren()) do
@@ -3936,9 +3966,10 @@ function Library:SetWindowOverlay(transparency)
 end
 
 function Library:SetWindowOverlayColor(color)
+    local win = Library.MainFrame
     local ov = nil
-    if Library.MainFrame then
-        ov = Library.MainFrame:FindFirstChild('BackgroundOverlay')
+    if win then
+        ov = win:FindFirstChild('BackgroundOverlay', true)
     end
     if not ov then
         for _, sg in ipairs(CoreGui:GetChildren()) do
@@ -3954,20 +3985,6 @@ function Library:SetWindowOverlayColor(color)
     end
     if ov then
         ov.BackgroundColor3 = color or Color3.new(0,0,0)
-    end
-end
-function Clear3DObjects()
-    if Current3DPart then Current3DPart:Destroy() end
-    if Current3DSurface then Current3DSurface:Destroy() end
-    Current3DPart = nil
-    Current3DSurface = nil
-
-    if Library.MainFrame and Library.MainFrame.Parent then
-        pcall(function()
-            if Library.MainFrame.Parent ~= ScreenGui then
-                Library.MainFrame.Parent = ScreenGui
-            end
-        end)
     end
 end
 
@@ -4071,7 +4088,7 @@ function Library:CreateWindow(...)
         ImageTransparency = Config.BackgroundImageTransparency or 0.5;
         ImageColor3 = Config.BackgroundImageColor;
         ScaleType = Enum.ScaleType.Crop;
-        ZIndex = 0;
+        ZIndex = 1;
         Visible = (Config.BackgroundImage and Config.BackgroundImage ~= '') or false;
         Parent = Inner;
     });
@@ -4089,7 +4106,7 @@ function Library:CreateWindow(...)
         BackgroundTransparency = 1; -- по умолчанию выключен
         BorderSizePixel = 0;
         Size = UDim2.new(1, 0, 1, 0);
-        ZIndex = 0;
+        ZIndex = 2;
         Parent = Inner;
     })
     local BgOverlayCorner = Library:Create('UICorner', {
