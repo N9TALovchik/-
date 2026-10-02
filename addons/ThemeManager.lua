@@ -21,11 +21,11 @@ local ThemeManager = {} do
 	}
 
 	-- ─── CLICK EFFECT (GUI-based) ───
-	local CLICK_EFFECT_MAX_SIZE = 40       -- в пикселях (диаметр)
+	local CLICK_EFFECT_MAX_SIZE = 40
 	local CLICK_EFFECT_GROW_TIME = 0.4
 	local CLICK_EFFECT_FADE_TIME = 0.2
 	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.4
-	local CLICK_EFFECT_THICKNESS = 1        -- толщина кольца в пикселях
+	local CLICK_EFFECT_THICKNESS = 1
 	local DEBOUNCE_TIME = 0.05
 
 	local clickEffectEnabled = true
@@ -46,6 +46,11 @@ local ThemeManager = {} do
 	-- ─── SOUND HISTORY ───
 	local soundHistory = {}
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
+
+	-- [FIX] безопасный OnChanged (Options/Toggles могут быть nil если элемент не создан)
+	local function safeOnChanged(ctrl, cb)
+		if ctrl and ctrl.OnChanged then ctrl:OnChanged(cb) end
+	end
 
 	local function loadSoundHistory()
 		if isfile(historyFile) then
@@ -105,7 +110,6 @@ local ThemeManager = {} do
 		return display:match("%((%d+)%)$")
 	end
 
-	-- [FIX] правильный normalize звука + Loaded для TimeLength + Looped
 	local function playSoundInternal(soundId, volume, onEnd, onError, looped)
 		if not soundId or soundId == "" then
 			if onError then onError("No Sound ID") end
@@ -119,10 +123,9 @@ local ThemeManager = {} do
 		local sound = Instance.new('Sound')
 		sound.SoundId = id
 		sound.Volume = volume or 0.3
-		sound.Looped = looped and true or false  -- [FIX] нативный loop
+		sound.Looped = looped and true or false
 		sound.Parent = Workspace
 
-		-- [FIX] ждём Loaded перед play, чтобы TimeLength был валидным
 		if not sound.IsLoaded then
 			local timeout = tick() + 5
 			while not sound.IsLoaded and tick() < timeout and sound.Parent do
@@ -139,7 +142,6 @@ local ThemeManager = {} do
 			return nil
 		end
 
-		-- определяем имя звука через SoundService
 		local soundName = "Unknown"
 		pcall(function()
 			local info = SoundService:GetSoundInfo(id)
@@ -200,7 +202,8 @@ local ThemeManager = {} do
 		local volume = Options.RadioVolume and Options.RadioVolume.Value or 0.3
 		radioSoundId = id
 		radioVolume = volume
-		radioLooped = Options.RadioLooped and Options.RadioLooped.Value or false
+		-- [FIX] RadioLooped лежит в Toggles
+		radioLooped = Toggles.RadioLooped and Toggles.RadioLooped.Value or false
 
 		local function onEnd()
 			radioPlaying = false
@@ -248,7 +251,6 @@ local ThemeManager = {} do
 		gui.ResetOnSpawn = false
 		gui.DisplayOrder = 2147483647
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-		-- защищаем от чужого CoreGui
 		if gethui then
 			gui.Parent = gethui()
 		elseif syn and syn.protect_gui then
@@ -288,7 +290,6 @@ local ThemeManager = {} do
 		end)
 	end
 
-	-- [FIX] клик-эффект целиком на GUI (Frame + UICorner + Stroke)
 	function ThemeManager:CreateClickEffect(x, y)
 		if not ThemeManager.Library then return end
 
@@ -307,18 +308,16 @@ local ThemeManager = {} do
 		holder.ZIndex = 2147483647
 		holder.Parent = gui
 
-		-- заливка (опционально, для эффекта пульса)
 		local fill = Instance.new('Frame')
 		fill.Name = 'Fill'
 		fill.BackgroundColor3 = color
-		fill.BackgroundTransparency = 1  -- старт: невидима
+		fill.BackgroundTransparency = 0.85
 		fill.BorderSizePixel = 0
 		fill.Size = UDim2.fromScale(1, 1)
 		fill.ZIndex = holder.ZIndex
 		fill.Parent = holder
 		Instance.new('UICorner', { CornerRadius = UDim.new(1, 0), Parent = fill })
 
-		-- кольцо (обводка)
 		local stroke = Instance.new('UIStroke')
 		stroke.Color = color
 		stroke.Thickness = CLICK_EFFECT_THICKNESS
@@ -327,31 +326,24 @@ local ThemeManager = {} do
 		stroke.LineJoinMode = Enum.LineJoinMode.Round
 		stroke.Parent = holder
 
-		-- размер от 0 до MAX
-		local growTween = TweenService:Create(
+		TweenService:Create(
 			holder,
 			TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ Size = UDim2.fromOffset(CLICK_EFFECT_MAX_SIZE, CLICK_EFFECT_MAX_SIZE) }
-		)
-		growTween:Play()
+		):Play()
 
-		-- fade (stroke transparency)
-		local fadeStroke = TweenService:Create(
+		TweenService:Create(
 			stroke,
 			TweenInfo.new(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ Transparency = 1 }
-		)
-		fadeStroke:Play()
+		):Play()
 
-		-- лёгкая вспышка заливки в начале (потом fade out)
-		fill.BackgroundTransparency = 0.85
 		TweenService:Create(
 			fill,
 			TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ BackgroundTransparency = 1 }
 		):Play()
 
-		-- cleanup
 		task.delay(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME + 0.05, function()
 			if holder and holder.Parent then
 				holder:Destroy()
@@ -461,7 +453,7 @@ local ThemeManager = {} do
 			Rounding = 2,
 			Suffix = ''
 		})
-		Options.UICornerRadius:OnChanged(function()
+		safeOnChanged(Options.UICornerRadius, function()
 			ThemeManager.Library.UICornerRadius = Options.UICornerRadius.Value
 			ThemeManager.Library:SetUICornerRadius(ThemeManager.Library.UICornerRadius)
 		end)
@@ -475,7 +467,7 @@ local ThemeManager = {} do
 			Placeholder = 'Enter asset ID',
 			Finished = true
 		})
-		Options.CursorImageId:OnChanged(function()
+		safeOnChanged(Options.CursorImageId, function()
 			local id = Options.CursorImageId.Value
 			if id and id ~= "" then
 				ThemeManager.Library:SetCursorImageId(id)
@@ -490,7 +482,7 @@ local ThemeManager = {} do
 			Placeholder = 'Enter asset ID',
 			Finished = true
 		})
-		Options.NotifySoundId:OnChanged(function()
+		safeOnChanged(Options.NotifySoundId, function()
 			local id = Options.NotifySoundId.Value
 			if id and id ~= "" then
 				ThemeManager.Library:SetNotifySoundId(id)
@@ -514,20 +506,20 @@ local ThemeManager = {} do
 			Rounding = 2,
 			Suffix = ''
 		})
-		Options.RadioVolume:OnChanged(function()
+		safeOnChanged(Options.RadioVolume, function()
 			if radioSound and radioPlaying then
 				radioSound.Volume = Options.RadioVolume.Value
 			end
 		end)
 
+		-- [FIX] AddToggle пишет в Toggles, не в Options
 		groupbox:AddToggle('RadioLooped', {
 			Text = 'Looped',
 			Default = false,
 			Tooltip = 'Зациклить воспроизведение звука'
 		})
-		Options.RadioLooped:OnChanged(function()
-			-- [FIX] меняем loop на лету если играет
-			radioLooped = Options.RadioLooped.Value
+		safeOnChanged(Toggles.RadioLooped, function()
+			radioLooped = Toggles.RadioLooped.Value
 			if radioSound and radioPlaying then
 				radioSound.Looped = radioLooped
 			end
@@ -556,7 +548,7 @@ local ThemeManager = {} do
 		})
 		Options.SoundHistoryDropdown = historyDropdown
 
-		historyDropdown:OnChanged(function(value)
+		safeOnChanged(historyDropdown, function(value)
 			if not value or value == "No history" then return end
 			local id = getSoundIdFromDisplay(value)
 			if id and Options.RadioSoundId then
@@ -575,7 +567,7 @@ local ThemeManager = {} do
 			ThemeManager:SaveDefault(Options.ThemeManager_ThemeList.Value)
 			ThemeManager.Library:Notify(string.format('Set default theme to %q', Options.ThemeManager_ThemeList.Value))
 		end)
-		Options.ThemeManager_ThemeList:OnChanged(function()
+		safeOnChanged(Options.ThemeManager_ThemeList, function()
 			ThemeManager:ApplyTheme(Options.ThemeManager_ThemeList.Value)
 		end)
 
@@ -608,12 +600,12 @@ local ThemeManager = {} do
 		local function UpdateTheme()
 			ThemeManager:ThemeUpdate()
 		end
-		Options.BackgroundColor:OnChanged(UpdateTheme)
-		Options.MainColor:OnChanged(UpdateTheme)
-		Options.AccentColor:OnChanged(UpdateTheme)
-		Options.OutlineColor:OnChanged(UpdateTheme)
-		Options.FontColor:OnChanged(UpdateTheme)
-		Options.ClickEffectColor:OnChanged(UpdateTheme)
+		safeOnChanged(Options.BackgroundColor, UpdateTheme)
+		safeOnChanged(Options.MainColor, UpdateTheme)
+		safeOnChanged(Options.AccentColor, UpdateTheme)
+		safeOnChanged(Options.OutlineColor, UpdateTheme)
+		safeOnChanged(Options.FontColor, UpdateTheme)
+		safeOnChanged(Options.ClickEffectColor, UpdateTheme)
 	end
 
 	function ThemeManager:GetCustomTheme(file)
