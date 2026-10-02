@@ -53,7 +53,6 @@ local Library = {
     RemoveLines = true;
 };
 
--- FIX: рабочая регистрация + реалтайм изменение радиуса
 function Library:RegisterCorner(corner, kind)
     if not corner or not kind then return corner end
     Library.CornerRefs[kind] = Library.CornerRefs[kind] or {}
@@ -71,7 +70,6 @@ function Library:SetCornerRadius(kind, radius)
         end
     end
 end
--- FIX: теперь действительно работает — берёт базу из CornerBase и множит на UICornerRadius
 function Library:SetUICornerRadius(r)
     Library.UICornerRadius = r
     for corner, base in next, Library.CornerBase do
@@ -81,6 +79,7 @@ function Library:SetUICornerRadius(r)
     end
 end
 getgenv().SetUICornerRadius = function(r) return Library:SetUICornerRadius(r) end
+getgenv().SetCornerRadius = function(kind, r) return Library:SetCornerRadius(kind, r) end
 
 local RainbowStep, Hue = 0, 0
 table.insert(Library.Signals, RenderStepped:Connect(function(d) RainbowClock = RainbowClock + d end))
@@ -1561,6 +1560,7 @@ function Library:CreateWindow(...)
             Blk.BackgroundTransparency = 0
             TB.BackgroundColor3 = Library.BackgroundColor
             TB.BackgroundTransparency = 0
+            TF.Visible = true
         end
         function Tb:HideTab()
             Blk.BackgroundTransparency = 1
@@ -1677,7 +1677,6 @@ function Library:CreateWindow(...)
     end))
     if Config.AutoShow then task.spawn(Library.Toggle) end
 
-    -- FIX: resize handles полностью невидимы, без подсветки по ховеру
     if Config.Resizable then
         local th, cs = 8, 16
         local handles = {}
