@@ -50,6 +50,8 @@ local Library = {
     };
     CornerRefs = {};
     CornerBase = {};
+    WindowCornerRefs = {};
+    OutlineStrokes = {};
     RemoveLines = true;
 };
 
@@ -58,6 +60,12 @@ function Library:RegisterCorner(corner, kind)
     Library.CornerRefs[kind] = Library.CornerRefs[kind] or {}
     table.insert(Library.CornerRefs[kind], corner)
     Library.CornerBase[corner] = Library.UICorner[kind] or 0
+    return corner
+end
+function Library:RegisterWindowCorner(corner)
+    if not corner then return corner end
+    table.insert(Library.WindowCornerRefs, corner)
+    Library.CornerBase[corner] = corner.CornerRadius.Offset
     return corner
 end
 function Library:SetCornerRadius(kind, radius)
@@ -70,7 +78,14 @@ function Library:SetCornerRadius(kind, radius)
         end
     end
 end
-function Library:SetUICornerRadius(r)
+function Library:SetWindowCorner(r)
+    for _, c in next, Library.WindowCornerRefs do
+        if c and c.Parent then
+            c.CornerRadius = UDim.new(0, r)
+        end
+    end
+end
+function Library:SetGlobalCornerRadius(r)
     Library.UICornerRadius = r
     for corner, base in next, Library.CornerBase do
         if corner and corner.Parent then
@@ -78,8 +93,33 @@ function Library:SetUICornerRadius(r)
         end
     end
 end
-getgenv().SetUICornerRadius = function(r) return Library:SetUICornerRadius(r) end
+function Library:CreateStroke(Props)
+    local p = {}
+    for k, v in next, Props do p[k] = v end
+    p.Color = p.Color or Library.OutlineColor
+    p.Thickness = p.Thickness or 1
+    p.ApplyStrokeMode = p.ApplyStrokeMode or Enum.ApplyStrokeMode.Border
+    local s = Library:Create('UIStroke', p)
+    table.insert(Library.OutlineStrokes, s)
+    return s
+end
+function Library:SetOutlineColor(c)
+    Library.OutlineColor = c
+    for _, s in next, Library.OutlineStrokes do
+        if s and s.Parent then s.Color = c end
+    end
+end
+function Library:SetAccentColor(c)
+    Library.AccentColor = c
+    Library.AccentColorDark = Library:GetDarkerColor(c)
+    Library:UpdateColorsUsingRegistry()
+end
+getgenv().SetUICornerRadius = function(r) return Library:SetGlobalCornerRadius(r) end
+getgenv().SetGlobalCornerRadius = function(r) return Library:SetGlobalCornerRadius(r) end
+getgenv().SetWindowCorner = function(r) return Library:SetWindowCorner(r) end
 getgenv().SetCornerRadius = function(kind, r) return Library:SetCornerRadius(kind, r) end
+getgenv().SetOutlineColor = function(c) return Library:SetOutlineColor(c) end
+getgenv().SetAccentColor = function(c) return Library:SetAccentColor(c) end
 
 local RainbowStep, Hue = 0, 0
 table.insert(Library.Signals, RenderStepped:Connect(function(d) RainbowClock = RainbowClock + d end))
@@ -251,10 +291,11 @@ do
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = Display }), 'Button')
         Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(0,27,0,13); ZIndex = 5; Image = 'http://www.roblox.com/asset/?id=12977615774'; Visible = not not Info.Transparency; Parent = Display })
         local PFO = Library:Create('Frame', { Name = 'Color'; BackgroundColor3 = Color3.new(1,1,1); BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18); Size = UDim2.fromOffset(230, PH(CP.Mode)); Visible = false; ZIndex = 15; Parent = getScreenGui(ToggleLabel) })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFO }), 'Groupbox')
         Display:GetPropertyChangedSignal('AbsolutePosition'):Connect(function() PFO.Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18) end)
         local PFI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(1,0,1,0); ZIndex = 16; Parent = PFO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFI }), 'Groupbox')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = PFI })
+        Library:CreateStroke({ Parent = PFI })
         local Highlight = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Size = UDim2.new(1,0,0,2); ZIndex = 17; Parent = PFI; BackgroundTransparency = Library.RemoveLines and 1 or 0 })
         Library:CreateLabel({ Size = UDim2.new(1,0,0,14); Position = UDim2.fromOffset(5,5); TextXAlignment = Enum.TextXAlignment.Left; TextSize = 14; Text = CP.Title; TextWrapped = false; ZIndex = 16; Parent = PFI })
         local ModeBtn = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Position = UDim2.fromOffset(4,25); Size = UDim2.new(1,-8,0,18); ZIndex = 30; Active = true; Parent = PFI })
@@ -264,7 +305,7 @@ do
         Library:CreateLabel({ Size = UDim2.new(0,20,1,0); Position = UDim2.new(1,-22,0,0); Text = 'v'; TextSize = 12; ZIndex = 31; Parent = ModeBtn })
         local ModeList = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Position = UDim2.fromOffset(4,45); Size = UDim2.new(1,-8,0,0); Visible = false; ZIndex = 32; Parent = PFI })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = ModeList }), 'DropdownList')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = ModeList })
+        Library:CreateStroke({ Parent = ModeList })
         Library:AddToRegistry(ModeList, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor' })
         Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = ModeList })
         local CY = 68
@@ -427,7 +468,7 @@ do
             CM.Container = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; ZIndex = 14; Visible = false; Parent = getScreenGui(ToggleLabel) })
             CM.Inner = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Size = UDim2.fromScale(1,1); ZIndex = 15; Parent = CM.Container })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = CM.Inner }), 'DropdownList')
-            Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = CM.Inner })
+            Library:CreateStroke({ Parent = CM.Inner })
             Library:Create('UIListLayout', { Name = 'Layout'; FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = CM.Inner })
             Library:Create('UIPadding', { Name = 'Padding'; PaddingLeft = UDim.new(0, 4); Parent = CM.Inner })
             local function uMP() CM.Container.Position = UDim2.fromOffset(Display.AbsolutePosition.X + Display.AbsoluteSize.X + 4, Display.AbsolutePosition.Y + 1) end
@@ -587,14 +628,14 @@ do
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.KeyPicker); Parent = PO }), 'KeyPicker')
         local PI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,1,0); ZIndex = 7; ClipsDescendants = true; Parent = PO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.KeyPicker); Parent = PI }), 'KeyPicker')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = PI })
+        Library:CreateStroke({ Parent = PI })
         Library:AddToRegistry(PI, { BackgroundColor3 = 'BackgroundColor' })
         local DL = Library:CreateLabel({ Size = UDim2.new(1,0,1,0); TextSize = 13; Text = Info.Default; TextWrapped = false; TextTruncate = Enum.TextTruncate.AtEnd; ZIndex = 8; Parent = PI })
         local MSO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(ToggleLabel.AbsolutePosition.X + ToggleLabel.AbsoluteSize.X + 4, ToggleLabel.AbsolutePosition.Y + 1); Size = UDim2.new(0,60,0,32); Visible = false; ZIndex = 14; Parent = getScreenGui(ToggleLabel) })
         ToggleLabel:GetPropertyChangedSignal('AbsolutePosition'):Connect(function() MSO.Position = UDim2.fromOffset(ToggleLabel.AbsolutePosition.X + ToggleLabel.AbsoluteSize.X + 4, ToggleLabel.AbsolutePosition.Y + 1) end)
         local MSI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,1,0); ZIndex = 15; Parent = MSO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = MSI }), 'DropdownList')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = MSI })
+        Library:CreateStroke({ Parent = MSI })
         Library:AddToRegistry(MSI, { BackgroundColor3 = 'BackgroundColor' })
         Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = MSI })
         local CL = Library:Create('TextLabel', { BackgroundTransparency = 1; Font = Library.Font; TextColor3 = Library.FontColor; TextSize = 13; TextStrokeTransparency = 0; RichText = false; TextXAlignment = Enum.TextXAlignment.Left; Size = UDim2.new(1,0,0,18); Visible = false; ZIndex = 200; Parent = Library.KeybindContainer })
@@ -716,7 +757,7 @@ do
         if type(DoesWrap) == 'table' then
             local o = DoesWrap; DoesWrap, SI, EI, SIC, EIC, SIO, EIO = o.Wrap, o.StartImage, o.EndImage, o.StartImageColor, o.EndImageColor, o.StartImageOffset, o.EndImageOffset
         end
-        local TL = Library:CreateLabel({ Size = UDim2.new(1,-4,0,15); TextSize = 14; Text = Text; TextWrapped = DoesWrap or false; TextXAlignment = Enum.TextXAlignment.Left; StartImage = SI; EndImage = EI; StartImageColor = SIC; EndImageColor = EIC; StartImageOffset = SIO; EndImageOffset = EIO; ZIndex = 5; Parent = Container })
+        local TL = Library:CreateLabel({ Size = UDim2.new(1,-4,0,15); TextSize = 14; Text = Text; TextWrapped = DoesWrap or false; TextXAlignment = Enum.TextXAlignment.Left; StartImage = SI; EndImage = EI; StartImageColor = SIC; EndImageColor = EIC; StartImageOffset = SIO; EndImageOffset = EIO; ZIndex = 7; Parent = Container })
         if DoesWrap then
             local Y = select(2, Library:GetTextBounds(Text, Library.Font, 14, Vector2.new(TL.AbsoluteSize.X, math.huge)))
             TL.Size = UDim2.new(1,-4,0,Y)
@@ -762,7 +803,7 @@ do
             local Outer = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-4,0,20); ZIndex = 5; Active = true })
             local Inner = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 6; ClipsDescendants = true; Parent = Outer })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = Inner }), 'Button')
-            Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = Inner })
+            Library:CreateStroke({ Parent = Inner })
             Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = Inner })
             local Ripple = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BackgroundTransparency = 1; BorderSizePixel = 0; AnchorPoint = Vector2.new(0.5,0.5); Position = UDim2.new(0.5,0,0.5,0); Size = UDim2.new(0,0,0,0); ZIndex = 7; Parent = Inner })
             Library:Create('UICorner', { CornerRadius = UDim.new(1,0); Parent = Ripple })
@@ -839,7 +880,7 @@ do
     function Funcs:AddDivider()
         local Groupbox = self; local Container = self.Container
         Groupbox:AddBlank(2)
-        local DO = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-4,0,1); ZIndex = 5; Parent = Container })
+        local DO = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-4,0,1); ZIndex = 7; Parent = Container })
         Groupbox:AddBlank(9); Groupbox:Resize()
     end
 
@@ -847,12 +888,12 @@ do
         assert(Info.Text, 'AddInput: Missing `Text` string.')
         local TB = { Value = Info.Default or ''; Numeric = Info.Numeric or false; Finished = Info.Finished or false; Type = 'Input'; Callback = Info.Callback or function() end }
         local Groupbox = self; local Container = Groupbox.Container
-        Library:CreateLabel({ Size = UDim2.new(1,0,0,15); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 5; Parent = Container })
+        Library:CreateLabel({ Size = UDim2.new(1,0,0,15); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 7; Parent = Container })
         Groupbox:AddBlank(1)
         local TBO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-4,0,20); ZIndex = 5; Parent = Container })
         local TBI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 6; ClipsDescendants = true; Parent = TBO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = TBI }), 'Button')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = TBI })
+        Library:CreateStroke({ Parent = TBI })
         Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = TBI })
         Library:AddToRegistry(TBI, { BackgroundColor3 = 'MainColor' })
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TBO) end
@@ -896,15 +937,15 @@ do
         assert(Info.Text, 'AddInput: Missing `Text` string.')
         local Toggle = { Value = Info.Default or false; Type = 'Toggle'; Callback = Info.Callback or function() end; Addons = {}; Risky = Info.Risky }
         local Groupbox = self; local Container = Groupbox.Container
-        local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,13,0,13); ZIndex = 5; Active = true; Parent = Container })
+        local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,13,0,13); ZIndex = 7; Active = true; Parent = Container })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TO }), 'Toggle')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = TO })
-        local TI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 6; Parent = TO })
+        Library:CreateStroke({ Parent = TO })
+        local TI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 8; Parent = TO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TI }), 'Toggle')
         Library:AddToRegistry(TI, { BackgroundColor3 = 'MainColor' })
-        local TL = Library:CreateLabel({ Size = UDim2.new(0,216,1,0); Position = UDim2.new(1,6,0,0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 6; Parent = TI })
+        local TL = Library:CreateLabel({ Size = UDim2.new(0,216,1,0); Position = UDim2.new(1,6,0,0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TI })
         Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
-        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,170,1,0); ZIndex = 8; Active = true; Parent = TO })
+        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,170,1,0); ZIndex = 10; Active = true; Parent = TO })
         Library:OnHighlight(TR, TO, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
         function Toggle:UpdateColors() Toggle:Display() end
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
@@ -949,12 +990,12 @@ do
         local Slider = { Value = Info.Default; Min = Info.Min; Max = Info.Max; Rounding = Info.Rounding; Type = 'Slider'; Text = Info.Text; Callback = Info.Callback or function() end }
         local Groupbox = self; local Container = Groupbox.Container
         if not Info.Compact then
-            Library:CreateLabel({ Size = UDim2.new(1,0,0,10); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 5; Parent = Container })
+            Library:CreateLabel({ Size = UDim2.new(1,0,0,14); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 7; Parent = Container })
             Groupbox:AddBlank(3)
         end
         local SO = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-4,0,13); ZIndex = 5; Active = true; ClipsDescendants = true; Parent = Container })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Slider); Parent = SO }), 'Slider')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = SO })
+        Library:CreateStroke({ Parent = SO })
         Library:AddToRegistry(SO, { BackgroundColor3 = 'MainColor' })
         local SI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 6; Active = true; ClipsDescendants = true; Parent = SO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Slider); Parent = SI }), 'Slider')
@@ -1025,13 +1066,13 @@ do
         local D = { Values = Info.Values; Value = Info.Multi and {}; Multi = Info.Multi; Type = 'Dropdown'; Text = Info.Text or ''; SpecialType = Info.SpecialType; Callback = Info.Callback or function() end }
         local Groupbox = self; local Container = Groupbox.Container
         if not Info.Compact then
-            Library:CreateLabel({ Size = UDim2.new(1,0,0,10); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 5; Parent = Container })
+            Library:CreateLabel({ Size = UDim2.new(1,0,0,14); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 7; Parent = Container })
             Groupbox:AddBlank(3)
         end
         local DO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-4,0,20); ZIndex = 5; Active = true; Parent = Container })
         local DI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 6; Parent = DO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Dropdown); Parent = DI }), 'Dropdown')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = DI })
+        Library:CreateStroke({ Parent = DI })
         Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = DI })
         Library:AddToRegistry(DI, { BackgroundColor3 = 'MainColor' })
         local DA = Library:Create('ImageLabel', { AnchorPoint = Vector2.new(0,0.5); BackgroundTransparency = 1; Position = UDim2.new(1,-16,0.5,0); Size = UDim2.new(0,12,0,12); Image = 'http://www.roblox.com/asset/?id=6282522798'; ZIndex = 8; Parent = DI })
@@ -1046,7 +1087,7 @@ do
         DO:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() RLS(math.clamp(#D.Values*20, 0, MDI*20)+1) end)
         local LI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 221; Parent = LO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = LI }), 'DropdownList')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = LI })
+        Library:CreateStroke({ Parent = LI })
         Library:AddToRegistry(LI, { BackgroundColor3 = 'MainColor' })
         local Sc = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; CanvasSize = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 221; Parent = LI; TopImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; BottomImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; ScrollBarThickness = 3; ScrollBarImageColor3 = Library.AccentColor })
         Library:AddToRegistry(Sc, { ScrollBarImageColor3 = 'AccentColor' })
@@ -1176,12 +1217,12 @@ do
         assert(Info.Text, 'AddKeybind: Missing `Text` string.')
         local K = { Value = Info.Default or 'None'; Type = 'Keybind'; Text = Info.Text; ChangedCallback = Info.ChangedCallback or function() end; Callback = Info.Callback or function() end }
         local Groupbox = self; local Container = Groupbox.Container
-        Library:CreateLabel({ Size = UDim2.new(1,0,0,10); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 5; Parent = Container })
+        Library:CreateLabel({ Size = UDim2.new(1,0,0,14); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 7; Parent = Container })
         Groupbox:AddBlank(3)
         local BO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-4,0,20); ZIndex = 5; Active = true; Parent = Container })
         local BI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 6; Active = true; ClipsDescendants = true; Parent = BO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Keybind); Parent = BI }), 'Keybind')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = BI })
+        Library:CreateStroke({ Parent = BI })
         Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = BI })
         Library:AddToRegistry(BI, { BackgroundColor3 = 'MainColor' })
         local L = Library:CreateLabel({ Position = UDim2.new(0,6,0,0); Size = UDim2.new(1,-12,1,0); TextSize = 14; Text = K.Value; TextXAlignment = Enum.TextXAlignment.Left; TextTruncate = Enum.TextTruncate.AtEnd; ZIndex = 8; Parent = BI })
@@ -1219,7 +1260,7 @@ do
     function Library:CreateMiniGroupbox(parent, title)
         local Outer = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,0,0); ZIndex = 210; Parent = parent })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = Outer }), 'Groupbox')
-        Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = Outer })
+        Library:CreateStroke({ Parent = Outer })
         local Inner = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); Position = UDim2.fromOffset(0,0); ZIndex = 211; Parent = Outer })
         if title then Library:CreateLabel({ Size = UDim2.new(1,0,0,18); Position = UDim2.fromOffset(4,2); TextSize = 14; Text = title; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 213; Parent = Inner }) end
         local Container = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0, title and 20 or 4); Size = UDim2.new(1,-4,1, title and -20 or -4); ZIndex = 211; Parent = Inner })
@@ -1342,7 +1383,7 @@ function BindSystem:Open(c)
     local pY = math.clamp(Mouse.Y + 5, 0, math.max(0, vY - wH))
     local O = Library:Create('Frame', { Name = 'BindWindow'; BackgroundColor3 = Library.BackgroundColor; BorderSizePixel = 0; Position = UDim2.fromOffset(pX, pY); Size = UDim2.fromOffset(wW, wH); ZIndex = 200; Parent = BindGui })
     Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = O }), 'Groupbox')
-    Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = O })
+    Library:CreateStroke({ Parent = O })
     local Sc = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.fromOffset(4,4); Size = UDim2.new(1,-8,1,-8); CanvasSize = UDim2.new(0,0,0,0); ScrollBarThickness = 3; ScrollBarImageColor3 = Library.AccentColor; TopImage = ''; BottomImage = ''; ZIndex = 202; Parent = O })
     Library:AddToRegistry(Sc, { ScrollBarImageColor3 = 'AccentColor' })
     local L = Library:Create('UIListLayout', { Padding = UDim.new(0,6); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = Sc })
@@ -1352,7 +1393,7 @@ function BindSystem:Open(c)
     local AB = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-4,0,20); LayoutOrder = 999999; ZIndex = 203; Active = true; Parent = Sc })
     local AI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 204; Parent = AB })
     Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = AI }), 'Button')
-    Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = AI })
+    Library:CreateStroke({ Parent = AI })
     Library:AddToRegistry(AI, { BackgroundColor3 = 'MainColor' })
     Library:CreateLabel({ Size = UDim2.new(1,0,1,0); Text = '+ Add keybind'; TextSize = 13; ZIndex = 205; Parent = AI })
     Library:OnHighlight(AI, AI, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
@@ -1393,7 +1434,7 @@ function Library:Notify(Text, Time)
     TweenService:Create(O, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = UDim2.new(0.5, -XS/2, 1, tY) }):Play()
     local I = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 101; Parent = O })
     Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = I }), 'Button')
-    Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = I })
+    Library:CreateStroke({ Parent = I })
     Library:AddToRegistry(I, { BackgroundColor3 = 'MainColor' }, true)
     local IF = Library:Create('Frame', { BackgroundColor3 = Color3.new(1,1,1); BorderSizePixel = 0; Position = UDim2.new(0,1,0,1); Size = UDim2.new(1,-2,1,-2); ZIndex = 102; ClipsDescendants = true; Parent = I })
     Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Button - 1, 0)); Parent = IF }), 'Button')
@@ -1444,7 +1485,7 @@ Library:MakeDraggable(Library.Watermark)
 local KO = Library:Create('Frame', { BackgroundTransparency = 1; AnchorPoint = Vector2.new(0,0.5); Position = UDim2.new(0,10,0.5,0); Size = UDim2.new(0,210,0,44); Visible = false; ZIndex = 100; Parent = OverlayGui })
 local KI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 101; Parent = KO })
 Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = KI }), 'Groupbox')
-Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = KI })
+Library:CreateStroke({ Parent = KI })
 Library:AddToRegistry(KI, { BackgroundColor3 = 'MainColor' }, true)
 local CF = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Size = UDim2.new(1,0,0,2); ZIndex = 102; Parent = KI })
 Library:AddToRegistry(CF, { BackgroundColor3 = 'AccentColor' }, true)
@@ -1504,11 +1545,13 @@ function Library:CreateWindow(...)
     local W = { Tabs = {} }
     local Outer = Library:Create('Frame', { AnchorPoint = Config.AnchorPoint; BackgroundTransparency = 1; BorderSizePixel = 0; Position = Config.Position; Size = Config.Size; Visible = false; ZIndex = 1; Parent = ScreenGui })
     Library.MainFrame = Outer
-    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Groupbox, Library.UICornerRadius * 10)); Parent = Outer }), 'Groupbox')
+    local OuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Groupbox, Library.UICornerRadius * 10)); Parent = Outer })
+    Library:RegisterWindowCorner(OuterCorner)
     Library:MakeDraggable(Outer, 25)
     local Inner = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 1; ClipsDescendants = true; Parent = Outer })
-    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Groupbox, Library.UICornerRadius * 10)); Parent = Inner }), 'Groupbox')
-    Library:Create('UIStroke', { Color = Library.AccentColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = Inner })
+    local InnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Groupbox, Library.UICornerRadius * 10)); Parent = Inner })
+    Library:RegisterWindowCorner(InnerCorner)
+    Library:CreateStroke({ Color = Library.AccentColor; Parent = Inner })
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor' })
 
     local tH = 25; local tS = Config.TitleTextSize or 16
@@ -1516,13 +1559,16 @@ function Library:CreateWindow(...)
 
     local MSO = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,8,0,25); Size = UDim2.new(1,-16,1,-33); ZIndex = 1; Parent = Inner })
     local MSI = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 1; ClipsDescendants = true; Parent = MSO })
-    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = MSI }), 'Groupbox')
+    local MSICorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = MSI })
+    Library:RegisterWindowCorner(MSICorner)
 
     local BI = Library:Create('ImageLabel', { Name = 'BackgroundImage'; BackgroundTransparency = 1; BorderSizePixel = 0; Size = UDim2.new(1,0,1,0); Position = UDim2.fromOffset(0,0); Image = Config.BackgroundImage or ''; ImageTransparency = Config.BackgroundImageTransparency or 0.5; ImageColor3 = Config.BackgroundImageColor; ScaleType = Enum.ScaleType.Crop; ZIndex = 1; Visible = (Config.BackgroundImage and Config.BackgroundImage ~= '') or false; Parent = MSI })
-    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = BI }), 'Groupbox')
+    local BICorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = BI })
+    Library:RegisterWindowCorner(BICorner)
     W.BackgroundImage = BI
     local BgO = Library:Create('Frame', { Name = 'BackgroundOverlay'; BackgroundColor3 = Color3.new(0,0,0); BackgroundTransparency = 1; BorderSizePixel = 0; Size = UDim2.new(1,0,1,0); ZIndex = 2; Parent = BI })
-    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = BgO }), 'Groupbox')
+    local BgOCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = BgO })
+    Library:RegisterWindowCorner(BgOCorner)
     W.BackgroundOverlay = BgO
 
     local TA = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0, 8 + Config.TabsOffset, 0, 8); Size = UDim2.new(1,-16,0,21); ZIndex = 100; Parent = MSI })
@@ -1530,6 +1576,10 @@ function Library:CreateWindow(...)
     local TC = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,8,0,30); Size = UDim2.new(1,-16,1,-38); ZIndex = 2; ClipsDescendants = true; Parent = MSI })
 
     function W:SetWindowTitle(t) WL.Text = t end
+    function W:SetWindowOpacity(t)
+        t = math.clamp(t or 0, 0, 1)
+        Inner.BackgroundTransparency = t
+    end
     function W:SetBackgroundImage(id, tr)
         local b = W.BackgroundImage; if not b then return end
         id = id or ''
@@ -1573,7 +1623,7 @@ function Library:CreateWindow(...)
             local GB = {}
             local BO = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; BackgroundTransparency = 0.15; Size = UDim2.new(1,0,0,507+2); ZIndex = 6; Parent = Info.Side == 1 and LS or RS })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = BO }), 'Groupbox')
-            Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = BO })
+            Library:CreateStroke({ Parent = BO })
             Library:AddToRegistry(BO, { BackgroundColor3 = 'BackgroundColor' })
             local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,2); Size = UDim2.new(1,-8,1,-4); ZIndex = 10; Parent = BO })
             Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = C })
@@ -1594,7 +1644,7 @@ function Library:CreateWindow(...)
             local Tbox = { Tabs = {} }
             local BO = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; BackgroundTransparency = 0.15; Size = UDim2.new(1,0,0,0); ZIndex = 6; Parent = Info.Side == 1 and LS or RS })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = BO }), 'Groupbox')
-            Library:Create('UIStroke', { Color = Library.OutlineColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = BO })
+            Library:CreateStroke({ Parent = BO })
             Library:AddToRegistry(BO, { BackgroundColor3 = 'BackgroundColor' })
             local TBs = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,0,18); ZIndex = 5; Parent = BO })
             Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Left; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TBs })
