@@ -20,7 +20,6 @@ local ThemeManager = {} do
 		['Neverlose'] 	= { 4, httpService:JSONDecode('{"MainColor":"080e21","AccentColor":"120d64","OutlineColor":"100c31","BackgroundColor":"0c0a1c","FontColor":"ffffff"}') },
 	}
 
-	-- ─── CLICK EFFECT ───
 	local CLICK_EFFECT_MAX_SIZE = 40
 	local CLICK_EFFECT_GROW_TIME = 0.4
 	local CLICK_EFFECT_FADE_TIME = 0.2
@@ -33,7 +32,6 @@ local ThemeManager = {} do
 	local lastClickTime = 0
 	local ClickEffectGui = nil
 
-	-- ─── RADIO ───
 	local radioSound = nil
 	local radioPlaying = false
 	local radioUpdateConnection = nil
@@ -43,15 +41,14 @@ local ThemeManager = {} do
 	local radioDuration = 0
 	local radioLooped = false
 
-	-- ─── BACKGROUND STATE ───
 	local bgState = {
 		imageId = '',
 		transparency = 0.5,
 		overlay = 0.5,
+		uiOpacity = 0.6,
 		overlayColor = Color3.new(0, 0, 0),
 	}
 
-	-- ─── SOUND HISTORY ───
 	local soundHistory = {}
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
 	local bgSettingsFile = ThemeManager.Folder .. '/settings/background.json'
@@ -85,6 +82,7 @@ local ThemeManager = {} do
 				bgState.imageId = data.imageId or ''
 				bgState.transparency = data.transparency or 0.5
 				bgState.overlay = data.overlay or 0.5
+				bgState.uiOpacity = data.uiOpacity or 0.6
 				if data.overlayColor then
 					local ok2, c = pcall(Color3.fromHex, data.overlayColor)
 					if ok2 then bgState.overlayColor = c end
@@ -99,6 +97,7 @@ local ThemeManager = {} do
 				imageId = bgState.imageId,
 				transparency = bgState.transparency,
 				overlay = bgState.overlay,
+				uiOpacity = bgState.uiOpacity,
 				overlayColor = bgState.overlayColor:ToHex(),
 			}))
 		end)
@@ -111,6 +110,9 @@ local ThemeManager = {} do
 		ThemeManager.Library:SetWindowBackground(bgState.imageId, bgState.transparency)
 		ThemeManager.Library:SetWindowOverlay(bgState.overlay)
 		ThemeManager.Library:SetWindowOverlayColor(bgState.overlayColor)
+		if ThemeManager.Library.SetUIOverlayOpacity then
+			ThemeManager.Library:SetUIOverlayOpacity(bgState.uiOpacity)
+		end
 	end
 
 	local function addToHistory(soundId, soundName)
@@ -284,7 +286,6 @@ local ThemeManager = {} do
 		end
 	end
 
-	-- ─── CLICK EFFECT ───
 	local function ensureClickEffectGui()
 		if ClickEffectGui and ClickEffectGui.Parent then return ClickEffectGui end
 		local gui = Instance.new('ScreenGui')
@@ -393,7 +394,6 @@ local ThemeManager = {} do
 		end)
 	end
 
-	-- ─── THEME ───
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = ThemeManager:GetCustomTheme(theme)
 		local data = customThemeData or ThemeManager.BuiltInThemes[theme]
@@ -477,9 +477,8 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:CreateThemeManager(groupbox)
-		-- ─── BACKGROUND IMAGE ───
+		-- BACKGROUND IMAGE
 		groupbox:AddLabel('Window Background')
-
 		groupbox:AddInput('WindowBgImage', {
 			Text = 'Image ID',
 			Default = bgState.imageId or '',
@@ -528,6 +527,18 @@ local ThemeManager = {} do
 			saveBgSettings()
 		end)
 
+		groupbox:AddSlider('WindowBgUIOpacity', {
+			Text = 'UI Opacity',
+			Min = 0, Max = 1, Default = bgState.uiOpacity or 0.6, Rounding = 2,
+			Suffix = '',
+			Tooltip = 'Насколько прозрачны панели поверх картинки'
+		})
+		safeOnChanged(Options.WindowBgUIOpacity, function()
+			bgState.uiOpacity = Options.WindowBgUIOpacity.Value
+			applyBg()
+			saveBgSettings()
+		end)
+
 		groupbox:AddLabel('Overlay Color'):AddColorPicker('WindowBgOverlayColor', {
 			Default = bgState.overlayColor or Color3.new(0,0,0)
 		})
@@ -549,7 +560,7 @@ local ThemeManager = {} do
 
 		groupbox:AddDivider()
 
-		-- ─── THEME COLORS ───
+		-- THEME COLORS
 		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = ThemeManager.Library.BackgroundColor })
 		groupbox:AddLabel('Main color'):AddColorPicker('MainColor', { Default = ThemeManager.Library.MainColor })
 		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = ThemeManager.Library.AccentColor })
@@ -720,7 +731,6 @@ local ThemeManager = {} do
 		safeOnChanged(Options.FontColor, UpdateTheme)
 		safeOnChanged(Options.ClickEffectColor, UpdateTheme)
 
-		-- применяем сохранённый фон после создания UI
 		task.defer(applyBg)
 	end
 
