@@ -6,7 +6,6 @@ local CoreGui = game:GetService('CoreGui')
 local Workspace = game:GetService('Workspace')
 local RunService = game:GetService('RunService')
 local SoundService = game:GetService('SoundService')
-local CollectionService = game:GetService('CollectionService')
 local Options = getgenv().Options
 local Toggles = getgenv().Toggles
 
@@ -54,18 +53,6 @@ local ThemeManager = {} do
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
 	local bgSettingsFile = ThemeManager.Folder .. '/settings/background.json'
 	local cornerSettingsFile = ThemeManager.Folder .. '/settings/corners.json'
-
-	-- [FIX] мапа kind → tag для обновления UICorner в реальном времени
-	local cornerTagMap = {
-		Button = 'UICornerKind_Button',
-		Toggle = 'UICornerKind_Toggle',
-		Slider = 'UICornerKind_Slider',
-		Dropdown = 'UICornerKind_Dropdown',
-		DropdownList = 'UICornerKind_DropdownList',
-		Groupbox = 'UICornerKind_Groupbox',
-		KeyPicker = 'UICornerKind_KeyPicker',
-		Keybind = 'UICornerKind_Keybind',
-	}
 
 	local function safeOnChanged(ctrl, cb)
 		if ctrl and ctrl.OnChanged then ctrl:OnChanged(cb) end
@@ -116,15 +103,15 @@ local ThemeManager = {} do
 	end
 	loadBgSettings()
 
+	-- FIX: теперь через Library.MainWindow
 	local function applyBg()
 		if not ThemeManager.Library then return end
-		if not ThemeManager.Library.SetWindowBackground then return end
-		ThemeManager.Library:SetWindowBackground(bgState.imageId, bgState.transparency)
-		ThemeManager.Library:SetWindowOverlay(bgState.overlay)
-		ThemeManager.Library:SetWindowOverlayColor(bgState.overlayColor)
-		if ThemeManager.Library.SetUIOverlayOpacity then
-			ThemeManager.Library:SetUIOverlayOpacity(bgState.uiOpacity)
-		end
+		local W = ThemeManager.Library.MainWindow
+		if not W then return end
+		if W.SetBackgroundImage then W:SetBackgroundImage(bgState.imageId, bgState.transparency) end
+		if W.SetOverlayTransparency then W:SetOverlayTransparency(bgState.overlay) end
+		if W.SetBackgroundOverlayColor then W:SetBackgroundOverlayColor(bgState.overlayColor) end
+		if W.SetWindowOpacity then W:SetWindowOpacity(bgState.uiOpacity) end
 	end
 
 	local function addToHistory(soundId, soundName)
@@ -341,26 +328,13 @@ local ThemeManager = {} do
 		end)
 	end
 
-	-- [FIX] обновление всех UICorner конкретного вида
-	function ThemeManager:UpdateCornerRadius(kind, radiusPx)
-		if not ThemeManager.Library then return end
-		local tag = cornerTagMap[kind]
-		if not tag then return end
-		for _, obj in ipairs(CollectionService:GetTagged(tag)) do
-			if obj:IsA('UICorner') then
-				obj.CornerRadius = UDim.new(0, radiusPx)
-			end
-		end
-	end
-
-	-- [FIX] загрузка/сохранение corner settings
 	local function loadCornerSettings()
-		if isfile(cornerSettingsFile) then
+		if isfile(cornerSettingsFile) and ThemeManager.Library then
 			local ok, data = pcall(httpService.JSONDecode, httpService, readfile(cornerSettingsFile))
-			if ok and type(data) == 'table' and ThemeManager.Library then
+			if ok and type(data) == 'table' then
 				for k, v in pairs(data) do
-					if ThemeManager.Library.UICorner then
-						ThemeManager.Library.UICorner[k] = v
+					if ThemeManager.Library.UICorner and type(v) == 'number' then
+						ThemeManager.Library:SetCornerRadius(k, v)
 					end
 				end
 			end
@@ -396,7 +370,7 @@ local ThemeManager = {} do
 		if Options.ClickEffectColor then Options.ClickEffectColor:SetValueRGB(ThemeManager.Library.ClickEffectColor) end
 
 		if themeData.UICornerRadius and Options.UICornerRadius then
-			Options.UICornerRadius:SetValue(tonumber(themeData.UICornerRadius) or 8)
+			Options.UICornerRadius:SetValue(tonumber(themeData.UICornerRadius) or 6)
 		end
 
 		ThemeManager:ThemeUpdate()
@@ -405,13 +379,16 @@ local ThemeManager = {} do
 	function ThemeManager:ThemeUpdate()
 		local colorFields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
 		for _, field in next, colorFields do
-			if Options and Options[field] then ThemeManager.Library[field] = Options[field].Value end
+			if Options and Options[field] and field ~= 'ClickEffectColor' then
+				ThemeManager.Library[field] = Options[field].Value
+			end
 		end
+		if Options.ClickEffectColor then ThemeManager.Library.ClickEffectColor = Options.ClickEffectColor.Value end
 		ThemeManager.Library.AccentColorDark = ThemeManager.Library:GetDarkerColor(ThemeManager.Library.AccentColor)
 		ThemeManager.Library:UpdateColorsUsingRegistry()
 
-		if Options.UICornerRadius and ThemeManager.Library.SetUICornerRadius then
-			ThemeManager.Library:SetUICornerRadius(Options.UICornerRadius.Value / 10)
+		if Options.UICornerRadius and ThemeManager.Library.SetWindowCorner then
+			ThemeManager.Library:SetWindowCorner(Options.UICornerRadius.Value)
 		end
 	end
 
@@ -464,7 +441,7 @@ local ThemeManager = {} do
 
 		groupbox:AddSlider('WindowBgTransparency', {
 			Text = 'Image Transparency', Min = 0, Max = 1, Default = bgState.transparency or 0.5, Rounding = 2,
-			Suffix = '', Tooltip = '0 = картинка полностью видна, 1 = прозрачная'
+			Suffix = '', Tooltip = '0 = картинка видна, 1 = прозрачная'
 		})
 		safeOnChanged(Options.WindowBgTransparency, function()
 			bgState.transparency = Options.WindowBgTransparency.Value
@@ -473,7 +450,7 @@ local ThemeManager = {} do
 
 		groupbox:AddSlider('WindowBgOverlay', {
 			Text = 'Overlay Darkening', Min = 0, Max = 1, Default = bgState.overlay or 0.5, Rounding = 2,
-			Suffix = '', Tooltip = 'Затемнение поверх картинки для читаемости'
+			Suffix = '', Tooltip = 'Затемнение поверх картинки'
 		})
 		safeOnChanged(Options.WindowBgOverlay, function()
 			bgState.overlay = Options.WindowBgOverlay.Value
@@ -515,50 +492,44 @@ local ThemeManager = {} do
 		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = ThemeManager.Library.ClickEffectColor or Color3.fromRGB(255,255,255) })
 
 		groupbox:AddDivider()
-		groupbox:AddLabel('UI Corner Radius')
+		groupbox:AddLabel('Corner Radius (px)')
 
-		-- [FIX] Window corner
-		local winDefault = ThemeManager.Library.UICornerRadius and (ThemeManager.Library.UICornerRadius * 10) or 8
+		-- FIX: Window corner — теперь только окно
+		local winDefault = (ThemeManager.Library.UICorner and ThemeManager.Library.UICorner.Window) or 6
 		groupbox:AddSlider('UICornerRadius', {
 			Text = 'Window Corner',
 			Min = 0, Max = 24, Default = winDefault, Rounding = 0, Suffix = ' px'
 		})
 		safeOnChanged(Options.UICornerRadius, function()
-			if not ThemeManager.Library then return end
-			ThemeManager.Library.UICornerRadius = Options.UICornerRadius.Value / 10
-			if ThemeManager.Library.SetUICornerRadius then
-				ThemeManager.Library:SetUICornerRadius(ThemeManager.Library.UICornerRadius)
-			end
+			if not ThemeManager.Library or not ThemeManager.Library.SetWindowCorner then return end
+			ThemeManager.Library:SetWindowCorner(Options.UICornerRadius.Value)
+			saveCornerSettings()
 		end)
 
-		-- [FIX] per-widget corners
+		-- FIX: per-widget corners через SetCornerRadius
 		local cornerItems = {
 			{ 'UICornerButton',         'Button',        8 },
 			{ 'UICornerToggle',         'Toggle',        3 },
 			{ 'UICornerSlider',         'Slider',        8 },
 			{ 'UICornerDropdown',       'Dropdown',      4 },
-			{ 'UICornerDropdownList',   'Dropdown List', 4 },
+			{ 'UICornerDropdownList',   'DropdownList',  4 },
 			{ 'UICornerGroupbox',       'Groupbox',      6 },
 			{ 'UICornerKeyPicker',      'KeyPicker',     3 },
 			{ 'UICornerKeybind',        'Keybind',       4 },
 		}
 
 		for _, item in ipairs(cornerItems) do
-			local idx, label, default = item[1], item[2], item[3]
-			local key = label:gsub(' ', '')
+			local idx, key, default = item[1], item[2], item[3]
 			local current = (ThemeManager.Library.UICorner and ThemeManager.Library.UICorner[key]) or default
 
 			groupbox:AddSlider(idx, {
-				Text = label .. ' Corner',
+				Text = key .. ' Corner',
 				Min = 0, Max = 24, Default = current, Rounding = 0, Suffix = ' px'
 			})
 
 			safeOnChanged(Options[idx], function()
 				if not ThemeManager.Library then return end
-				local val = Options[idx].Value
-				ThemeManager.Library.UICorner = ThemeManager.Library.UICorner or {}
-				ThemeManager.Library.UICorner[key] = val
-				ThemeManager:UpdateCornerRadius(key, val)
+				ThemeManager.Library:SetCornerRadius(key, Options[idx].Value)
 				saveCornerSettings()
 			end)
 		end
@@ -566,18 +537,24 @@ local ThemeManager = {} do
 		groupbox:AddButton('Reset All Corners', function()
 			if not ThemeManager.Library then return end
 			local defaults = {
-				UICornerButton = 8, UICornerToggle = 3, UICornerSlider = 8,
-				UICornerDropdown = 4, UICornerDropdownList = 4, UICornerGroupbox = 6,
-				UICornerKeyPicker = 3, UICornerKeybind = 4,
-			}
-			for idx, val in pairs(defaults) do
-				if Options[idx] then Options[idx]:SetValue(val) end
-			end
-			ThemeManager.Library.UICorner = {
-				Button = 8, Toggle = 3, Slider = 8,
+				Window = 6, Button = 8, Toggle = 3, Slider = 8,
 				Dropdown = 4, DropdownList = 4, Groupbox = 6,
 				KeyPicker = 3, Keybind = 4,
 			}
+			for key, val in pairs(defaults) do
+				ThemeManager.Library:SetCornerRadius(key, val)
+			end
+			ThemeManager.Library:SetWindowCorner(6)
+			-- sync sliders
+			local slideMap = {
+				UICornerButton = 'Button', UICornerToggle = 'Toggle', UICornerSlider = 'Slider',
+				UICornerDropdown = 'Dropdown', UICornerDropdownList = 'DropdownList',
+				UICornerGroupbox = 'Groupbox', UICornerKeyPicker = 'KeyPicker', UICornerKeybind = 'Keybind',
+			}
+			for idx, key in pairs(slideMap) do
+				if Options[idx] then Options[idx]:SetValue(defaults[key]) end
+			end
+			if Options.UICornerRadius then Options.UICornerRadius:SetValue(6) end
 			if ThemeManager.Library.Notify then ThemeManager.Library:Notify('Corners reset to default') end
 			saveCornerSettings()
 		end)
@@ -614,7 +591,7 @@ local ThemeManager = {} do
 			if radioSound and radioPlaying then radioSound.Volume = Options.RadioVolume.Value end
 		end)
 
-		groupbox:AddToggle('RadioLooped', { Text = 'Looped', Default = false, Tooltip = 'Зациклить воспроизведение звука' })
+		groupbox:AddToggle('RadioLooped', { Text = 'Looped', Default = false, Tooltip = 'Зациклить воспроизведение' })
 		safeOnChanged(Toggles.RadioLooped, function()
 			radioLooped = Toggles.RadioLooped.Value
 			if radioSound and radioPlaying then radioSound.Looped = radioLooped end
@@ -711,12 +688,12 @@ local ThemeManager = {} do
 	function ThemeManager:SaveCustomTheme(file)
 		if file:gsub(' ', '') == '' then return ThemeManager.Library:Notify('Invalid file name for theme (empty)', 3) end
 		local theme = {}
-		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "UICornerRadius" }
+		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
 		for _, field in next, fields do
-			if field == "UICornerRadius" then theme[field] = Options.UICornerRadius.Value
-			else theme[field] = Options[field].Value:ToHex() end
+			if Options[field] then theme[field] = Options[field].Value:ToHex() end
 		end
-		theme.ClickEffectColor = Options.ClickEffectColor.Value:ToHex()
+		if Options.ClickEffectColor then theme.ClickEffectColor = Options.ClickEffectColor.Value:ToHex() end
+		theme.UICornerRadius = Options.UICornerRadius and Options.UICornerRadius.Value or 6
 		writefile(ThemeManager.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
 		ThemeManager.Library:Notify(string.format('Theme "%s" saved', file))
 	end
