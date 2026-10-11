@@ -8,7 +8,7 @@ local TweenService = game:GetService('TweenService');
 local RenderStepped = RunService.RenderStepped;
 local LocalPlayer = Players.LocalPlayer;
 local Mouse = LocalPlayer:GetMouse();
-loadstring(game:HttpGet("https://raw.githubusercontent.com/N9TALovchik/-/refs/heads/main/addons/NOTALovchik.lua"))()
+
 local CURSOR_IMAGE_ID = "18392993708"
 local NOTIFY_SOUND_ID = "132463144859699"
 local NOTIFY_ANIMATION_SPEED = 0.3
@@ -18,6 +18,7 @@ local ThreeDMode = false
 local Current3DPart, Current3DSurface
 local SPEED_MIN, SPEED_MAX = 0.1, 15.0
 local RainbowClock = 0
+
 local ProtectGui = protectgui or (syn and syn.protect_gui) or function() end
 local ScreenGui = Instance.new('ScreenGui')
 local OverlayGui = Instance.new('ScreenGui')
@@ -55,11 +56,17 @@ local Library = {
     RemoveLines = true;
 };
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CORNERS
+-- ═══════════════════════════════════════════════════════════════════════════
 function Library:RegisterCorner(corner, kind)
     if not corner or not kind then return corner end
     Library.CornerRefs[kind] = Library.CornerRefs[kind] or {}
     table.insert(Library.CornerRefs[kind], corner)
-    Library.CornerBase[corner] = Library.UICorner[kind] or 0
+    local base = Library.UICorner[kind] or 0
+    Library.CornerBase[corner] = base
+    local r = Library.UICornerRadius or 1
+    corner.CornerRadius = UDim.new(0, base * r)
     return corner
 end
 function Library:RegisterWindowCorner(corner)
@@ -71,10 +78,11 @@ end
 function Library:SetCornerRadius(kind, radius)
     Library.UICorner = Library.UICorner or {}
     Library.UICorner[kind] = radius
+    local r = Library.UICornerRadius or 1
     for _, c in ipairs(Library.CornerRefs[kind] or {}) do
         if c and c.Parent then
             Library.CornerBase[c] = radius
-            c.CornerRadius = UDim.new(0, radius * (Library.UICornerRadius or 1))
+            c.CornerRadius = UDim.new(0, radius * r)
         end
     end
 end
@@ -86,32 +94,69 @@ function Library:SetWindowCorner(r)
     end
 end
 function Library:SetGlobalCornerRadius(r)
-    Library.UICornerRadius = r
+    Library.UICornerRadius = r or 1
     for corner, base in next, Library.CornerBase do
         if corner and corner.Parent then
-            corner.CornerRadius = UDim.new(0, base * r)
+            corner.CornerRadius = UDim.new(0, (base or 0) * Library.UICornerRadius)
+        else
+            Library.CornerBase[corner] = nil
         end
     end
 end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- STROKES
+-- ═══════════════════════════════════════════════════════════════════════════
 function Library:CreateStroke(Props)
     local p = {}
     for k, v in next, Props do p[k] = v end
-    p.Color = p.Color or Library.OutlineColor
-    p.Thickness = p.Thickness or 1
-    p.ApplyStrokeMode = p.ApplyStrokeMode or Enum.ApplyStrokeMode.Border
+
+    local colorSource
+    if p.Color == nil or p.Color == Library.OutlineColor then
+        colorSource = 'OutlineColor'
+        p.Color = Library.OutlineColor
+    elseif p.Color == Library.AccentColor then
+        colorSource = 'AccentColor'
+    end
+
+    p.Thickness            = p.Thickness            or 1
+    p.ApplyStrokeMode      = p.ApplyStrokeMode      or Enum.ApplyStrokeMode.Border
+    p.BorderOffset         = p.BorderOffset         or UDim2.new(0, 0, 0, 0)
+    p.BorderStrokePosition = p.BorderStrokePosition or Enum.BorderStrokePosition.Inner
+    p.LineJoinMode         = p.LineJoinMode         or Enum.LineJoinMode.Round
+    p.StrokeSizingMode     = p.StrokeSizingMode     or Enum.StrokeSizingMode.FixedSize
+    p.Transparency         = p.Transparency         or 0
+    if p.ZIndex == nil then p.ZIndex = 1 end
+
     local s = Library:Create('UIStroke', p)
+    if colorSource then
+        s:SetAttribute('ColorSource', colorSource)
+    end
     table.insert(Library.OutlineStrokes, s)
     return s
 end
 function Library:SetOutlineColor(c)
     Library.OutlineColor = c
-    for _, s in next, Library.OutlineStrokes do
-        if s and s.Parent then s.Color = c end
+    for i = #Library.OutlineStrokes, 1, -1 do
+        local s = Library.OutlineStrokes[i]
+        if not s or not s.Parent then
+            table.remove(Library.OutlineStrokes, i)
+        elseif s:GetAttribute('ColorSource') == 'OutlineColor' then
+            s.Color = c
+        end
     end
 end
 function Library:SetAccentColor(c)
     Library.AccentColor = c
     Library.AccentColorDark = Library:GetDarkerColor(c)
+    for i = #Library.OutlineStrokes, 1, -1 do
+        local s = Library.OutlineStrokes[i]
+        if not s or not s.Parent then
+            table.remove(Library.OutlineStrokes, i)
+        elseif s:GetAttribute('ColorSource') == 'AccentColor' then
+            s.Color = c
+        end
+    end
     Library:UpdateColorsUsingRegistry()
 end
 getgenv().SetUICornerRadius = function(r) return Library:SetGlobalCornerRadius(r) end
@@ -805,17 +850,23 @@ do
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = Inner }), 'Button')
             Library:CreateStroke({ Parent = Inner })
             Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = Inner })
-            local Ripple = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BackgroundTransparency = 1; BorderSizePixel = 0; AnchorPoint = Vector2.new(0.5,0.5); Position = UDim2.new(0.5,0,0.5,0); Size = UDim2.new(0,0,0,0); ZIndex = 7; Parent = Inner })
-            Library:Create('UICorner', { CornerRadius = UDim.new(1,0); Parent = Ripple })
+            -- Плавная заливка (без прыжков)
+            local Ripple = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BackgroundTransparency = 1; BorderSizePixel = 0; AnchorPoint = Vector2.new(0,0.5); Position = UDim2.new(0,0,0.5,0); Size = UDim2.new(0,0,1,0); ZIndex = 7; Parent = Inner })
             local L = Library:CreateLabel({ Size = UDim2.new(1,0,1,0); TextSize = 14; Text = B.Text; StartImage = B.StartImage; EndImage = B.EndImage; StartImageColor = B.StartImageColor; EndImageColor = B.EndImageColor; StartImageOffset = B.StartImageOffset; EndImageOffset = B.EndImageOffset; ZIndex = 6; Parent = Inner })
             Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor' })
             return Outer, Inner, L, Ripple
         end
+        -- Плавная заливка слева направо
         local function PR(R)
             if not R or not R.Parent then return end
-            local p = R.Parent; local ms = math.max(p.AbsoluteSize.X, p.AbsoluteSize.Y)
-            R.Size = UDim2.fromOffset(0,0); R.BackgroundTransparency = 0.35
-            TweenService:Create(R, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(ms*1.4, ms*1.4), BackgroundTransparency = 1 }):Play()
+            R.Size = UDim2.new(0, 0, 1, 0)
+            R.Position = UDim2.new(0, 0, 0.5, 0)
+            R.AnchorPoint = Vector2.new(0, 0.5)
+            R.BackgroundTransparency = 0.45
+            TweenService:Create(R, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1
+            }):Play()
         end
         local function IE(B)
             local function WFE(ev, to, v)
@@ -1277,6 +1328,9 @@ do
     end
 end
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- BIND SYSTEM
+-- ═══════════════════════════════════════════════════════════════════════════
 Library.BindSystem = Library.BindSystem or {}
 local BindSystem = Library.BindSystem
 BindSystem.Windows = {}; BindSystem.AllBindings = {}; BindSystem._idxCounter = 0
@@ -1336,19 +1390,31 @@ function BindSystem:ApplyTrigger(b, p)
     end
     Library:AttemptSave()
 end
+-- ИЗМЕНЕНО: теперь отправляет Press/Release сообщения
 function BindSystem:HandleInput(Inp, p)
     local n = GBIN(Inp); if not n then return end
     for _, b in ipairs(self.AllBindings) do
         if b.Key == n then
-            if p then if not b._down then b._down = true self:ApplyTrigger(b, true) end
-            else if b._down then b._down = false if b.Mode == 'Hold' then self:ApplyTrigger(b, false) end end end
+            if p then
+                if not b._down then
+                    b._down = true
+                    if b.PressMsg and b.PressMsg ~= '' then Library:Notify(b.PressMsg, 3) end
+                    self:ApplyTrigger(b, true)
+                end
+            else
+                if b._down then
+                    b._down = false
+                    if b.ReleaseMsg and b.ReleaseMsg ~= '' then Library:Notify(b.ReleaseMsg, 3) end
+                    if b.Mode == 'Hold' then self:ApplyTrigger(b, false) end
+                end
+            end
         end
     end
 end
 function BindSystem:CloseWindow(c) local w = self.Windows[c] if w then if w.Parent then w:Destroy() end self.Windows[c] = nil end end
 function BindSystem:CloseAllWindows() local k = {} for kk in pairs(self.Windows) do table.insert(k, kk) end for _, v in ipairs(k) do self:CloseWindow(v) end end
 function BindSystem:BuildBindCard(Sc, AB, c, eb)
-    local b = eb or { Control = c, Key = 'None', Mode = 'Toggle', Value = self:GetDefaultValue(c) }
+    local b = eb or { Control = c, Key = 'None', Mode = 'Toggle', Value = self:GetDefaultValue(c), PressMsg = '', ReleaseMsg = '' }
     if not eb then table.insert(self.AllBindings, b) end
     local mo = 0
     for _, ch in ipairs(Sc:GetChildren()) do
@@ -1364,6 +1430,21 @@ function BindSystem:BuildBindCard(Sc, AB, c, eb)
     elseif c.Type == 'Slider' then gb:AddSlider(NBI(), { Text = 'Value'; Min = c.Min; Max = c.Max; Rounding = c.Rounding; Default = (type(b.Value) == 'number') and b.Value or c.Value; Suffix = ''; Callback = function(v) b.Value = v end })
     elseif c.Type == 'Dropdown' then gb:AddDropdown(NBI(), { Text = 'Value'; Values = c.Values; AllowNull = true; Default = b.Value; Callback = function(v) b.Value = v end })
     elseif c.Type == 'Button' then gb:AddLabel('Triggers button callback', true) end
+    -- НОВОЕ: Press / Release messages
+    gb:AddInput(NBI(), {
+        Text = 'Press message',
+        Placeholder = 'Message on press',
+        Default = b.PressMsg or '',
+        Finished = true,
+        Callback = function(v) b.PressMsg = v end,
+    })
+    gb:AddInput(NBI(), {
+        Text = 'Release message',
+        Placeholder = 'Message on release',
+        Default = b.ReleaseMsg or '',
+        Finished = true,
+        Callback = function(v) b.ReleaseMsg = v end,
+    })
     gb:AddButton('Remove bind', function()
         for i, bb in ipairs(self.AllBindings) do if bb == b then table.remove(self.AllBindings, i) break end end
         gb.Outer:Destroy()
@@ -1376,7 +1457,7 @@ function BindSystem:Open(c)
     if ar and getScreenGui(ar) == BindGui then return end
     if self.Windows[c] then self:CloseWindow(c) return end
     self:CloseAllWindows()
-    local wW, wH = 260, 260
+    local wW, wH = 260, 340
     local vX = workspace.CurrentCamera.ViewportSize.X
     local vY = workspace.CurrentCamera.ViewportSize.Y
     local pX = math.clamp(Mouse.X + 5, 0, math.max(0, vX - wW))
@@ -1416,6 +1497,9 @@ Library:GiveSignal(InputService.InputBegan:Connect(function(Inp)
     end
 end))
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- NOTIFICATIONS
+-- ═══════════════════════════════════════════════════════════════════════════
 local NC = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0.5,0,1,0); Size = UDim2.new(0,0,0,0); AnchorPoint = Vector2.new(0.5,1); ZIndex = 100; Parent = OverlayGui })
 local activeNotifications = {}
 local function PNS()
@@ -1600,8 +1684,9 @@ function Library:CreateWindow(...)
         local Blk = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Position = UDim2.new(0,0,1,0); Size = UDim2.new(1,0,0,1); BackgroundTransparency = 1; ZIndex = 152; Parent = TB })
         Library:AddToRegistry(Blk, { BackgroundColor3 = 'AccentColor' })
         local TF = Library:Create('Frame', { Name = 'TabFrame'; BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); Visible = false; ZIndex = 2; Parent = TC })
-        local LS = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0,7,0,7); Size = UDim2.new(0.5,-10,1,-16); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
-        local RS = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0.5,5,0,7); Size = UDim2.new(0.5,-10,1,-16); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
+        -- ИЗМЕНЕНО: группы ниже
+        local LS = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0,7,0,20); Size = UDim2.new(0.5,-10,1,-28); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
+        local RS = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0.5,5,0,20); Size = UDim2.new(0.5,-10,1,-28); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
         Library:Create('UIListLayout', { Padding = UDim.new(0,8); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; HorizontalAlignment = Enum.HorizontalAlignment.Center; Parent = LS })
         Library:Create('UIListLayout', { Padding = UDim.new(0,8); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; HorizontalAlignment = Enum.HorizontalAlignment.Center; Parent = RS })
         for _, S in next, { LS, RS } do S:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() S.CanvasSize = UDim2.fromOffset(0, S.UIListLayout.AbsoluteContentSize.Y) end) end
