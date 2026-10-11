@@ -105,7 +105,7 @@ function Library:SetGlobalCornerRadius(r)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STROKES
+-- STROKES (BorderOffset теперь UDim, конвертируется из любого типа)
 -- ═══════════════════════════════════════════════════════════════════════════
 function Library:CreateStroke(Props)
     local p = {}
@@ -121,7 +121,17 @@ function Library:CreateStroke(Props)
 
     p.Thickness            = p.Thickness            or 1
     p.ApplyStrokeMode      = p.ApplyStrokeMode      or Enum.ApplyStrokeMode.Border
-  p.BorderOffset         = p.BorderOffset         or UDim.new(0, 0)
+
+    -- BorderOffset у UIStroke имеет тип UDim, не UDim2
+    local bo = p.BorderOffset
+    if bo == nil then
+        p.BorderOffset = UDim.new(0, 0)
+    elseif typeof(bo) == 'UDim2' then
+        p.BorderOffset = UDim.new(bo.X.Scale, bo.X.Offset)
+    elseif typeof(bo) == 'number' then
+        p.BorderOffset = UDim.new(0, bo)
+    end
+
     p.BorderStrokePosition = p.BorderStrokePosition or Enum.BorderStrokePosition.Inner
     p.LineJoinMode         = p.LineJoinMode         or Enum.LineJoinMode.Round
     p.StrokeSizingMode     = p.StrokeSizingMode     or Enum.StrokeSizingMode.FixedSize
@@ -850,13 +860,11 @@ do
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = Inner }), 'Button')
             Library:CreateStroke({ Parent = Inner })
             Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = Inner })
-            -- Плавная заливка (без прыжков)
             local Ripple = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BackgroundTransparency = 1; BorderSizePixel = 0; AnchorPoint = Vector2.new(0,0.5); Position = UDim2.new(0,0,0.5,0); Size = UDim2.new(0,0,1,0); ZIndex = 7; Parent = Inner })
             local L = Library:CreateLabel({ Size = UDim2.new(1,0,1,0); TextSize = 14; Text = B.Text; StartImage = B.StartImage; EndImage = B.EndImage; StartImageColor = B.StartImageColor; EndImageColor = B.EndImageColor; StartImageOffset = B.StartImageOffset; EndImageOffset = B.EndImageOffset; ZIndex = 6; Parent = Inner })
             Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor' })
             return Outer, Inner, L, Ripple
         end
-        -- Плавная заливка слева направо
         local function PR(R)
             if not R or not R.Parent then return end
             R.Size = UDim2.new(0, 0, 1, 0)
@@ -1390,7 +1398,6 @@ function BindSystem:ApplyTrigger(b, p)
     end
     Library:AttemptSave()
 end
--- ИЗМЕНЕНО: теперь отправляет Press/Release сообщения
 function BindSystem:HandleInput(Inp, p)
     local n = GBIN(Inp); if not n then return end
     for _, b in ipairs(self.AllBindings) do
@@ -1430,7 +1437,6 @@ function BindSystem:BuildBindCard(Sc, AB, c, eb)
     elseif c.Type == 'Slider' then gb:AddSlider(NBI(), { Text = 'Value'; Min = c.Min; Max = c.Max; Rounding = c.Rounding; Default = (type(b.Value) == 'number') and b.Value or c.Value; Suffix = ''; Callback = function(v) b.Value = v end })
     elseif c.Type == 'Dropdown' then gb:AddDropdown(NBI(), { Text = 'Value'; Values = c.Values; AllowNull = true; Default = b.Value; Callback = function(v) b.Value = v end })
     elseif c.Type == 'Button' then gb:AddLabel('Triggers button callback', true) end
-    -- НОВОЕ: Press / Release messages
     gb:AddInput(NBI(), {
         Text = 'Press message',
         Placeholder = 'Message on press',
@@ -1684,7 +1690,6 @@ function Library:CreateWindow(...)
         local Blk = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Position = UDim2.new(0,0,1,0); Size = UDim2.new(1,0,0,1); BackgroundTransparency = 1; ZIndex = 152; Parent = TB })
         Library:AddToRegistry(Blk, { BackgroundColor3 = 'AccentColor' })
         local TF = Library:Create('Frame', { Name = 'TabFrame'; BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); Visible = false; ZIndex = 2; Parent = TC })
-        -- ИЗМЕНЕНО: группы ниже
         local LS = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0,7,0,20); Size = UDim2.new(0.5,-10,1,-28); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
         local RS = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0.5,5,0,20); Size = UDim2.new(0.5,-10,1,-28); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
         Library:Create('UIListLayout', { Padding = UDim.new(0,8); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; HorizontalAlignment = Enum.HorizontalAlignment.Center; Parent = LS })
