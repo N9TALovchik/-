@@ -1,7 +1,7 @@
 local httpService = game:GetService('HttpService')
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- BASE64 (использует crypt.* если доступен, иначе встроенный фоллбэк)
+-- BASE64
 -- ═══════════════════════════════════════════════════════════════════════════
 
 local b64encode, b64decode
@@ -46,6 +46,15 @@ end
 local SaveManager = {} do
 	SaveManager.Folder = 'LinoriaLibSettings'
 	SaveManager.Ignore = {}
+
+	-- Находим idx контрола (Toggle / Option) по ссылке
+	local function FindControlIdx(control)
+		if not control then return nil end
+		for idx, t in next, Toggles do if t == control then return idx end end
+		for idx, o in next, Options do if o == control then return idx end end
+		return nil
+	end
+
 	SaveManager.Parser = {
 		Toggle = {
 			Save = function(idx, object) return { type = 'Toggle', idx = idx, value = object.Value } end,
@@ -101,7 +110,8 @@ local SaveManager = {} do
 	function SaveManager:Save(name)
 		if (not name) then return false, 'no config file is selected' end
 		local fullPath = self.Folder .. '/settings/' .. name .. '.json'
-		local data = { objects = {} }
+		local data = { objects = {}, binds = {} }
+
 		for idx, toggle in next, Toggles do
 			if self.Ignore[idx] then continue end
 			table.insert(data.objects, self.Parser[toggle.Type].Save(idx, toggle))
@@ -112,11 +122,54 @@ local SaveManager = {} do
 			local entry = self.Parser[option.Type].Save(idx, option)
 			if entry then table.insert(data.objects, entry) end
 		end
+
+		-- ─── БИНДЫ ───
+		local BS = self.Library and self.Library.BindSystem
+		if BS and BS.AllBindings then
+			for _, b in ipairs(BS.AllBindings) do
+				local cidx = FindControlIdx(b.Control)
+				if cidx then
+					table.insert(data.binds, {
+						controlIdx  = cidx,
+						key         = b.Key,
+						mode        = b.Mode,
+						value       = b.Value,
+						pressMsg    = b.PressMsg or '',
+						releaseMsg  = b.ReleaseMsg or '',
+					})
+				end
+			end
+		end
+
 		local success, encoded = pcall(httpService.JSONEncode, httpService, data)
 		if not success then return false, 'failed to encode data' end
 		local b64 = b64encode(encoded)
 		writefile(fullPath, b64)
 		return true
+	end
+
+	-- Внутренняя загрузка binds (общая для Load / ImportFromString)
+	local function ApplyBinds(self, decoded)
+		if not decoded.binds then return end
+		local BS = self.Library and self.Library.BindSystem
+		if not BS then return end
+
+		-- очищаем массив in-place, чтобы ссылка не потерялась
+		for i = #BS.AllBindings, 1, -1 do BS.AllBindings[i] = nil end
+
+		for _, bd in ipairs(decoded.binds) do
+			local ctrl = Toggles[bd.controlIdx] or Options[bd.controlIdx]
+			if ctrl then
+				table.insert(BS.AllBindings, {
+					Control    = ctrl,
+					Key        = bd.key or 'None',
+					Mode       = bd.mode or 'Toggle',
+					Value      = bd.value,
+					PressMsg   = bd.pressMsg or '',
+					ReleaseMsg = bd.releaseMsg or '',
+				})
+			end
+		end
 	end
 
 	function SaveManager:Load(name)
@@ -126,13 +179,10 @@ local SaveManager = {} do
 		local raw = readfile(file)
 		if not raw or raw == '' then return false, 'empty file' end
 
-		-- [FIX] сначала пробуем как чистый JSON (старые конфиги),
-		-- если получилось — конвертируем файл в base64 JSON и перезаписываем
 		local decoded
 		local okJson, parsedJson = pcall(httpService.JSONDecode, httpService, raw)
 		if okJson and type(parsedJson) == 'table' and parsedJson.objects then
 			decoded = parsedJson
-			-- авто-миграция: пересохраняем как base64
 			local reencoded = httpService:JSONEncode(parsedJson)
 			writefile(file, b64encode(reencoded))
 		else
@@ -151,6 +201,13 @@ local SaveManager = {} do
 				task.spawn(function() self.Parser[option.type].Load(option.idx, option) end)
 			end
 		end
+
+		-- немного ждём, чтобы объекты применили значения
+		task.spawn(function()
+			task.wait(0.15)
+			ApplyBinds(self, decoded)
+		end)
+
 		return true
 	end
 
@@ -160,7 +217,6 @@ local SaveManager = {} do
 		if not isfile(file) then return false, 'config file not found' end
 		local content = readfile(file)
 		if not content then return false, 'failed to read file' end
-		-- если файл ещё в JSON (старый), конвертим в base64 на лету
 		local okJson, parsedJson = pcall(httpService.JSONDecode, httpService, content)
 		if okJson and type(parsedJson) == 'table' and parsedJson.objects then
 			content = b64encode(content)
@@ -194,6 +250,12 @@ local SaveManager = {} do
 				task.spawn(function() self.Parser[option.type].Load(option.idx, option) end)
 			end
 		end
+
+		task.spawn(function()
+			task.wait(0.15)
+			ApplyBinds(self, decoded)
+		end)
+
 		self.Library:Notify('Config imported')
 		return true
 	end
