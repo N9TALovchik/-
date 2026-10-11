@@ -48,6 +48,7 @@ local Library = {
     UICorner = {
         Button = 8, Toggle = 3, Slider = 8, Dropdown = 4,
         DropdownList = 4, Groupbox = 6, KeyPicker = 3, Keybind = 4,
+        ColorPicker = 8, -- FIX 3: отдельный радиус для colorpicker-превью
     };
     CornerRefs = {};
     CornerBase = {};
@@ -105,24 +106,18 @@ function Library:SetGlobalCornerRadius(r)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STROKES (BorderOffset теперь UDim, конвертируется из любого типа)
+-- STROKES
 -- ═══════════════════════════════════════════════════════════════════════════
 function Library:CreateStroke(Props)
     local p = {}
     for k, v in next, Props do p[k] = v end
 
-    local colorSource
-    if p.Color == nil or p.Color == Library.OutlineColor then
-        colorSource = 'OutlineColor'
-        p.Color = Library.OutlineColor
-    elseif p.Color == Library.AccentColor then
-        colorSource = 'AccentColor'
-    end
+    if p.Color == nil then p.Color = Library.OutlineColor end
 
     p.Thickness            = p.Thickness            or 1
     p.ApplyStrokeMode      = p.ApplyStrokeMode      or Enum.ApplyStrokeMode.Border
 
-    -- BorderOffset у UIStroke имеет тип UDim, не UDim2
+    -- BorderOffset у UIStroke = UDim (не UDim2!)
     local bo = p.BorderOffset
     if bo == nil then
         p.BorderOffset = UDim.new(0, 0)
@@ -139,34 +134,26 @@ function Library:CreateStroke(Props)
     if p.ZIndex == nil then p.ZIndex = 1 end
 
     local s = Library:Create('UIStroke', p)
-    if colorSource then
-        s:SetAttribute('ColorSource', colorSource)
-    end
     table.insert(Library.OutlineStrokes, s)
     return s
 end
+
+-- FIX 2: SetOutlineColor теперь меняет ВСЕ strokes (и у меню, и у элементов)
 function Library:SetOutlineColor(c)
     Library.OutlineColor = c
     for i = #Library.OutlineStrokes, 1, -1 do
         local s = Library.OutlineStrokes[i]
         if not s or not s.Parent then
             table.remove(Library.OutlineStrokes, i)
-        elseif s:GetAttribute('ColorSource') == 'OutlineColor' then
+        else
             s.Color = c
         end
     end
 end
+
 function Library:SetAccentColor(c)
     Library.AccentColor = c
     Library.AccentColorDark = Library:GetDarkerColor(c)
-    for i = #Library.OutlineStrokes, 1, -1 do
-        local s = Library.OutlineStrokes[i]
-        if not s or not s.Parent then
-            table.remove(Library.OutlineStrokes, i)
-        elseif s:GetAttribute('ColorSource') == 'AccentColor' then
-            s.Color = c
-        end
-    end
     Library:UpdateColorsUsingRegistry()
 end
 getgenv().SetUICornerRadius = function(r) return Library:SetGlobalCornerRadius(r) end
@@ -343,7 +330,8 @@ do
             else return Info.Transparency and 322 or 297 end
         end
         local Display = Library:Create('Frame', { BackgroundColor3 = CP.Value; BorderColor3 = Library:GetDarkerColor(CP.Value); BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(0,28,0,14); ZIndex = 6; Active = true; Parent = ToggleLabel })
-        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = Display }), 'Button')
+        -- FIX 3: свой kind для colorpicker
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.ColorPicker); Parent = Display }), 'ColorPicker')
         Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(0,27,0,13); ZIndex = 5; Image = 'http://www.roblox.com/asset/?id=12977615774'; Visible = not not Info.Transparency; Parent = Display })
         local PFO = Library:Create('Frame', { Name = 'Color'; BackgroundColor3 = Color3.new(1,1,1); BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18); Size = UDim2.fromOffset(230, PH(CP.Mode)); Visible = false; ZIndex = 15; Parent = getScreenGui(ToggleLabel) })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFO }), 'Groupbox')
@@ -924,7 +912,8 @@ do
             self.Outer.Size = UDim2.new(0.5,-2,0,20)
             SB.Outer, SB.Inner, SB.Label, SB.Ripple = CBB(SB)
             SB.Outer.Position = UDim2.new(1,3,0,0)
-            SB.Outer.Size = UDim2.fromOffset(self.Outer.AbsoluteSize.X - 2, self.Outer.AbsoluteSize.Y)
+            -- FIX 1: вторая кнопка теперь тянется (1,0,1,0 вместо статичного Offset)
+            SB.Outer.Size = UDim2.new(1,0,1,0)
             SB.Outer.Parent = self.Outer
             function SB:AddTooltip(t) if type(t) == 'string' then Library:AddToolTip(t, self.Outer) end return SB end
             if type(SB.Tooltip) == 'string' then SB:AddTooltip(SB.Tooltip) end
@@ -1564,7 +1553,8 @@ getgenv().SetCursorImageId = Library.SetCursorImageId
 local WO = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,100,0,-25); Size = UDim2.new(0,213,0,20); ZIndex = 200; Visible = false; Parent = OverlayGui })
 local WI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 201; Parent = WO })
 Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = WI }), 'Button')
-Library:Create('UIStroke', { Color = Library.AccentColor; Thickness = 1; ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Parent = WI })
+-- FIX 2: Watermark stroke без AccentColor (меняется через SetOutlineColor)
+Library:CreateStroke({ Parent = WI })
 Library:AddToRegistry(WI, { BorderColor3 = 'AccentColor' })
 local IF = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 202; Parent = WI })
 local WL = Library:CreateLabel({ Position = UDim2.new(0,5,0,0); Size = UDim2.new(1,-4,1,0); TextSize = 14; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 203; Parent = IF })
@@ -1641,7 +1631,8 @@ function Library:CreateWindow(...)
     local Inner = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 1; ClipsDescendants = true; Parent = Outer })
     local InnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Groupbox, Library.UICornerRadius * 10)); Parent = Inner })
     Library:RegisterWindowCorner(InnerCorner)
-    Library:CreateStroke({ Color = Library.AccentColor; Parent = Inner })
+    -- FIX 2: убран AccentColor — теперь управляется через SetOutlineColor
+    Library:CreateStroke({ Parent = Inner })
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor' })
 
     local tH = 25; local tS = Config.TitleTextSize or 16
@@ -1651,6 +1642,8 @@ function Library:CreateWindow(...)
     local MSI = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 1; ClipsDescendants = true; Parent = MSO })
     local MSICorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = MSI })
     Library:RegisterWindowCorner(MSICorner)
+    -- FIX 4: обводка у среднего вложенного фрейма
+    Library:CreateStroke({ Parent = MSI })
 
     local BI = Library:Create('ImageLabel', { Name = 'BackgroundImage'; BackgroundTransparency = 1; BorderSizePixel = 0; Size = UDim2.new(1,0,1,0); Position = UDim2.fromOffset(0,0); Image = Config.BackgroundImage or ''; ImageTransparency = Config.BackgroundImageTransparency or 0.5; ImageColor3 = Config.BackgroundImageColor; ScaleType = Enum.ScaleType.Crop; ZIndex = 1; Visible = (Config.BackgroundImage and Config.BackgroundImage ~= '') or false; Parent = MSI })
     local BICorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = BI })
@@ -1690,6 +1683,7 @@ function Library:CreateWindow(...)
         local Blk = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Position = UDim2.new(0,0,1,0); Size = UDim2.new(1,0,0,1); BackgroundTransparency = 1; ZIndex = 152; Parent = TB })
         Library:AddToRegistry(Blk, { BackgroundColor3 = 'AccentColor' })
         local TF = Library:Create('Frame', { Name = 'TabFrame'; BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); Visible = false; ZIndex = 2; Parent = TC })
+        -- FIX: опускаем группы вниз, чтобы верх не заезжал
         local LS = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0,7,0,20); Size = UDim2.new(0.5,-10,1,-28); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
         local RS = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0.5,5,0,20); Size = UDim2.new(0.5,-10,1,-28); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
         Library:Create('UIListLayout', { Padding = UDim.new(0,8); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; HorizontalAlignment = Enum.HorizontalAlignment.Center; Parent = LS })
