@@ -121,7 +121,7 @@ function Library:CreateStroke(Props)
 
     p.Thickness            = p.Thickness            or 1
     p.ApplyStrokeMode      = p.ApplyStrokeMode      or Enum.ApplyStrokeMode.Border
-    p.BorderOffset         = p.BorderOffset         or UDim2.new(0, 0, 0, 0)
+  p.BorderOffset         = p.BorderOffset         or UDim.new(0, 0)
     p.BorderStrokePosition = p.BorderStrokePosition or Enum.BorderStrokePosition.Inner
     p.LineJoinMode         = p.LineJoinMode         or Enum.LineJoinMode.Round
     p.StrokeSizingMode     = p.StrokeSizingMode     or Enum.StrokeSizingMode.FixedSize
