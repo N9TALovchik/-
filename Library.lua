@@ -142,14 +142,11 @@ end
 
 function Library:SetOutlineColor(c)
     Library.OutlineColor = c
-
-    -- Обновляем все UIStroke, которые были созданы через CreateStroke
     for _, s in ipairs(CollectionService:GetTagged('LibraryOutlineStroke')) do
         if s and s.Parent and not s:GetAttribute('IsTextStroke') then
             s.Color = c
         end
     end
-
     for i = #Library.OutlineStrokes, 1, -1 do
         local s = Library.OutlineStrokes[i]
         if not s or not s.Parent then
@@ -158,9 +155,15 @@ function Library:SetOutlineColor(c)
             s.Color = c
         end
     end
-    
-    -- ФИКС: Обновляем BorderColor3 у всех элементов в реестре (дропдауны, инпуты, кнопки)
-    Library:UpdateColorsUsingRegistry()
+    for _, O in next, Library.Registry do
+        for p, prop in next, O.Properties do
+            if type(prop) == 'string' then 
+                O.Instance[p] = Library[prop]
+            elseif type(prop) == 'function' then 
+                O.Instance[p] = prop() 
+            end
+        end
+    end
 end
 
 function Library:SetAccentColor(c)
@@ -174,14 +177,6 @@ getgenv().SetWindowCorner = function(r) return Library:SetWindowCorner(r) end
 getgenv().SetCornerRadius = function(kind, r) return Library:SetCornerRadius(kind, r) end
 getgenv().SetOutlineColor = function(c) return Library:SetOutlineColor(c) end
 getgenv().SetAccentColor = function(c) return Library:SetAccentColor(c) end
-getgenv().DebugOutlineStrokes = function()
-    local tagged = CollectionService:GetTagged('LibraryOutlineStroke')
-    print('[Debug] Всего outline-строуков:', #tagged)
-    for i, s in ipairs(tagged) do
-        print(i, s:GetFullName(), 'Color =', tostring(s.Color), '| Parent:', s.Parent and s.Parent.ClassName or 'nil')
-    end
-    print('[Debug] OutlineColor в Library =', tostring(Library.OutlineColor))
-end
 
 local RainbowStep, Hue = 0, 0
 table.insert(Library.Signals, RenderStepped:Connect(function(d) RainbowClock = RainbowClock + d end))
@@ -803,6 +798,61 @@ do
         Options[Idx] = KP
         return self
     end
+        function Funcs:AddToggle(Idx, Info)
+        assert(Info.Text, 'AddToggle: Missing `Text` string.')
+        local Toggle = { Value = Info.Default or false; Type = 'Toggle'; Callback = Info.Callback or function() end; Addons = {}; Risky = Info.Risky }
+        local Groupbox = self; local Container = Groupbox.Container
+        
+        local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1, -4, 0, 15); ZIndex = 7; Active = true; Parent = Container })
+        local TI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(0, 13, 0, 13); Position = UDim2.new(0, 0, 0.5, -6.5); ZIndex = 8; Parent = TO })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TI }), 'Toggle')
+        Library:CreateStroke({ Parent = TI })
+        Library:AddToRegistry(TI, { BackgroundColor3 = 'MainColor' })
+        
+        local TL = Library:CreateLabel({ Size = UDim2.new(1, -19, 1, 0); Position = UDim2.new(0, 19, 0, 0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TO })
+        Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
+        
+        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1, 0, 1, 0); ZIndex = 10; Active = true; Parent = TO })
+        Library:OnHighlight(TR, TI, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
+        
+        function Toggle:UpdateColors() Toggle:Display() end
+        if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
+        function Toggle:Display(anim)
+            if anim then
+                TI.AnchorPoint = Vector2.new(0.5, 0.5)
+                TI.Position = UDim2.new(0, 6.5, 0.5, 0)
+                TI.Size = UDim2.new(0, 2, 0, 2)
+                TweenService:Create(TI, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.new(0, 13, 0, 13) }):Play()
+            else
+                TI.AnchorPoint = Vector2.new(0, 0)
+                TI.Position = UDim2.new(0, 0, 0.5, -6.5)
+                TI.Size = UDim2.new(0, 13, 0, 13)
+            end
+            TI.BackgroundColor3 = Toggle.Value and Library.AccentColor or Library.MainColor
+            local R = Library.RegistryMap[TI]
+            if R and R.Properties then R.Properties.BackgroundColor3 = Toggle.Value and 'AccentColor' or 'MainColor' end
+        end
+        function Toggle:OnChanged(f) Toggle.Changed = f f(Toggle.Value) end
+        function Toggle:SetValue(b)
+            local old = Toggle.Value
+            b = not not b; Toggle.Value = b
+            Toggle:Display(old ~= b)
+            for _, A in next, Toggle.Addons do if A.Type == 'KeyPicker' and A.SyncToggleState then A.Toggled = b A:Update() end end
+            Library:SafeCallback(Toggle.Callback, b); Library:SafeCallback(Toggle.Changed, b); Library:UpdateDependencyBoxes()
+        end
+        TR.InputBegan:Connect(function(Inp)
+            if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then Toggle:SetValue(not Toggle.Value) Library:AttemptSave()
+            elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then Library.BindSystem:Open(Toggle) end
+        end)
+        if Toggle.Risky then Library:RemoveFromRegistry(TL) TL.TextColor3 = Library.RiskColor Library:AddToRegistry(TL, { TextColor3 = 'RiskColor' }) end
+        Toggle:Display()
+        Groupbox:AddBlank(Info.BlankSize or 5+2); Groupbox:Resize()
+        Toggle.TextLabel = TL; Toggle.Container = Container
+        setmetatable(Toggle, BaseAddons)
+        Toggles[Idx] = Toggle
+        Library:UpdateDependencyBoxes()
+        return Toggle
+    end
 
     BaseAddons.__index = Funcs
     BaseAddons.__namecall = function(t, k, ...) return Funcs[k](...) end
@@ -836,6 +886,44 @@ do
         end
         if not DoesWrap then setmetatable(Label, BaseAddons) end
         Groupbox:AddBlank(5); Groupbox:Resize()
+        return Label
+    end
+
+    -- НОВЫЙ ЭЛЕМЕНТ: Ссылка на таб
+    function Funcs:AddLinkLabel(Text, TargetTab, TargetGroupbox)
+        local Label = self:AddLabel(Text)
+        local TL = Label.TextLabel
+        TL.RichText = true
+        TL.Text = string.format('<font color="rgb(120, 160, 255)"><u>%s</u></font>', Text)
+        TL.Active = true
+        
+        TL.MouseEnter:Connect(function()
+            TL.Text = string.format('<font color="rgb(150, 190, 255)"><u>%s</u></font>', Text)
+        end)
+        TL.MouseLeave:Connect(function()
+            TL.Text = string.format('<font color="rgb(120, 160, 255)"><u>%s</u></font>', Text)
+        end)
+        
+        TL.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if Library.Window and Library.Window.Tabs then
+                    local tab = Library.Window.Tabs[TargetTab]
+                    if tab then
+                        tab:ShowTab()
+                        if TargetGroupbox then
+                            local gb = tab.Groupboxes[TargetGroupbox]
+                            if gb and gb.Container and gb.Container.Parent and gb.Container.Parent.Parent then
+                                local scroller = gb.Container.Parent.Parent
+                                if scroller:IsA("ScrollingFrame") then
+                                    local targetY = gb.Container.Parent.AbsolutePosition.Y - scroller.AbsolutePosition.Y + scroller.CanvasPosition.Y
+                                    TweenService:Create(scroller, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CanvasPosition = Vector2.new(scroller.CanvasPosition.X, targetY - 10) }):Play()
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
         return Label
     end
 
@@ -1001,70 +1089,6 @@ do
         return TB
     end
 
-        function Funcs:AddToggle(Idx, Info)
-        assert(Info.Text, 'AddInput: Missing `Text` string.')
-        local Toggle = { Value = Info.Default or false; Type = 'Toggle'; Callback = Info.Callback or function() end; Addons = {}; Risky = Info.Risky }
-        local Groupbox = self; local Container = Groupbox.Container
-        
-        -- Создаем полноценный ряд (TO), который растягивается на всю ширину
-        local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1, 0, 0, 15); ZIndex = 7; Active = true; Parent = Container })
-        
-        -- Создаем контейнер для самого переключателя (SW), фиксированного размера 13x13
-        local SW = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0, 13, 0, 13); Position = UDim2.new(0, 0, 0.5, -6); ZIndex = 7; Parent = TO })
-        
-        -- Внутренняя часть переключателя (TI)
-        local TI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 8; Parent = SW })
-        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TI }), 'Toggle')
-        Library:CreateStroke({ Parent = TI })
-        Library:AddToRegistry(TI, { BackgroundColor3 = 'MainColor' })
-        
-        -- Текстовый лейбл (TL), который теперь растягивается (1, -19) от ширины ряда TO
-        local TL = Library:CreateLabel({ Size = UDim2.new(1, -19, 1, 0); Position = UDim2.new(0, 19, 0, 0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TO })
-        Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
-        
-        -- Область клика (TR), теперь на всю ширину
-        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1, 0, 1, 0); ZIndex = 10; Active = true; Parent = TO })
-        
-        -- Подсветка при наведении применяется к TI (квадратику переключателя)
-        Library:OnHighlight(TR, TI, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
-        
-        function Toggle:UpdateColors() Toggle:Display() end
-        if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
-        function Toggle:Display(anim)
-            if anim then
-                TI.AnchorPoint = Vector2.new(0.5, 0.5)
-                TI.Position = UDim2.new(0.5, 0, 0.5, 0)
-                TI.Size = UDim2.new(0, 2, 0, 2)
-                TweenService:Create(TI, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.new(1,0,1,0) }):Play()
-            else
-                TI.AnchorPoint = Vector2.new(0, 0)
-                TI.Position = UDim2.new(0, 0, 0, 0)
-                TI.Size = UDim2.new(1, 0, 1, 0)
-            end
-            TI.BackgroundColor3 = Toggle.Value and Library.AccentColor or Library.MainColor
-            Library.RegistryMap[TI].Properties.BackgroundColor3 = Toggle.Value and 'AccentColor' or 'MainColor'
-        end
-        function Toggle:OnChanged(f) Toggle.Changed = f f(Toggle.Value) end
-        function Toggle:SetValue(b)
-            local old = Toggle.Value
-            b = not not b; Toggle.Value = b
-            Toggle:Display(old ~= b)
-            for _, A in next, Toggle.Addons do if A.Type == 'KeyPicker' and A.SyncToggleState then A.Toggled = b A:Update() end end
-            Library:SafeCallback(Toggle.Callback, b); Library:SafeCallback(Toggle.Changed, b); Library:UpdateDependencyBoxes()
-        end
-        TR.InputBegan:Connect(function(Inp)
-            if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then Toggle:SetValue(not Toggle.Value) Library:AttemptSave()
-            elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then Library.BindSystem:Open(Toggle) end
-        end)
-        if Toggle.Risky then Library:RemoveFromRegistry(TL) TL.TextColor3 = Library.RiskColor Library:AddToRegistry(TL, { TextColor3 = 'RiskColor' }) end
-        Toggle:Display()
-        Groupbox:AddBlank(Info.BlankSize or 5+2); Groupbox:Resize()
-        Toggle.TextLabel = TL; Toggle.Container = Container
-        setmetatable(Toggle, BaseAddons)
-        Toggles[Idx] = Toggle
-        Library:UpdateDependencyBoxes()
-        return Toggle
-    end
     function Funcs:AddSlider(Idx, Info)
         assert(Info.Default and Info.Text and Info.Min and Info.Max and Info.Rounding, 'AddSlider: missing required fields.')
         local Slider = { Value = Info.Default; Min = Info.Min; Max = Info.Max; Rounding = Info.Rounding; Type = 'Slider'; Text = Info.Text; Callback = Info.Callback or function() end }
@@ -1654,6 +1678,7 @@ function Library:CreateWindow(...)
     if Config.Center then Config.AnchorPoint = Vector2.new(0.5,0.5) Config.Position = UDim2.fromScale(0.5,0.5) end
 
     local W = { Tabs = {} }
+    Library.Window = W -- ВАЖНО ДЛЯ AddLinkLabel
     local Outer = Library:Create('Frame', { AnchorPoint = Config.AnchorPoint; BackgroundTransparency = 1; BorderSizePixel = 0; Position = Config.Position; Size = Config.Size; Visible = false; ZIndex = 1; Parent = ScreenGui })
     Library.MainFrame = Outer
     local OuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Groupbox, Library.UICornerRadius * 10)); Parent = Outer })
