@@ -143,6 +143,7 @@ end
 function Library:SetOutlineColor(c)
     Library.OutlineColor = c
 
+    -- Обновляем все UIStroke, которые были созданы через CreateStroke
     for _, s in ipairs(CollectionService:GetTagged('LibraryOutlineStroke')) do
         if s and s.Parent and not s:GetAttribute('IsTextStroke') then
             s.Color = c
@@ -157,6 +158,9 @@ function Library:SetOutlineColor(c)
             s.Color = c
         end
     end
+    
+    -- ФИКС: Обновляем BorderColor3 у всех элементов в реестре (дропдауны, инпуты, кнопки)
+    Library:UpdateColorsUsingRegistry()
 end
 
 function Library:SetAccentColor(c)
@@ -997,20 +1001,33 @@ do
         return TB
     end
 
-    function Funcs:AddToggle(Idx, Info)
+        function Funcs:AddToggle(Idx, Info)
         assert(Info.Text, 'AddInput: Missing `Text` string.')
         local Toggle = { Value = Info.Default or false; Type = 'Toggle'; Callback = Info.Callback or function() end; Addons = {}; Risky = Info.Risky }
         local Groupbox = self; local Container = Groupbox.Container
-        local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,13,0,13); ZIndex = 7; Active = true; Parent = Container })
-        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TO }), 'Toggle')
-        Library:CreateStroke({ Parent = TO })
-        local TI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 8; Parent = TO })
+        
+        -- Создаем полноценный ряд (TO), который растягивается на всю ширину
+        local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1, 0, 0, 15); ZIndex = 7; Active = true; Parent = Container })
+        
+        -- Создаем контейнер для самого переключателя (SW), фиксированного размера 13x13
+        local SW = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0, 13, 0, 13); Position = UDim2.new(0, 0, 0.5, -6); ZIndex = 7; Parent = TO })
+        
+        -- Внутренняя часть переключателя (TI)
+        local TI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 8; Parent = SW })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TI }), 'Toggle')
+        Library:CreateStroke({ Parent = TI })
         Library:AddToRegistry(TI, { BackgroundColor3 = 'MainColor' })
-        local TL = Library:CreateLabel({ Size = UDim2.new(0,216,1,0); Position = UDim2.new(1,6,0,0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TI })
+        
+        -- Текстовый лейбл (TL), который теперь растягивается (1, -19) от ширины ряда TO
+        local TL = Library:CreateLabel({ Size = UDim2.new(1, -19, 1, 0); Position = UDim2.new(0, 19, 0, 0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TO })
         Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
-        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,170,1,0); ZIndex = 10; Active = true; Parent = TO })
-        Library:OnHighlight(TR, TO, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
+        
+        -- Область клика (TR), теперь на всю ширину
+        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1, 0, 1, 0); ZIndex = 10; Active = true; Parent = TO })
+        
+        -- Подсветка при наведении применяется к TI (квадратику переключателя)
+        Library:OnHighlight(TR, TI, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
+        
         function Toggle:UpdateColors() Toggle:Display() end
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
         function Toggle:Display(anim)
@@ -1048,7 +1065,6 @@ do
         Library:UpdateDependencyBoxes()
         return Toggle
     end
-
     function Funcs:AddSlider(Idx, Info)
         assert(Info.Default and Info.Text and Info.Min and Info.Max and Info.Rounding, 'AddSlider: missing required fields.')
         local Slider = { Value = Info.Default; Min = Info.Min; Max = Info.Max; Rounding = Info.Rounding; Type = 'Slider'; Text = Info.Text; Callback = Info.Callback or function() end }
