@@ -862,6 +862,62 @@ local BaseGroupbox = {}
 do
     local Funcs = {}
 
+    function Funcs:AddToggle(Idx, Info)
+        assert(Info.Text, 'AddToggle: Missing `Text` string.')
+        local Toggle = { Value = Info.Default or false; Type = 'Toggle'; Callback = Info.Callback or function() end; Addons = {}; Risky = Info.Risky }
+        local Groupbox = self; local Container = Groupbox.Container
+        
+        local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1, -4, 0, 15); ZIndex = 7; Active = true; Parent = Container })
+        local TI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(0, 13, 0, 13); Position = UDim2.new(0, 0, 0.5, -6.5); ZIndex = 8; Parent = TO })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TI }), 'Toggle')
+        Library:CreateStroke({ Parent = TI })
+        Library:AddToRegistry(TI, { BackgroundColor3 = 'MainColor' })
+        
+        local TL = Library:CreateLabel({ Size = UDim2.new(1, -19, 1, 0); Position = UDim2.new(0, 19, 0, 0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TO })
+        Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
+        
+        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1, 0, 1, 0); ZIndex = 10; Active = true; Parent = TO })
+        Library:OnHighlight(TR, TI, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
+        
+        function Toggle:UpdateColors() Toggle:Display() end
+        if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
+        function Toggle:Display(anim)
+            if anim then
+                TI.AnchorPoint = Vector2.new(0.5, 0.5)
+                TI.Position = UDim2.new(0, 6.5, 0.5, 0)
+                TI.Size = UDim2.new(0, 2, 0, 2)
+                TweenService:Create(TI, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.new(0, 13, 0, 13) }):Play()
+            else
+                TI.AnchorPoint = Vector2.new(0, 0)
+                TI.Position = UDim2.new(0, 0, 0.5, -6.5)
+                TI.Size = UDim2.new(0, 13, 0, 13)
+            end
+            TI.BackgroundColor3 = Toggle.Value and Library.AccentColor or Library.MainColor
+            local R = Library.RegistryMap[TI]
+            if R and R.Properties then R.Properties.BackgroundColor3 = Toggle.Value and 'AccentColor' or 'MainColor' end
+        end
+        function Toggle:OnChanged(f) Toggle.Changed = f f(Toggle.Value) end
+        function Toggle:SetValue(b)
+            local old = Toggle.Value
+            b = not not b; Toggle.Value = b
+            Toggle:Display(old ~= b)
+            for _, A in next, Toggle.Addons do if A.Type == 'KeyPicker' and A.SyncToggleState then A.Toggled = b A:Update() end end
+            Library:SafeCallback(Toggle.Callback, b); Library:SafeCallback(Toggle.Changed, b); Library:UpdateDependencyBoxes()
+        end
+        TR.InputBegan:Connect(function(Inp)
+            if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then Toggle:SetValue(not Toggle.Value) Library:AttemptSave()
+            elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then Library.BindSystem:Open(Toggle) end
+        end)
+        if Toggle.Risky then Library:RemoveFromRegistry(TL) TL.TextColor3 = Library.RiskColor Library:AddToRegistry(TL, { TextColor3 = 'RiskColor' }) end
+        Toggle:Display()
+        Groupbox:AddBlank(Info.BlankSize or 5+2); Groupbox:Resize()
+        Toggle.TextLabel = TL; Toggle.Container = Container
+        setmetatable(Toggle, BaseAddons)
+        Toggles[Idx] = Toggle
+        Library:UpdateDependencyBoxes()
+        return Toggle
+    end
+
     function Funcs:AddBlank(Size)
         Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,0,Size); ZIndex = 1; Parent = self.Container })
     end
@@ -889,7 +945,6 @@ do
         return Label
     end
 
-    -- НОВЫЙ ЭЛЕМЕНТ: Ссылка на таб
     function Funcs:AddLinkLabel(Text, TargetTab, TargetGroupbox)
         local Label = self:AddLabel(Text)
         local TL = Label.TextLabel
