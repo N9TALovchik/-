@@ -51,16 +51,10 @@ local Library = {
         DropdownList = 4, Groupbox = 6, KeyPicker = 3, Keybind = 4,
         ColorPicker = 8,
     };
-    CornerRefs = {};
-    CornerBase = {};
-    WindowCornerRefs = {};
-    OutlineStrokes = {};
+    CornerRefs = {}; CornerBase = {}; WindowCornerRefs = {}; OutlineStrokes = {};
     RemoveLines = true;
 };
 
--- ═══════════════════════════════════════════════════════════════════════════
--- CORNERS
--- ═══════════════════════════════════════════════════════════════════════════
 function Library:RegisterCorner(corner, kind)
     if not corner or not kind then return corner end
     Library.CornerRefs[kind] = Library.CornerRefs[kind] or {}
@@ -90,9 +84,7 @@ function Library:SetCornerRadius(kind, radius)
 end
 function Library:SetWindowCorner(r)
     for _, c in next, Library.WindowCornerRefs do
-        if c and c.Parent then
-            c.CornerRadius = UDim.new(0, r)
-        end
+        if c and c.Parent then c.CornerRadius = UDim.new(0, r) end
     end
 end
 function Library:SetGlobalCornerRadius(r)
@@ -100,39 +92,25 @@ function Library:SetGlobalCornerRadius(r)
     for corner, base in next, Library.CornerBase do
         if corner and corner.Parent then
             corner.CornerRadius = UDim.new(0, (base or 0) * Library.UICornerRadius)
-        else
-            Library.CornerBase[corner] = nil
-        end
+        else Library.CornerBase[corner] = nil end
     end
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- STROKES
--- ═══════════════════════════════════════════════════════════════════════════
 function Library:CreateStroke(Props)
     local p = {}
     for k, v in next, Props do p[k] = v end
-
     if p.Color == nil then p.Color = Library.OutlineColor end
-
-    p.Thickness            = p.Thickness            or 1
-    p.ApplyStrokeMode      = p.ApplyStrokeMode      or Enum.ApplyStrokeMode.Border
-
+    p.Thickness = p.Thickness or 1
+    p.ApplyStrokeMode = p.ApplyStrokeMode or Enum.ApplyStrokeMode.Border
     local bo = p.BorderOffset
-    if bo == nil then
-        p.BorderOffset = UDim.new(0, 0)
-    elseif typeof(bo) == 'UDim2' then
-        p.BorderOffset = UDim.new(bo.X.Scale, bo.X.Offset)
-    elseif typeof(bo) == 'number' then
-        p.BorderOffset = UDim.new(0, bo)
-    end
-
+    if bo == nil then p.BorderOffset = UDim.new(0, 0)
+    elseif typeof(bo) == 'UDim2' then p.BorderOffset = UDim.new(bo.X.Scale, bo.X.Offset)
+    elseif typeof(bo) == 'number' then p.BorderOffset = UDim.new(0, bo) end
     p.BorderStrokePosition = p.BorderStrokePosition or Enum.BorderStrokePosition.Inner
-    p.LineJoinMode         = p.LineJoinMode         or Enum.LineJoinMode.Round
-    p.StrokeSizingMode     = p.StrokeSizingMode     or Enum.StrokeSizingMode.FixedSize
-    p.Transparency         = p.Transparency         or 0
+    p.LineJoinMode = p.LineJoinMode or Enum.LineJoinMode.Round
+    p.StrokeSizingMode = p.StrokeSizingMode or Enum.StrokeSizingMode.FixedSize
+    p.Transparency = p.Transparency or 0
     if p.ZIndex == nil then p.ZIndex = 1 end
-
     local s = Library:Create('UIStroke', p)
     s:SetAttribute('IsTextStroke', false)
     CollectionService:AddTag(s, 'LibraryOutlineStroke')
@@ -140,23 +118,18 @@ function Library:CreateStroke(Props)
     return s
 end
 
+-- [CHANGED] теперь UpdateColorsUsingRegistry вызывается и для outline
 function Library:SetOutlineColor(c)
     Library.OutlineColor = c
-
     for _, s in ipairs(CollectionService:GetTagged('LibraryOutlineStroke')) do
-        if s and s.Parent and not s:GetAttribute('IsTextStroke') then
-            s.Color = c
-        end
+        if s and s.Parent and not s:GetAttribute('IsTextStroke') then s.Color = c end
     end
-
     for i = #Library.OutlineStrokes, 1, -1 do
         local s = Library.OutlineStrokes[i]
-        if not s or not s.Parent then
-            table.remove(Library.OutlineStrokes, i)
-        elseif not s:GetAttribute('IsTextStroke') then
-            s.Color = c
-        end
+        if not s or not s.Parent then table.remove(Library.OutlineStrokes, i)
+        elseif not s:GetAttribute('IsTextStroke') then s.Color = c end
     end
+    Library:UpdateColorsUsingRegistry()
 end
 
 function Library:SetAccentColor(c)
@@ -173,10 +146,8 @@ getgenv().SetAccentColor = function(c) return Library:SetAccentColor(c) end
 getgenv().DebugOutlineStrokes = function()
     local tagged = CollectionService:GetTagged('LibraryOutlineStroke')
     print('[Debug] Всего outline-строуков:', #tagged)
-    for i, s in ipairs(tagged) do
-        print(i, s:GetFullName(), 'Color =', tostring(s.Color), '| Parent:', s.Parent and s.Parent.ClassName or 'nil')
-    end
-    print('[Debug] OutlineColor в Library =', tostring(Library.OutlineColor))
+    for i, s in ipairs(tagged) do print(i, s:GetFullName(), 'Color =', tostring(s.Color)) end
+    print('[Debug] OutlineColor =', tostring(Library.OutlineColor))
 end
 
 local RainbowStep, Hue = 0, 0
@@ -255,7 +226,7 @@ end
 function Library:AddToolTip(InfoStr, Hover)
     local X, Y = Library:GetTextBounds(InfoStr, Library.Font, 14)
     local TT = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; BorderColor3 = Library.OutlineColor; Size = UDim2.fromOffset(X+5, Y+4); ZIndex = 100; Parent = getScreenGui(Hover); Visible = false })
-    local L = Library:CreateLabel({ Position = UDim2.fromOffset(3,1); Size = UDim2.fromOffset(X,Y); TextSize = 14; Text = InfoStr; TextColor3 = Library.FontColor; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 101; Parent = TT })
+    local L = Library:CreateLabel({ Position = UDim2.fromOffset(3,1); Size = UDim2.fromOffset(X,Y); TextSize = 14; Text = InfoStr; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 101; Parent = TT })
     Library:AddToRegistry(TT, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor' })
     Library:AddToRegistry(L, { TextColor3 = 'FontColor' })
     local hov = false
@@ -295,8 +266,7 @@ function Library:GetDarkerColor(c) local h,s,v = Color3.toHSV(c); return Color3.
 Library.AccentColorDark = Library:GetDarkerColor(Library.AccentColor)
 
 function Library:AddToRegistry(Inst, Props, IsHud)
-    local I = #Library.Registry + 1
-    local D = { Instance = Inst; Properties = Props; Idx = I }
+    local D = { Instance = Inst; Properties = Props; Idx = #Library.Registry + 1 }
     table.insert(Library.Registry, D); Library.RegistryMap[Inst] = D
     if IsHud then table.insert(Library.HudRegistry, D) end
 end
@@ -325,6 +295,43 @@ end
 function Library:OnUnload(cb) Library.OnUnload = cb end
 Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(I) if Library.RegistryMap[I] then Library:RemoveFromRegistry(I) end end))
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- [NEW] HIGHLIGHT (для LinkLabel)
+-- ═══════════════════════════════════════════════════════════════════════════
+function Library:HighlightElement(Frame, Duration, Color)
+    if not Frame or not Frame.Parent then return end
+    Duration = Duration or 1.5
+    Color = Color or Library.AccentColor
+    local p = Frame.Parent
+    while p and not p:IsA('ScrollingFrame') do p = p.Parent end
+    if p and p:IsA('ScrollingFrame') then
+        local relY = Frame.AbsolutePosition.Y - p.AbsolutePosition.Y + p.CanvasPosition.Y
+        local maxY = math.max(0, p.CanvasSize.Y.Offset - p.AbsoluteSize.Y)
+        TweenService:Create(p, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            CanvasPosition = Vector2.new(p.CanvasPosition.X, math.clamp(relY - 60, 0, maxY))
+        }):Play()
+    end
+    local HL = Library:Create('Frame', {
+        BackgroundColor3 = Color, BackgroundTransparency = 0.85, BorderSizePixel = 0,
+        Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 1, 0), ZIndex = 500, Parent = Frame
+    })
+    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = HL }), 'Button')
+    TweenService:Create(HL, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.3 }):Play()
+    task.delay(Duration, function()
+        if not HL or not HL.Parent then return end
+        local t = TweenService:Create(HL, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 })
+        t:Play(); t.Completed:Connect(function() if HL then HL:Destroy() end end)
+    end)
+end
+
+local function GetTargetFrame(Target)
+    if not Target then return nil end
+    if Target.Frame and Target.Frame.Parent then return Target.Frame end
+    if Target.Outer and Target.Outer.Parent then return Target.Outer end
+    if Target.TextLabel and Target.TextLabel.Parent then return Target.TextLabel.Parent end
+    return nil
+end
+
 local BaseAddons = {}
 do
     local Funcs = {}
@@ -352,10 +359,19 @@ do
         Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(0,27,0,13); ZIndex = 5; Image = 'http://www.roblox.com/asset/?id=12977615774'; Visible = not not Info.Transparency; Parent = Display })
         local PFO = Library:Create('Frame', { Name = 'Color'; BackgroundColor3 = Color3.new(1,1,1); BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18); Size = UDim2.fromOffset(230, PH(CP.Mode)); Visible = false; ZIndex = 15; Parent = getScreenGui(ToggleLabel) })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFO }), 'Groupbox')
-        Display:GetPropertyChangedSignal('AbsolutePosition'):Connect(function() PFO.Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18) end)
+        Library:AddToRegistry(PFO, { BorderColor3 = 'OutlineColor' })
+        -- [CHANGED] постоянный апдейт позиции PFO, чтобы не залипал при ресайзе
+        local function UpdatePFO()
+            if PFO and PFO.Parent and Display and Display.Parent then
+                PFO.Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18)
+            end
+        end
+        Display:GetPropertyChangedSignal('AbsolutePosition'):Connect(UpdatePFO)
+        Library:GiveSignal(RunService.Heartbeat:Connect(UpdatePFO))
         local PFI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(1,0,1,0); ZIndex = 16; Parent = PFO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFI }), 'Groupbox')
         Library:CreateStroke({ Parent = PFI })
+        Library:AddToRegistry(PFI, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor' })
         local Highlight = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Size = UDim2.new(1,0,0,2); ZIndex = 17; Parent = PFI; BackgroundTransparency = Library.RemoveLines and 1 or 0 })
         Library:CreateLabel({ Size = UDim2.new(1,0,0,14); Position = UDim2.fromOffset(5,5); TextXAlignment = Enum.TextXAlignment.Left; TextSize = 14; Text = CP.Title; TextWrapped = false; ZIndex = 16; Parent = PFI })
         local ModeBtn = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Position = UDim2.fromOffset(4,25); Size = UDim2.new(1,-8,0,18); ZIndex = 30; Active = true; Parent = PFI })
@@ -371,22 +387,30 @@ do
         local CY = 68
         local StdContent = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(0, CY); Size = UDim2.new(1,0,0,220); ZIndex = 17; Parent = PFI })
         local SVMO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.new(0,4,0,0); Size = UDim2.new(0,200,0,200); ZIndex = 17; Parent = StdContent })
+        Library:AddToRegistry(SVMO, { BorderColor3 = 'OutlineColor' })
         local SVMI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(1,0,1,0); ZIndex = 18; Active = true; Parent = SVMO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = SVMI }), 'Button')
+        Library:AddToRegistry(SVMI, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor' })
         local SVM = Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(1,0,1,0); ZIndex = 18; Image = 'rbxassetid://4155801252'; Parent = SVMI })
         local CO = Library:Create('ImageLabel', { AnchorPoint = Vector2.new(0.5,0.5); Size = UDim2.new(0,6,0,6); BackgroundTransparency = 1; Image = 'http://www.roblox.com/asset/?id=9619665977'; ImageColor3 = Color3.new(0,0,0); ZIndex = 19; Parent = SVM })
         Library:Create('ImageLabel', { Size = UDim2.new(0,4,0,4); Position = UDim2.new(0,1,0,1); BackgroundTransparency = 1; Image = 'http://www.roblox.com/asset/?id=9619665977'; ZIndex = 20; Parent = CO })
         local HSO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.new(0,208,0,0); Size = UDim2.new(0,15,0,200); ZIndex = 17; Parent = StdContent })
+        Library:AddToRegistry(HSO, { BorderColor3 = 'OutlineColor' })
         local HSI = Library:Create('Frame', { BackgroundColor3 = Color3.new(1,1,1); BorderSizePixel = 0; Size = UDim2.new(1,0,1,0); ZIndex = 18; Active = true; Parent = HSO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = HSI }), 'Button')
         local HC = Library:Create('Frame', { BackgroundColor3 = Color3.new(1,1,1); AnchorPoint = Vector2.new(0,0.5); BorderColor3 = Color3.new(0,0,0); Size = UDim2.new(1,0,0,1); ZIndex = 18; Parent = HSI })
         local HBO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(4,203); Size = UDim2.new(0.5,-6,0,20); ZIndex = 18; Parent = StdContent })
+        Library:AddToRegistry(HBO, { BorderColor3 = 'OutlineColor' })
         local HBI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(1,0,1,0); ZIndex = 18; Parent = HBO })
+        Library:AddToRegistry(HBI, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor' })
         Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = HBI })
         local HB = Library:Create('TextBox', { BackgroundTransparency = 1; Position = UDim2.new(0,5,0,0); Size = UDim2.new(1,-5,1,0); Font = Library.Font; PlaceholderColor3 = Color3.fromRGB(190,190,190); PlaceholderText = 'Hex color'; Text = '#FFFFFF'; TextColor3 = Library.FontColor; TextSize = 14; TextStrokeTransparency = 0; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 20; Parent = HBI })
         Library:ApplyTextStroke(HB)
+        Library:AddToRegistry(HB, { TextColor3 = 'FontColor' })
         local RBB = Library:Create(HBO:Clone(), { Position = UDim2.new(0.5,2,0,203); Size = UDim2.new(0.5,-6,0,20); Parent = StdContent })
+        Library:AddToRegistry(RBB, { BorderColor3 = 'OutlineColor' })
         local RB = Library:Create(RBB.Frame:FindFirstChild('TextBox'), { Text = '255, 255, 255'; PlaceholderText = 'RGB color'; TextColor3 = Library.FontColor })
+        Library:AddToRegistry(RB, { TextColor3 = 'FontColor' })
         local RC = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(0, CY); Size = UDim2.new(1,0,0,70); Visible = false; ZIndex = 17; Parent = PFI })
         local RSL = Library:CreateLabel({ Position = UDim2.fromOffset(5,0); Size = UDim2.new(1,-10,0,14); Text = 'Rainbow Speed: 1.0'; TextXAlignment = Enum.TextXAlignment.Left; TextSize = 13; ZIndex = 18; Parent = RC })
         local RSO = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Position = UDim2.fromOffset(5,16); Size = UDim2.new(1,-10,0,12); ZIndex = 18; Active = true; Parent = RC })
@@ -406,14 +430,17 @@ do
         Library:CreateLabel({ Size = UDim2.new(1,0,1,0); Text = 'A'; TextSize = 13; TextColor3 = Color3.new(1,1,1); TextStrokeTransparency = 0; TextStrokeColor3 = Color3.new(0,0,0); ZIndex = 19; Parent = GCAB })
         local GCBB = Library:Create('Frame', { BackgroundColor3 = CP.GradientColorB; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Position = UDim2.new(0.5,2,0,2); Size = UDim2.new(0.5,-6,0,22); ZIndex = 18; Active = true; Parent = GC })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = GCBB }), 'Button')
+        Library:AddToRegistry(GCBB, { BorderColor3 = 'OutlineColor' })
         Library:CreateLabel({ Size = UDim2.new(1,0,1,0); Text = 'B'; TextSize = 13; TextColor3 = Color3.new(1,1,1); TextStrokeTransparency = 0; TextStrokeColor3 = Color3.new(0,0,0); ZIndex = 19; Parent = GCBB })
         local GSVMO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.new(0,4,0,28); Size = UDim2.new(0,200,0,200); ZIndex = 17; Parent = GC })
+        Library:AddToRegistry(GSVMO, { BorderColor3 = 'OutlineColor' })
         local GSVMI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(1,0,1,0); ZIndex = 18; Active = true; Parent = GSVMO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = GSVMI }), 'Button')
         local GSVM = Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(1,0,1,0); ZIndex = 18; Image = 'rbxassetid://4155801252'; Parent = GSVMI })
         local GCO = Library:Create('ImageLabel', { AnchorPoint = Vector2.new(0.5,0.5); Size = UDim2.new(0,6,0,6); BackgroundTransparency = 1; Image = 'http://www.roblox.com/asset/?id=9619665977'; ImageColor3 = Color3.new(0,0,0); ZIndex = 19; Parent = GSVM })
         Library:Create('ImageLabel', { Size = UDim2.new(0,4,0,4); Position = UDim2.new(0,1,0,1); BackgroundTransparency = 1; Image = 'http://www.roblox.com/asset/?id=9619665977'; ZIndex = 20; Parent = GCO })
         local GHO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.new(0,208,0,28); Size = UDim2.new(0,15,0,200); ZIndex = 17; Parent = GC })
+        Library:AddToRegistry(GHO, { BorderColor3 = 'OutlineColor' })
         local GHI = Library:Create('Frame', { BackgroundColor3 = Color3.new(1,1,1); BorderSizePixel = 0; Size = UDim2.new(1,0,1,0); ZIndex = 18; Active = true; Parent = GHO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = GHI }), 'Button')
         local GHC = Library:Create('Frame', { BackgroundColor3 = Color3.new(1,1,1); AnchorPoint = Vector2.new(0,0.5); BorderColor3 = Color3.new(0,0,0); Size = UDim2.new(1,0,0,1); ZIndex = 18; Parent = GHI })
@@ -431,6 +458,7 @@ do
         end
         if Info.Transparency then
             TBO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(4, gTY()); Size = UDim2.new(1,-8,0,15); ZIndex = 30; Parent = PFI })
+            Library:AddToRegistry(TBO, { BorderColor3 = 'OutlineColor' })
             TBI = Library:Create('Frame', { BackgroundColor3 = CP.Value; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(1,0,1,0); ZIndex = 30; Active = true; Parent = TBO })
             Library:AddToRegistry(TBI, { BorderColor3 = 'OutlineColor' })
             Library:Create('ImageLabel', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); Image = 'http://www.roblox.com/asset/?id=12978095818'; ZIndex = 31; Parent = TBI })
@@ -526,6 +554,7 @@ do
         local CM = {}
         do
             CM.Container = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; ZIndex = 14; Visible = false; Parent = getScreenGui(ToggleLabel) })
+            Library:AddToRegistry(CM.Container, { BorderColor3 = 'OutlineColor' })
             CM.Inner = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Size = UDim2.fromScale(1,1); ZIndex = 15; Parent = CM.Container })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = CM.Inner }), 'DropdownList')
             Library:CreateStroke({ Parent = CM.Inner })
@@ -539,6 +568,8 @@ do
             end
             Display:GetPropertyChangedSignal('AbsolutePosition'):Connect(uMP)
             CM.Inner.Layout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(uMS)
+            -- [CHANGED] Heartbeat-поллинг и для CM
+            Library:GiveSignal(RunService.Heartbeat:Connect(function() if CM.Container.Visible then uMP() end end))
             task.spawn(uMP); task.spawn(uMS)
             Library:AddToRegistry(CM.Inner, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor' })
             function CM:Show() self.Container.Visible = true end
@@ -554,12 +585,7 @@ do
             CM:AddOption('Copy HEX', function() pcall(setclipboard, CP.Value:ToHex()) Library:Notify('Copied hex code!', 2) end)
             CM:AddOption('Copy RGB', function() pcall(setclipboard, table.concat({ math.floor(CP.Value.R*255), math.floor(CP.Value.G*255), math.floor(CP.Value.B*255) }, ', ')) Library:Notify('Copied RGB!', 2) end)
         end
-        Library:AddToRegistry(PFI, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor' })
         Library:AddToRegistry(Highlight, { BackgroundColor3 = 'AccentColor' })
-        Library:AddToRegistry(SVMI, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor' })
-        Library:AddToRegistry(HBI, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor' })
-        Library:AddToRegistry(RBB.Frame, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor' })
-        Library:AddToRegistry(RB, { TextColor3 = 'FontColor' }); Library:AddToRegistry(HB, { TextColor3 = 'FontColor' })
         HB.FocusLost:Connect(function(enter)
             if enter then local ok, r = pcall(Color3.fromHex, HB.Text) if ok and typeof(r) == 'Color3' then CP.Hue, CP.Sat, CP.Vib = Color3.toHSV(r) end end
             CP:Display()
@@ -661,6 +687,7 @@ do
         function CP:SetMode(m) SM(m) end
         CP:Display()
         CP.DisplayFrame = Display
+        CP.Frame = Display  -- [NEW] для LinkLabel
         Library:GiveSignal(RenderStepped:Connect(function()
             if CP.Mode == 'Standard' then return end
             local c
@@ -676,7 +703,7 @@ do
     end
 
     function Funcs:AddKeyPicker(Idx, Info)
-        local ParentObj = self; local ToggleLabel = self.TextLabel; local Container = self.Container
+        local ParentObj = self; local ToggleLabel = self.TextLabel
         assert(Info.Default, 'AddKeyPicker: Missing default value.')
         local KP = {
             Value = Info.Default; Toggled = false; Mode = Info.Mode or 'Toggle'; Type = 'KeyPicker';
@@ -686,13 +713,22 @@ do
         if KP.SyncToggleState then Info.Modes = { 'Toggle' } Info.Mode = 'Toggle' end
         local PO = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; BorderColor3 = Library.OutlineColor; Size = UDim2.new(0,52,0,15); ZIndex = 6; Active = true; Parent = ToggleLabel })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.KeyPicker); Parent = PO }), 'KeyPicker')
+        Library:AddToRegistry(PO, { BackgroundColor3 = 'OutlineColor'; BorderColor3 = 'OutlineColor' })
         local PI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,1,0); ZIndex = 7; ClipsDescendants = true; Parent = PO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.KeyPicker); Parent = PI }), 'KeyPicker')
         Library:CreateStroke({ Parent = PI })
         Library:AddToRegistry(PI, { BackgroundColor3 = 'BackgroundColor' })
         local DL = Library:CreateLabel({ Size = UDim2.new(1,0,1,0); TextSize = 13; Text = Info.Default; TextWrapped = false; TextTruncate = Enum.TextTruncate.AtEnd; ZIndex = 8; Parent = PI })
         local MSO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(ToggleLabel.AbsolutePosition.X + ToggleLabel.AbsoluteSize.X + 4, ToggleLabel.AbsolutePosition.Y + 1); Size = UDim2.new(0,60,0,32); Visible = false; ZIndex = 14; Parent = getScreenGui(ToggleLabel) })
-        ToggleLabel:GetPropertyChangedSignal('AbsolutePosition'):Connect(function() MSO.Position = UDim2.fromOffset(ToggleLabel.AbsolutePosition.X + ToggleLabel.AbsoluteSize.X + 4, ToggleLabel.AbsolutePosition.Y + 1) end)
+        Library:AddToRegistry(MSO, { BorderColor3 = 'OutlineColor' })
+        -- [CHANGED] Heartbeat-поллинг MSO
+        local function UpdateMSO()
+            if MSO and MSO.Parent and ToggleLabel and ToggleLabel.Parent then
+                MSO.Position = UDim2.fromOffset(ToggleLabel.AbsolutePosition.X + ToggleLabel.AbsoluteSize.X + 4, ToggleLabel.AbsolutePosition.Y + 1)
+            end
+        end
+        ToggleLabel:GetPropertyChangedSignal('AbsolutePosition'):Connect(UpdateMSO)
+        Library:GiveSignal(RunService.Heartbeat:Connect(UpdateMSO))
         local MSI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,1,0); ZIndex = 15; Parent = MSO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = MSI }), 'DropdownList')
         Library:CreateStroke({ Parent = MSI })
@@ -711,8 +747,7 @@ do
             if Mode == KP.Mode then MB:Select() end
             MBtns[Mode] = MB
         end
-        local mc = 0
-        for _ in next, Modes do mc = mc + 1 end
+        local mc = 0; for _ in next, Modes do mc = mc + 1 end
         MSO.Size = UDim2.new(0,60,0, (15*mc)+2)
         function KP:Update()
             if Info.NoUI then return end
@@ -796,6 +831,7 @@ do
         end))
         Library:GiveSignal(InputService.InputEnded:Connect(function(Input) if not picking then KP:Update() end end))
         KP:Update()
+        KP.Frame = PO  -- [NEW]
         Options[Idx] = KP
         return self
     end
@@ -824,7 +860,7 @@ do
         else
             Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
         end
-        Label.TextLabel = TL; Label.Container = Container
+        Label.TextLabel = TL; Label.Container = Container; Label.Frame = TL
         function Label:SetText(t)
             TL.Text = t
             if DoesWrap then local Y = select(2, Library:GetTextBounds(t, Library.Font, 14, Vector2.new(TL.AbsoluteSize.X, math.huge))) TL.Size = UDim2.new(1,-4,0,Y) end
@@ -872,14 +908,8 @@ do
         end
         local function PR(R)
             if not R or not R.Parent then return end
-            R.Size = UDim2.new(0, 0, 1, 0)
-            R.Position = UDim2.new(0, 0, 0.5, 0)
-            R.AnchorPoint = Vector2.new(0, 0.5)
-            R.BackgroundTransparency = 0.45
-            TweenService:Create(R, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = UDim2.new(1, 0, 1, 0),
-                BackgroundTransparency = 1
-            }):Play()
+            R.Size = UDim2.new(0, 0, 1, 0); R.Position = UDim2.new(0, 0, 0.5, 0); R.AnchorPoint = Vector2.new(0, 0.5); R.BackgroundTransparency = 0.45
+            TweenService:Create(R, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 1, 0); BackgroundTransparency = 1 }):Play()
         end
         local function IE(B)
             local function WFE(ev, to, v)
@@ -914,6 +944,7 @@ do
         end
         Button.Outer, Button.Inner, Button.Label, Button.Ripple = CBB(Button)
         Button.Outer.Parent = Container
+        Button.Frame = Button.Outer -- [NEW]
         function Button:SetValue(b)
             b = not not b; Button.Value = b
             local R = Library.RegistryMap[Button.Inner]
@@ -944,8 +975,51 @@ do
     function Funcs:AddDivider()
         local Groupbox = self; local Container = self.Container
         Groupbox:AddBlank(2)
-        local DO = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-4,0,1); ZIndex = 7; Parent = Container })
+        Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-4,0,1); ZIndex = 7; Parent = Container })
         Groupbox:AddBlank(9); Groupbox:Resize()
+    end
+
+    -- [NEW] AddLinkLabel
+    function Funcs:AddLinkLabel(Text, Target, Info)
+        Info = Info or {}
+        local Groupbox = self; local Container = self.Container
+        local Link = { Type = 'LinkLabel' }
+        local LB = Library:CreateLabel({ Size = UDim2.new(1,-4,0,15); TextSize = 14; Text = Text; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; Parent = Container })
+        LB.Active = true
+        Library:AddToRegistry(LB, { TextColor3 = 'FontColor' })
+        local underline = Library:Create('Frame', { BackgroundColor3 = Library.FontColor; BorderSizePixel = 0; Position = UDim2.new(0,0,1,0); Size = UDim2.new(1,0,0,1); ZIndex = 8; Parent = LB })
+        Library:AddToRegistry(underline, { BackgroundColor3 = 'FontColor' })
+        Link.TextLabel = LB; Link.Frame = LB
+        local function resolveTarget()
+            local t = Target
+            if type(t) == 'string' then
+                local opts = _G.Options or Options
+                local tg = _G.Toggles or Toggles
+                t = (opts and opts[t]) or (tg and tg[t])
+            end
+            return t
+        end
+        local function setColor(c)
+            LB.TextColor3 = c; underline.BackgroundColor3 = c
+            local R1 = Library.RegistryMap[LB]; if R1 then R1.Properties.TextColor3 = function() return c end end
+            local R2 = Library.RegistryMap[underline]; if R2 then R2.Properties.BackgroundColor3 = function() return c end end
+        end
+        LB.MouseEnter:Connect(function() setColor(Info.HoverColor or Library.AccentColor) end)
+        LB.MouseLeave:Connect(function() setColor(Library.FontColor) end)
+        LB.InputBegan:Connect(function(Inp)
+            if Inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+            if Library:MouseIsOverOpenedFrame() then return end
+            local t = resolveTarget()
+            local frame = GetTargetFrame(t)
+            if frame then
+                Library:HighlightElement(frame, Info.Duration or 1.5, Info.HighlightColor or Library.AccentColor)
+                if Info.OnClick then Library:SafeCallback(Info.OnClick, t) end
+            end
+        end)
+        Link.SetTarget = function(newTarget) Target = newTarget end
+        Groupbox:AddBlank(5); Groupbox:Resize()
+        if Info.Idx then Options[Info.Idx] = Link end
+        return Link
     end
 
     function Funcs:AddInput(Idx, Info)
@@ -992,6 +1066,7 @@ do
         Box.FocusLost:Connect(Update); Box.Focused:Connect(Update)
         Library:AddToRegistry(Box, { TextColor3 = 'FontColor' })
         function TB:OnChanged(f) TB.Changed = f f(TB.Value) end
+        TB.Frame = TBO
         Groupbox:AddBlank(5); Groupbox:Resize()
         Options[Idx] = TB
         return TB
@@ -1015,14 +1090,10 @@ do
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
         function Toggle:Display(anim)
             if anim then
-                TI.AnchorPoint = Vector2.new(0.5, 0.5)
-                TI.Position = UDim2.new(0.5, 0, 0.5, 0)
-                TI.Size = UDim2.new(0, 2, 0, 2)
+                TI.AnchorPoint = Vector2.new(0.5, 0.5); TI.Position = UDim2.new(0.5, 0, 0.5, 0); TI.Size = UDim2.new(0, 2, 0, 2)
                 TweenService:Create(TI, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.new(1,0,1,0) }):Play()
             else
-                TI.AnchorPoint = Vector2.new(0, 0)
-                TI.Position = UDim2.new(0, 0, 0, 0)
-                TI.Size = UDim2.new(1, 0, 1, 0)
+                TI.AnchorPoint = Vector2.new(0, 0); TI.Position = UDim2.new(0, 0, 0, 0); TI.Size = UDim2.new(1, 0, 1, 0)
             end
             TI.BackgroundColor3 = Toggle.Value and Library.AccentColor or Library.MainColor
             Library.RegistryMap[TI].Properties.BackgroundColor3 = Toggle.Value and 'AccentColor' or 'MainColor'
@@ -1042,7 +1113,7 @@ do
         if Toggle.Risky then Library:RemoveFromRegistry(TL) TL.TextColor3 = Library.RiskColor Library:AddToRegistry(TL, { TextColor3 = 'RiskColor' }) end
         Toggle:Display()
         Groupbox:AddBlank(Info.BlankSize or 5+2); Groupbox:Resize()
-        Toggle.TextLabel = TL; Toggle.Container = Container
+        Toggle.TextLabel = TL; Toggle.Container = Container; Toggle.Frame = TO
         setmetatable(Toggle, BaseAddons)
         Toggles[Idx] = Toggle
         Library:UpdateDependencyBoxes()
@@ -1114,7 +1185,7 @@ do
             end
         end)
         Slider:Display()
-        Slider.Container = Container
+        Slider.Container = Container; Slider.Frame = SO
         if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() Slider:Display() end) end
         Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
         Options[Idx] = Slider
@@ -1148,6 +1219,8 @@ do
         local function RLS(y) LO.Size = UDim2.fromOffset(DO.AbsoluteSize.X, y or (MDI*20+2)) end
         RLP(); RLS()
         DO:GetPropertyChangedSignal('AbsolutePosition'):Connect(RLP)
+        -- [CHANGED] Heartbeat-поллинг LO
+        Library:GiveSignal(RunService.Heartbeat:Connect(function() if LO.Visible then RLP() end end))
         DO:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() RLS(math.clamp(#D.Values*20, 0, MDI*20)+1) end)
         local LI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 221; Parent = LO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = LI }), 'DropdownList')
@@ -1232,7 +1305,7 @@ do
                 if Mouse.X < ap.X or Mouse.X > ap.X+as.X or Mouse.Y < (ap.Y-21) or Mouse.Y > ap.Y+as.Y then D:CloseDropdown() end
             end
         end)
-        D.Container = Container
+        D.Container = Container; D.Frame = DO
         D:BuildDropdownList(); D:Display()
         local Def = {}
         if type(Info.Default) == 'string' then local i = table.find(D.Values, Info.Default) if i then table.insert(Def, i) end
@@ -1312,7 +1385,7 @@ do
                 if key then done = true cn:Disconnect() picking = false K:SetValue(key) end
             end)
         end)
-        K.Container = Container
+        K.Container = Container; K.Frame = BO
         Groupbox:AddBlank(5); Groupbox:Resize()
         Options[Idx] = K
         return K
@@ -1367,42 +1440,55 @@ function BindSystem:GetDefaultValue(c)
     if c.Type == 'Slider' then return c.Value end
     return nil
 end
+
+-- [CHANGED] ApplyTrigger возвращает true, если нужно показать ReleaseMsg
+-- Для Toggle (mode Toggle) — true в момент "выключения" (повторное нажатие)
+-- Для Hold — true в момент отпускания с восстановлением значения
 function BindSystem:ApplyTrigger(b, p)
-    local c = b.Control; if not c then return end
+    local c = b.Control; if not c then return false end
     local v = b.Value; local m = b.Mode
-    if c.Type == 'Button' then if p then Library:SafeCallback(c.Func) end return end
-    if c.Type == 'Keybind' then if p then Library:SafeCallback(c.Callback, true) end return end
+    local rel = false
+    if c.Type == 'Button' then if p then Library:SafeCallback(c.Func) end return rel end
+    if c.Type == 'Keybind' then if p then Library:SafeCallback(c.Callback, true) end return rel end
     if c.Type == 'Toggle' then
         if m == 'Hold' then
             if p then b._prevValue = c.Value c:SetValue(v)
-            else if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil end end
+            else if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil rel = true end end
         elseif m == 'Always' then if p then c:SetValue(v) end
         else
             if p then
                 if c.Value == v then
                     if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil
                     else c:SetValue(not v) end
+                    rel = true
                 else b._prevValue = c.Value c:SetValue(v) end
             end
         end
     elseif c.Type == 'Slider' then
         if m == 'Hold' then
             if p then b._prevValue = c.Value c:SetValue(v)
-            else if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil end end
+            else if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil rel = true end end
         else if p then c:SetValue(v) end end
     elseif c.Type == 'Dropdown' then
         if m == 'Hold' then
             if p then b._prevValue = c.Value c:SetValue(v)
-            else if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil end end
+            else if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil rel = true end end
         elseif m == 'Toggle' then
             if p then
-                if c.Value == v then if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil else c:SetValue(nil) end
+                if c.Value == v then
+                    if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil
+                    else c:SetValue(nil) end
+                    rel = true
                 else b._prevValue = c.Value c:SetValue(v) end
             end
         else if p then c:SetValue(v) end end
     end
     Library:AttemptSave()
+    return rel
 end
+
+-- [CHANGED] ReleaseMsg пишется когда rel == true. Для Toggle это происходит в press-ветке (в момент выключения),
+-- для Hold — в release-ветке. Таким образом Release не пишется при отжатии клавиши в Toggle-режиме.
 function BindSystem:HandleInput(Inp, p)
     local n = GBIN(Inp); if not n then return end
     for _, b in ipairs(self.AllBindings) do
@@ -1411,13 +1497,14 @@ function BindSystem:HandleInput(Inp, p)
                 if not b._down then
                     b._down = true
                     if b.PressMsg and b.PressMsg ~= '' then Library:Notify(b.PressMsg, 3) end
-                    self:ApplyTrigger(b, true)
+                    local rel = self:ApplyTrigger(b, true)
+                    if rel and b.ReleaseMsg and b.ReleaseMsg ~= '' then Library:Notify(b.ReleaseMsg, 3) end
                 end
             else
                 if b._down then
                     b._down = false
-                    if b.ReleaseMsg and b.ReleaseMsg ~= '' then Library:Notify(b.ReleaseMsg, 3) end
-                    if b.Mode == 'Hold' then self:ApplyTrigger(b, false) end
+                    local rel = self:ApplyTrigger(b, false)
+                    if rel and b.ReleaseMsg and b.ReleaseMsg ~= '' then Library:Notify(b.ReleaseMsg, 3) end
                 end
             end
         end
@@ -1442,20 +1529,8 @@ function BindSystem:BuildBindCard(Sc, AB, c, eb)
     elseif c.Type == 'Slider' then gb:AddSlider(NBI(), { Text = 'Value'; Min = c.Min; Max = c.Max; Rounding = c.Rounding; Default = (type(b.Value) == 'number') and b.Value or c.Value; Suffix = ''; Callback = function(v) b.Value = v end })
     elseif c.Type == 'Dropdown' then gb:AddDropdown(NBI(), { Text = 'Value'; Values = c.Values; AllowNull = true; Default = b.Value; Callback = function(v) b.Value = v end })
     elseif c.Type == 'Button' then gb:AddLabel('Triggers button callback', true) end
-    gb:AddInput(NBI(), {
-        Text = 'Press message',
-        Placeholder = 'Message on press',
-        Default = b.PressMsg or '',
-        Finished = true,
-        Callback = function(v) b.PressMsg = v end,
-    })
-    gb:AddInput(NBI(), {
-        Text = 'Release message',
-        Placeholder = 'Message on release',
-        Default = b.ReleaseMsg or '',
-        Finished = true,
-        Callback = function(v) b.ReleaseMsg = v end,
-    })
+    gb:AddInput(NBI(), { Text = 'Press message'; Placeholder = 'Message on press'; Default = b.PressMsg or ''; Finished = true; Callback = function(v) b.PressMsg = v end })
+    gb:AddInput(NBI(), { Text = 'Release message'; Placeholder = 'Message on release'; Default = b.ReleaseMsg or ''; Finished = true; Callback = function(v) b.ReleaseMsg = v end })
     gb:AddButton('Remove bind', function()
         for i, bb in ipairs(self.AllBindings) do if bb == b then table.remove(self.AllBindings, i) break end end
         gb.Outer:Destroy()
@@ -1672,10 +1747,7 @@ function Library:CreateWindow(...)
     local TC = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,8,0,30); Size = UDim2.new(1,-16,1,-38); ZIndex = 2; ClipsDescendants = true; Parent = MSI })
 
     function W:SetWindowTitle(t) WL.Text = t end
-    function W:SetWindowOpacity(t)
-        t = math.clamp(t or 0, 0, 1)
-        Inner.BackgroundTransparency = t
-    end
+    function W:SetWindowOpacity(t) t = math.clamp(t or 0, 0, 1) Inner.BackgroundTransparency = t end
     function W:SetBackgroundImage(id, tr)
         local b = W.BackgroundImage; if not b then return end
         id = id or ''
