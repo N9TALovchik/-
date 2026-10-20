@@ -13,10 +13,6 @@ local Mouse = LocalPlayer:GetMouse();
 local CURSOR_IMAGE_ID = "18392993708"
 local NOTIFY_SOUND_ID = "132463144859699"
 local NOTIFY_ANIMATION_SPEED = 0.3
-local THREED_DISTANCE = 5
-local PPU = 100
-local ThreeDMode = false
-local Current3DPart, Current3DSurface
 local SPEED_MIN, SPEED_MAX = 0.1, 15.0
 local RainbowClock = 0
 
@@ -28,8 +24,12 @@ ProtectGui(ScreenGui); ProtectGui(OverlayGui); ProtectGui(BindGui)
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 OverlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 BindGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-BindGui.DisplayOrder = 10
-BindGui.ResetOnSpawn = false
+
+-- [FIX] Высокий DisplayOrder, чтобы клики по слайдерам работали при открытом меню ESC
+ScreenGui.DisplayOrder = 999
+OverlayGui.DisplayOrder = 998
+BindGui.DisplayOrder = 999
+
 ScreenGui.Parent = CoreGui; OverlayGui.Parent = CoreGui; BindGui.Parent = CoreGui
 
 local function getScreenGui(obj) while obj and not obj:IsA('ScreenGui') do obj = obj.Parent end return obj or ScreenGui end
@@ -121,6 +121,19 @@ end
 -- [CHANGED] теперь UpdateColorsUsingRegistry вызывается и для outline
 function Library:SetOutlineColor(c)
     Library.OutlineColor = c
+    
+    local function updateStrokes(gui)
+        if not gui then return end
+        for _, obj in ipairs(gui:GetDescendants()) do
+            if obj:IsA('UIStroke') and not obj:GetAttribute('IsTextStroke') then
+                obj.Color = c
+            end
+        end
+    end
+    updateStrokes(ScreenGui)
+    updateStrokes(OverlayGui)
+    updateStrokes(BindGui)
+
     for _, s in ipairs(CollectionService:GetTagged('LibraryOutlineStroke')) do
         if s and s.Parent and not s:GetAttribute('IsTextStroke') then s.Color = c end
     end
@@ -1076,18 +1089,31 @@ do
         assert(Info.Text, 'AddInput: Missing `Text` string.')
         local Toggle = { Value = Info.Default or false; Type = 'Toggle'; Callback = Info.Callback or function() end; Addons = {}; Risky = Info.Risky }
         local Groupbox = self; local Container = Groupbox.Container
-        local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,13,0,13); ZIndex = 7; Active = true; Parent = Container })
+        
+        -- [FIX] Создаем полноширинный контейнер для тогла
+        local TRow = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,0,13); ZIndex = 7; Active = true; Parent = Container })
+        
+        -- Сам переключатель (13x13)
+        local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,13,1,0); ZIndex = 7; Active = true; Parent = TRow })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TO }), 'Toggle')
         Library:CreateStroke({ Parent = TO })
+        
         local TI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 8; Parent = TO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TI }), 'Toggle')
         Library:AddToRegistry(TI, { BackgroundColor3 = 'MainColor' })
-        local TL = Library:CreateLabel({ Size = UDim2.new(0,216,1,0); Position = UDim2.new(1,6,0,0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TI })
+        
+        -- [FIX] Текст и аддоны теперь растягиваются на всю ширину (минус размер тогла)
+        local TL = Library:CreateLabel({ Size = UDim2.new(1,-19,1,0); Position = UDim2.new(0,19,0,0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TRow })
+        
         Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
-        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,170,1,0); ZIndex = 10; Active = true; Parent = TO })
+        
+        -- [FIX] Кликабельная область теперь растянута на весь ряд, а не только на 170 пикселей
+        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); ZIndex = 10; Active = true; Parent = TRow })
         Library:OnHighlight(TR, TO, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
+        
         function Toggle:UpdateColors() Toggle:Display() end
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
+        
         function Toggle:Display(anim)
             if anim then
                 TI.AnchorPoint = Vector2.new(0.5, 0.5); TI.Position = UDim2.new(0.5, 0, 0.5, 0); TI.Size = UDim2.new(0, 2, 0, 2)
@@ -1098,6 +1124,7 @@ do
             TI.BackgroundColor3 = Toggle.Value and Library.AccentColor or Library.MainColor
             Library.RegistryMap[TI].Properties.BackgroundColor3 = Toggle.Value and 'AccentColor' or 'MainColor'
         end
+        
         function Toggle:OnChanged(f) Toggle.Changed = f f(Toggle.Value) end
         function Toggle:SetValue(b)
             local old = Toggle.Value
@@ -1106,14 +1133,19 @@ do
             for _, A in next, Toggle.Addons do if A.Type == 'KeyPicker' and A.SyncToggleState then A.Toggled = b A:Update() end end
             Library:SafeCallback(Toggle.Callback, b); Library:SafeCallback(Toggle.Changed, b); Library:UpdateDependencyBoxes()
         end
+        
         TR.InputBegan:Connect(function(Inp)
             if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then Toggle:SetValue(not Toggle.Value) Library:AttemptSave()
             elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then Library.BindSystem:Open(Toggle) end
         end)
+        
         if Toggle.Risky then Library:RemoveFromRegistry(TL) TL.TextColor3 = Library.RiskColor Library:AddToRegistry(TL, { TextColor3 = 'RiskColor' }) end
+        
         Toggle:Display()
         Groupbox:AddBlank(Info.BlankSize or 5+2); Groupbox:Resize()
-        Toggle.TextLabel = TL; Toggle.Container = Container; Toggle.Frame = TO
+        
+        -- [FIX] Для LinkLabel теперь вешаем на весь ряд
+        Toggle.TextLabel = TL; Toggle.Container = Container; Toggle.Frame = TRow
         setmetatable(Toggle, BaseAddons)
         Toggles[Idx] = Toggle
         Library:UpdateDependencyBoxes()
@@ -1441,9 +1473,6 @@ function BindSystem:GetDefaultValue(c)
     return nil
 end
 
--- [CHANGED] ApplyTrigger возвращает true, если нужно показать ReleaseMsg
--- Для Toggle (mode Toggle) — true в момент "выключения" (повторное нажатие)
--- Для Hold — true в момент отпускания с восстановлением значения
 function BindSystem:ApplyTrigger(b, p)
     local c = b.Control; if not c then return false end
     local v = b.Value; local m = b.Mode
@@ -1487,8 +1516,6 @@ function BindSystem:ApplyTrigger(b, p)
     return rel
 end
 
--- [CHANGED] ReleaseMsg пишется когда rel == true. Для Toggle это происходит в press-ветке (в момент выключения),
--- для Hold — в release-ветке. Таким образом Release не пишется при отжатии клавиши в Toggle-режиме.
 function BindSystem:HandleInput(Inp, p)
     local n = GBIN(Inp); if not n then return end
     for _, b in ipairs(self.AllBindings) do
@@ -1675,24 +1702,6 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text
 end
 
-function Clear3DObjects()
-    if Current3DPart then Current3DPart:Destroy() end
-    if Current3DSurface then Current3DSurface:Destroy() end
-    Current3DPart, Current3DSurface = nil, nil
-    if Library.MainFrame and Library.MainFrame.Parent then
-        pcall(function() if Library.MainFrame.Parent ~= ScreenGui then Library.MainFrame.Parent = ScreenGui end end)
-    end
-end
-function Create3DObjects()
-    Clear3DObjects()
-    local C = workspace.CurrentCamera; if not C then return end
-    local wS = Library.MainFrame and Library.MainFrame.Size or UDim2.fromOffset(550,600)
-    local pX = math.max(wS.X.Offset/PPU, 0.1); local pY = math.max(wS.Y.Offset/PPU, 0.1)
-    local P = Instance.new('Part'); P.Name = 'Linoria3DPart'; P.Size = Vector3.new(pX, pY, 0.1); P.Transparency = 1; P.CanCollide = false; P.Anchored = true; P.CFrame = C.CFrame * CFrame.new(0,0,-THREED_DISTANCE); P.Parent = workspace; Current3DPart = P
-    local S = Instance.new('SurfaceGui'); S.Name = 'Linoria3DSurface'; S.Face = Enum.NormalId.Front; S.PixelsPerStud = PPU; S.CanvasSize = Vector2.new(wS.X.Offset, wS.Y.Offset); S.AlwaysOnTop = true; S.Parent = P; Current3DSurface = S
-    if Library.MainFrame and Library.MainFrame.Parent then pcall(function() if Library.MainFrame.Parent ~= S then Library.MainFrame.Parent = S end end) end
-end
-
 function Library:CreateWindow(...)
     local Args = { ... }; local Config = { AnchorPoint = Vector2.zero }
     if type(...) == 'table' then Config = ... else Config.Title = Args[1] Config.AutoShow = Args[2] or false end
@@ -1857,37 +1866,30 @@ function Library:CreateWindow(...)
     function Library:Toggle()
         if Fading then return end
         local FT = Config.MenuFadeTime; Fading = true; Tog = not Tog; ME.Modal = Tog
-        if ThreeDMode then Outer.Visible = Tog
-        else
-            if not Tog then for f, _ in pairs(Library.OpenedFrames) do f.Visible = false end table.clear(Library.OpenedFrames) end
-            if Tog then Outer.Visible = true end
-            for _, D in next, Outer:GetDescendants() do
-                local P = {}
-                if D:IsA('ImageLabel') then table.insert(P, 'ImageTransparency') table.insert(P, 'BackgroundTransparency')
-                elseif D:IsA('TextLabel') or D:IsA('TextBox') then table.insert(P, 'TextTransparency')
-                elseif D:IsA('Frame') or D:IsA('ScrollingFrame') then table.insert(P, 'BackgroundTransparency')
-                elseif D:IsA('UIStroke') then table.insert(P, 'Transparency') end
-                local C = TCache[D]; if not C then C = {} TCache[D] = C end
-                for _, p in next, P do
-                    if not C[p] then C[p] = D[p] end
-                    if C[p] == 1 then continue end
-                    TweenService:Create(D, TweenInfo.new(FT, Enum.EasingStyle.Linear), { [p] = Tog and C[p] or 1 }):Play()
-                end
+        
+        if not Tog then for f, _ in pairs(Library.OpenedFrames) do f.Visible = false end table.clear(Library.OpenedFrames) end
+        if Tog then Outer.Visible = true end
+        for _, D in next, Outer:GetDescendants() do
+            local P = {}
+            if D:IsA('ImageLabel') then table.insert(P, 'ImageTransparency') table.insert(P, 'BackgroundTransparency')
+            elseif D:IsA('TextLabel') or D:IsA('TextBox') then table.insert(P, 'TextTransparency')
+            elseif D:IsA('Frame') or D:IsA('ScrollingFrame') then table.insert(P, 'BackgroundTransparency')
+            elseif D:IsA('UIStroke') then table.insert(P, 'Transparency') end
+            local C = TCache[D]; if not C then C = {} TCache[D] = C end
+            for _, p in next, P do
+                if not C[p] then C[p] = D[p] end
+                if C[p] == 1 then continue end
+                TweenService:Create(D, TweenInfo.new(FT, Enum.EasingStyle.Linear), { [p] = Tog and C[p] or 1 }):Play()
             end
         end
+        
         task.wait(FT)
-        if not Tog and not ThreeDMode then Outer.Visible = false end
+        if not Tog then Outer.Visible = false end
         if not Tog and Library.BindSystem then Library.BindSystem:CloseAllWindows() end
         Fading = false
     end
     Library.ToggleMenu = Library.Toggle
-    function Library:Set3DEnabled(en)
-        if en == ThreeDMode then return end
-        ThreeDMode = en
-        if en then Create3DObjects() Outer.Visible = true ME.Modal = true Tog = true
-        else Clear3DObjects() if Tog then Outer.Visible = true ME.Modal = true else Outer.Visible = false ME.Modal = false end end
-    end
-    getgenv().Set3DEnabled = Library.Set3DEnabled
+
     Library:GiveSignal(InputService.InputBegan:Connect(function(Inp, Pr)
         if type(Library.ToggleKeybind) == 'table' and Library.ToggleKeybind.Type == 'KeyPicker' then
             if Inp.UserInputType == Enum.UserInputType.Keyboard and Inp.KeyCode.Name == Library.ToggleKeybind.Value then task.spawn(Library.Toggle) end
