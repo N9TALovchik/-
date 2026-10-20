@@ -46,7 +46,7 @@ local Library = {
     ScreenGui = ScreenGui; UICornerRadius = 1; UICorners = {};
     NotifySoundId = NOTIFY_SOUND_ID; CursorImageId = CURSOR_IMAGE_ID;
     MainFrame = nil; _resizing = false; _hoveredResizeHandle = nil;
-    AnimationsEnabled = true; -- [NEW] Глобальный флаг анимаций
+    AnimationsEnabled = true; -- Глобальный флаг анимаций
     UICorner = {
         Button = 8, Toggle = 3, Slider = 8, Dropdown = 4,
         DropdownList = 4, Groupbox = 6, KeyPicker = 3, Keybind = 4,
@@ -121,7 +121,7 @@ function Library:CreateStroke(Props)
     p.Transparency = p.Transparency or 0
     if p.ZIndex == nil then p.ZIndex = 1 end
     local s = Library:Create('UIStroke', p)
-    s:SetAttribute('IsTextStroke', false)
+    s:SetAttribute('IsTextStroke', false) -- Это РАМКА, не текст
     CollectionService:AddTag(s, 'LibraryOutlineStroke')
     table.insert(Library.OutlineStrokes, s)
     return s
@@ -133,7 +133,8 @@ function Library:SetOutlineColor(c)
     local function updateStrokes(gui)
         if not gui then return end
         for _, obj in ipairs(gui:GetDescendants()) do
-            if obj:IsA('UIStroke') and not obj:GetAttribute('IsTextStroke') then
+            -- Красим ТОЛЬКО если это не текстовая обводка
+            if obj:IsA('UIStroke') and obj:GetAttribute('IsTextStroke') == false then
                 obj.Color = c
             end
         end
@@ -143,12 +144,12 @@ function Library:SetOutlineColor(c)
     updateStrokes(BindGui)
 
     for _, s in ipairs(CollectionService:GetTagged('LibraryOutlineStroke')) do
-        if s and s.Parent and not s:GetAttribute('IsTextStroke') then s.Color = c end
+        if s and s.Parent and s:GetAttribute('IsTextStroke') == false then s.Color = c end
     end
     for i = #Library.OutlineStrokes, 1, -1 do
         local s = Library.OutlineStrokes[i]
         if not s or not s.Parent then table.remove(Library.OutlineStrokes, i)
-        elseif not s:GetAttribute('IsTextStroke') then s.Color = c end
+        elseif s:GetAttribute('IsTextStroke') == false then s.Color = c end
     end
     Library:UpdateColorsUsingRegistry()
 end
@@ -197,8 +198,14 @@ function Library:Create(Class, Props)
 end
 function Library:ApplyTextStroke(inst)
     inst.TextStrokeTransparency = 1
-    local s = Library:Create('UIStroke', { Color = Color3.new(0,0,0); Thickness = 1; LineJoinMode = Enum.LineJoinMode.Miter; Parent = inst })
-    s:SetAttribute('IsTextStroke', true)
+    local s = Library:Create('UIStroke', { 
+        Color = Color3.new(0,0,0); 
+        Thickness = 1; 
+        LineJoinMode = Enum.LineJoinMode.Miter; 
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual; -- ВАЖНО: Контекстный режим для текста
+        Parent = inst 
+    })
+    s:SetAttribute('IsTextStroke', true) -- Это ТЕКСТОВАЯ обводка
     return s
 end
 function Library:CreateLabel(Props, IsHud)
@@ -328,9 +335,7 @@ end
 function Library:OnUnload(cb) Library.OnUnload = cb end
 Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(I) if Library.RegistryMap[I] then Library:RemoveFromRegistry(I) end end))
 
--- ═══════════════════════════════════════════════════════════════════════════
--- [NEW] HIGHLIGHT (для LinkLabel)
--- ═══════════════════════════════════════════════════════════════════════════
+-- HIGHLIGHT (для LinkLabel)
 function Library:HighlightElement(Frame, Duration, Color)
     if not Frame or not Frame.Parent then return end
     Duration = Duration or 1.5
@@ -395,7 +400,6 @@ do
         local PFO = Library:Create('Frame', { Name = 'Color'; BackgroundColor3 = Color3.new(1,1,1); BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18); Size = UDim2.fromOffset(230, PH(CP.Mode)); Visible = false; ZIndex = 15000; Parent = getScreenGui(ToggleLabel) })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFO }), 'Groupbox')
         Library:AddToRegistry(PFO, { BorderColor3 = 'OutlineColor' })
-        -- [CHANGED] постоянный апдейт позиции PFO, чтобы не залипал при ресайзе
         local function UpdatePFO()
             if PFO and PFO.Parent and Display and Display.Parent then
                 PFO.Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18)
@@ -1120,7 +1124,7 @@ do
         local Toggle = { Value = Info.Default or false; Type = 'Toggle'; Callback = Info.Callback or function() end; Addons = {}; Risky = Info.Risky }
         local Groupbox = self; local Container = Groupbox.Container
         
-        -- [FIX] Создаем полноширинный контейнер для тогла
+        -- Создаем полноширинный контейнер для тогла
         local TRow = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,0,13); ZIndex = 7; Active = true; Parent = Container })
         
         -- Сам переключатель (13x13)
@@ -1132,12 +1136,12 @@ do
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TI }), 'Toggle')
         Library:AddToRegistry(TI, { BackgroundColor3 = 'MainColor' })
         
-        -- [FIX] Текст и аддоны теперь растягиваются на всю ширину (минус размер тогла)
+        -- Текст и аддоны теперь растягиваются на всю ширину
         local TL = Library:CreateLabel({ Size = UDim2.new(1,-19,1,0); Position = UDim2.new(0,19,0,0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TRow })
         
         Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
         
-        -- [FIX] Кликабельная область теперь растянута на весь ряд, а не только на 170 пикселей
+        -- Кликабельная область теперь растянута на весь ряд
         local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); ZIndex = 10; Active = true; Parent = TRow })
         Library:OnHighlight(TR, TO, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
         
@@ -1174,7 +1178,6 @@ do
         Toggle:Display()
         Groupbox:AddBlank(Info.BlankSize or 5+2); Groupbox:Resize()
         
-        -- [FIX] Для LinkLabel теперь вешаем на весь ряд
         Toggle.TextLabel = TL; Toggle.Container = Container; Toggle.Frame = TRow
         setmetatable(Toggle, BaseAddons)
         Toggles[Idx] = Toggle
@@ -1214,7 +1217,7 @@ do
             if W <= 0 then W = 232 end
             local X = math.ceil(Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, W))
             
-            -- [NEW] Плавная анимация слайдера
+            -- Плавная анимация слайдера
             if Library.AnimationsEnabled and not (Slider.AnimationsEnabled == false) then
                 TweenService:Create(Fill, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(0, X, 1, 0) }):Play()
             else
@@ -1777,7 +1780,7 @@ function Library:CreateWindow(...)
     if type(Config.TabsOffset) ~= 'number' then Config.TabsOffset = 0 end
     if Config.Center then Config.AnchorPoint = Vector2.new(0.5,0.5) Config.Position = UDim2.fromScale(0.5,0.5) end
 
-    local W = { Tabs = {} }
+    local W = { Tabs = {}, ActiveTab = nil }
     local Outer = Library:Create('Frame', { AnchorPoint = Config.AnchorPoint; BackgroundTransparency = 1; BorderSizePixel = 0; Position = Config.Position; Size = Config.Size; Visible = false; ZIndex = 1; Parent = ScreenGui })
     Library.MainFrame = Outer
     local OuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Groupbox, Library.UICornerRadius * 10)); Parent = Outer })
@@ -1829,16 +1832,11 @@ function Library:CreateWindow(...)
         local Tb = { Groupboxes = {}; Tabboxes = {} }
         local TBW = Library:GetTextBounds(Name, Library.Font, 16)
         local TB = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0, TBW + 8 + 4, 1, 0); ZIndex = 150; Active = true; Parent = TA })
-        
-        -- [FIX] Исправлен UIStroke у 4-го таба
         Library:CreateStroke({ Parent = TB })
-        
         Library:CreateLabel({ Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,-1); Text = Name; ZIndex = 151; Parent = TB })
         local Blk = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Position = UDim2.new(0,0,1,0); Size = UDim2.new(1,0,0,1); BackgroundTransparency = 1; ZIndex = 152; Parent = TB })
         Library:AddToRegistry(Blk, { BackgroundColor3 = 'AccentColor' })
         local TF = Library:Create('Frame', { Name = 'TabFrame'; BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); Visible = false; ZIndex = 2; Parent = TC })
-        
-        -- [FIX] Добавлен UIStroke для TabFrame, чтобы не выбивался из общей картины
         Library:CreateStroke({ Parent = TF })
 
         local LS = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0,7,0,20); Size = UDim2.new(0.5,-10,1,-28); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
@@ -1847,22 +1845,33 @@ function Library:CreateWindow(...)
         Library:Create('UIListLayout', { Padding = UDim.new(0,8); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; HorizontalAlignment = Enum.HorizontalAlignment.Center; Parent = RS })
         for _, S in next, { LS, RS } do S:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() S.CanvasSize = UDim2.fromOffset(0, S.UIListLayout.AbsoluteContentSize.Y) end) end
         
-        -- [FIX] Исправлен баг с двумя открытыми табами
         function Tb:ShowTab()
+            -- Если этот таб уже открыт, то закрываем его при повторном клике
+            if W.ActiveTab == Tb then
+                Tb:HideTab()
+                W.ActiveTab = nil
+                return
+            end
+            
             for _, t in next, W.Tabs do 
                 if t ~= Tb then t:HideTab() end
             end
+            
             Blk.BackgroundTransparency = 0
             TB.BackgroundColor3 = Library.BackgroundColor
             TB.BackgroundTransparency = 0
             TF.Visible = true
+            W.ActiveTab = Tb
         end
+        
         function Tb:HideTab()
             Blk.BackgroundTransparency = 1
             TB.BackgroundColor3 = Library.BackgroundColor
             TB.BackgroundTransparency = 1
             TF.Visible = false
+            if W.ActiveTab == Tb then W.ActiveTab = nil end
         end
+        
         function Tb:SetLayoutOrder(p) TB.LayoutOrder = p TLL:ApplyLayout() end
         function Tb:AddGroupbox(Info)
             local GB = {}
