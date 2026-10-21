@@ -127,29 +127,22 @@ function Library:CreateStroke(Props)
     return s
 end
 
--- [FIX] ТЕПЕРЬ КРАСИТ ВООБЩЕ ВСЕ UIStroke В ИНТЕРФЕЙСЕ
-function Library:SetOutlineColor(c)
+-function Library:SetOutlineColor(c)
     Library.OutlineColor = c
     
-    local function updateStrokes(gui)
-        if not gui then return end
-        for _, obj in ipairs(gui:GetDescendants()) do
-            if obj:IsA('UIStroke') then
-                obj.Color = c
-            end
-        end
-    end
-    updateStrokes(ScreenGui)
-    updateStrokes(OverlayGui)
-    updateStrokes(BindGui)
-
+    -- Красим только те обводки, которые помечены тегом (границы кнопок, окон и т.д.)
     for _, s in ipairs(CollectionService:GetTagged('LibraryOutlineStroke')) do
         if s and s.Parent then s.Color = c end
     end
+    
+    -- Чистим удаленные обводки
     for i = #Library.OutlineStrokes, 1, -1 do
         local s = Library.OutlineStrokes[i]
-        if not s or not s.Parent then table.remove(Library.OutlineStrokes, i)
-        else s.Color = c end
+        if not s or not s.Parent then 
+            table.remove(Library.OutlineStrokes, i)
+        else 
+            s.Color = c 
+        end
     end
     
     Library:UpdateColorsUsingRegistry()
@@ -321,9 +314,20 @@ function Library:RemoveFromRegistry(Inst)
 end
 function Library:UpdateColorsUsingRegistry()
     for _, O in next, Library.Registry do
-        for p, c in next, O.Properties do
-            if type(c) == 'string' then O.Instance[p] = Library[c]
-            elseif type(c) == 'function' then O.Instance[p] = c() end
+        if O.Instance and O.Instance.Parent then
+            for p, c in next, O.Properties do
+                -- Оборачиваем в pcall, чтобы одна ошибка не ломала покраску всего UI
+                pcall(function()
+                    if type(c) == 'string' then 
+                        if Library[c] then O.Instance[p] = Library[c] end
+                    elseif type(c) == 'function' then 
+                        O.Instance[p] = c() 
+                    end
+                end)
+            end
+        else
+            -- Если элемент удален, чистим реестр
+            Library:RemoveFromRegistry(O.Instance)
         end
     end
 end
