@@ -133,8 +133,8 @@ function Library:SetOutlineColor(c)
     local function updateStrokes(gui)
         if not gui then return end
         for _, obj in ipairs(gui:GetDescendants()) do
-            -- Красим ТОЛЬКО если это не текстовая обводка
-            if obj:IsA('UIStroke') and obj:GetAttribute('IsTextStroke') == false then
+            -- [FIX] Красим ВСЕ обводки, кроме тех, что помечены как текст (true)
+            if obj:IsA('UIStroke') and obj:GetAttribute('IsTextStroke') ~= true then
                 obj.Color = c
             end
         end
@@ -144,12 +144,12 @@ function Library:SetOutlineColor(c)
     updateStrokes(BindGui)
 
     for _, s in ipairs(CollectionService:GetTagged('LibraryOutlineStroke')) do
-        if s and s.Parent and s:GetAttribute('IsTextStroke') == false then s.Color = c end
+        if s and s.Parent and s:GetAttribute('IsTextStroke') ~= true then s.Color = c end
     end
     for i = #Library.OutlineStrokes, 1, -1 do
         local s = Library.OutlineStrokes[i]
         if not s or not s.Parent then table.remove(Library.OutlineStrokes, i)
-        elseif s:GetAttribute('IsTextStroke') == false then s.Color = c end
+        elseif s:GetAttribute('IsTextStroke') ~= true then s.Color = c end
     end
     Library:UpdateColorsUsingRegistry()
 end
@@ -202,7 +202,7 @@ function Library:ApplyTextStroke(inst)
         Color = Color3.new(0,0,0); 
         Thickness = 1; 
         LineJoinMode = Enum.LineJoinMode.Miter; 
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual; -- ВАЖНО: Контекстный режим для текста
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual;
         Parent = inst 
     })
     s:SetAttribute('IsTextStroke', true) -- Это ТЕКСТОВАЯ обводка
@@ -396,7 +396,6 @@ do
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.ColorPicker); Parent = Display }), 'ColorPicker')
         Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(0,27,0,13); ZIndex = 5; Image = 'http://www.roblox.com/asset/?id=12977615774'; Visible = not not Info.Transparency; Parent = Display })
         
-        -- [FIX] Поднял ZIndex до 15000
         local PFO = Library:Create('Frame', { Name = 'Color'; BackgroundColor3 = Color3.new(1,1,1); BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18); Size = UDim2.fromOffset(230, PH(CP.Mode)); Visible = false; ZIndex = 15000; Parent = getScreenGui(ToggleLabel) })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFO }), 'Groupbox')
         Library:AddToRegistry(PFO, { BorderColor3 = 'OutlineColor' })
@@ -1124,10 +1123,8 @@ do
         local Toggle = { Value = Info.Default or false; Type = 'Toggle'; Callback = Info.Callback or function() end; Addons = {}; Risky = Info.Risky }
         local Groupbox = self; local Container = Groupbox.Container
         
-        -- Создаем полноширинный контейнер для тогла
         local TRow = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,0,13); ZIndex = 7; Active = true; Parent = Container })
         
-        -- Сам переключатель (13x13)
         local TO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0,13,1,0); ZIndex = 7; Active = true; Parent = TRow })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TO }), 'Toggle')
         Library:CreateStroke({ Parent = TO })
@@ -1136,12 +1133,10 @@ do
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = TI }), 'Toggle')
         Library:AddToRegistry(TI, { BackgroundColor3 = 'MainColor' })
         
-        -- Текст и аддоны теперь растягиваются на всю ширину
         local TL = Library:CreateLabel({ Size = UDim2.new(1,-19,1,0); Position = UDim2.new(0,19,0,0); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = 9; Parent = TRow })
         
         Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
         
-        -- Кликабельная область теперь растянута на весь ряд
         local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); ZIndex = 10; Active = true; Parent = TRow })
         Library:OnHighlight(TR, TO, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
         
@@ -1846,7 +1841,7 @@ function Library:CreateWindow(...)
         for _, S in next, { LS, RS } do S:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() S.CanvasSize = UDim2.fromOffset(0, S.UIListLayout.AbsoluteContentSize.Y) end) end
         
         function Tb:ShowTab()
-            -- Если этот таб уже открыт, то закрываем его при повторном клике
+            -- [FIX] Двойной клик по табу закрывает его
             if W.ActiveTab == Tb then
                 Tb:HideTab()
                 W.ActiveTab = nil
