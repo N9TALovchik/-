@@ -127,7 +127,7 @@ function Library:CreateStroke(Props)
     return s
 end
 
--function Library:SetOutlineColor(c)
+function Library:SetOutlineColor(c)
     Library.OutlineColor = c
     
     -- Красим только те обводки, которые помечены тегом (границы кнопок, окон и т.д.)
