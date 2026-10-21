@@ -377,20 +377,29 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:ThemeUpdate()
-		local colorFields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
-		for _, field in next, colorFields do
-			if Options and Options[field] and field ~= 'ClickEffectColor' then
-				ThemeManager.Library[field] = Options[field].Value
-			end
-		end
-		if Options.ClickEffectColor then ThemeManager.Library.ClickEffectColor = Options.ClickEffectColor.Value end
-		ThemeManager.Library.AccentColorDark = ThemeManager.Library:GetDarkerColor(ThemeManager.Library.AccentColor)
-		ThemeManager.Library:UpdateColorsUsingRegistry()
+    local colorFields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
+    for _, field in next, colorFields do
+        if Options and Options[field] and field ~= 'ClickEffectColor' then
+            ThemeManager.Library[field] = Options[field].Value
+        end
+    end
+    if Options.ClickEffectColor then ThemeManager.Library.ClickEffectColor = Options.ClickEffectColor.Value end
+    
+    -- ФИКС: Используем встроенные сеттеры библиотеки, чтобы UIStroke (рамки) и затемнения обновлялись
+    if ThemeManager.Library.SetAccentColor then
+        ThemeManager.Library:SetAccentColor(ThemeManager.Library.AccentColor)
+    end
+    if ThemeManager.Library.SetOutlineColor then
+        ThemeManager.Library:SetOutlineColor(ThemeManager.Library.OutlineColor)
+    end
+    
+    -- Обновляем остальные цвета (фон, текст, основной цвет)
+    ThemeManager.Library:UpdateColorsUsingRegistry()
 
-		if Options.UICornerRadius and ThemeManager.Library.SetWindowCorner then
-			ThemeManager.Library:SetWindowCorner(Options.UICornerRadius.Value)
-		end
-	end
+    if Options.UICornerRadius and ThemeManager.Library.SetWindowCorner then
+        ThemeManager.Library:SetWindowCorner(Options.UICornerRadius.Value)
+    end
+end
 
 	function ThemeManager:SaveDefault(theme)
 		writefile(ThemeManager.Folder .. '/themes/default.txt', theme)
