@@ -25,7 +25,7 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 OverlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 BindGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- [FIX] Высокий DisplayOrder, чтобы клики по слайдерам работали при открытом меню ESC
+-- Высокий DisplayOrder, чтобы клики по слайдерам работали при открытом меню ESC
 ScreenGui.DisplayOrder = 999
 OverlayGui.DisplayOrder = 998
 BindGui.DisplayOrder = 999
@@ -121,20 +121,20 @@ function Library:CreateStroke(Props)
     p.Transparency = p.Transparency or 0
     if p.ZIndex == nil then p.ZIndex = 1 end
     local s = Library:Create('UIStroke', p)
-    s:SetAttribute('IsTextStroke', false) -- Это РАМКА, не текст
+    s:SetAttribute('IsTextStroke', false)
     CollectionService:AddTag(s, 'LibraryOutlineStroke')
     table.insert(Library.OutlineStrokes, s)
     return s
 end
 
+-- [FIX] ТЕПЕРЬ КРАСИТ ВООБЩЕ ВСЕ UIStroke В ИНТЕРФЕЙСЕ
 function Library:SetOutlineColor(c)
     Library.OutlineColor = c
     
     local function updateStrokes(gui)
         if not gui then return end
         for _, obj in ipairs(gui:GetDescendants()) do
-            -- [FIX] Красим ВСЕ обводки, кроме тех, что помечены как текст (true)
-            if obj:IsA('UIStroke') and obj:GetAttribute('IsTextStroke') ~= true then
+            if obj:IsA('UIStroke') then
                 obj.Color = c
             end
         end
@@ -144,13 +144,14 @@ function Library:SetOutlineColor(c)
     updateStrokes(BindGui)
 
     for _, s in ipairs(CollectionService:GetTagged('LibraryOutlineStroke')) do
-        if s and s.Parent and s:GetAttribute('IsTextStroke') ~= true then s.Color = c end
+        if s and s.Parent then s.Color = c end
     end
     for i = #Library.OutlineStrokes, 1, -1 do
         local s = Library.OutlineStrokes[i]
         if not s or not s.Parent then table.remove(Library.OutlineStrokes, i)
-        elseif s:GetAttribute('IsTextStroke') ~= true then s.Color = c end
+        else s.Color = c end
     end
+    
     Library:UpdateColorsUsingRegistry()
 end
 
@@ -205,7 +206,7 @@ function Library:ApplyTextStroke(inst)
         ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual;
         Parent = inst 
     })
-    s:SetAttribute('IsTextStroke', true) -- Это ТЕКСТОВАЯ обводка
+    s:SetAttribute('IsTextStroke', true)
     return s
 end
 function Library:CreateLabel(Props, IsHud)
@@ -1212,7 +1213,6 @@ do
             if W <= 0 then W = 232 end
             local X = math.ceil(Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, W))
             
-            -- Плавная анимация слайдера
             if Library.AnimationsEnabled and not (Slider.AnimationsEnabled == false) then
                 TweenService:Create(Fill, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(0, X, 1, 0) }):Play()
             else
@@ -1841,7 +1841,6 @@ function Library:CreateWindow(...)
         for _, S in next, { LS, RS } do S:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() S.CanvasSize = UDim2.fromOffset(0, S.UIListLayout.AbsoluteContentSize.Y) end) end
         
         function Tb:ShowTab()
-            -- [FIX] Двойной клик по табу закрывает его
             if W.ActiveTab == Tb then
                 Tb:HideTab()
                 W.ActiveTab = nil
