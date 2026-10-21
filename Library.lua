@@ -313,10 +313,10 @@ function Library:RemoveFromRegistry(Inst)
     end
 end
 function Library:UpdateColorsUsingRegistry()
+    local toRemove = {}
     for _, O in next, Library.Registry do
         if O.Instance and O.Instance.Parent then
             for p, c in next, O.Properties do
-                -- Оборачиваем в pcall, чтобы одна ошибка не ломала покраску всего UI
                 pcall(function()
                     if type(c) == 'string' then 
                         if Library[c] then O.Instance[p] = Library[c] end
@@ -326,9 +326,14 @@ function Library:UpdateColorsUsingRegistry()
                 end)
             end
         else
-            -- Если элемент удален, чистим реестр
-            Library:RemoveFromRegistry(O.Instance)
+            -- Собираем удаленные элементы, чтобы не ломать цикл
+            table.insert(toRemove, O.Instance)
         end
+    end
+    
+    -- Удаляем их ПОСЛЕ того, как цикл закончился
+    for _, inst in ipairs(toRemove) do
+        Library:RemoveFromRegistry(inst)
     end
 end
 function Library:GiveSignal(s) table.insert(Library.Signals, s) end
