@@ -103,15 +103,19 @@ local ThemeManager = {} do
 	end
 	loadBgSettings()
 
-	-- FIX: теперь через Library.MainWindow
 	local function applyBg()
 		if not ThemeManager.Library then return end
-		local W = ThemeManager.Library.MainWindow
+		local W = ThemeManager.Library.MainFrame
 		if not W then return end
-		if W.SetBackgroundImage then W:SetBackgroundImage(bgState.imageId, bgState.transparency) end
-		if W.SetOverlayTransparency then W:SetOverlayTransparency(bgState.overlay) end
-		if W.SetBackgroundOverlayColor then W:SetBackgroundOverlayColor(bgState.overlayColor) end
-		if W.SetWindowOpacity then W:SetWindowOpacity(bgState.uiOpacity) end
+		local ActualWindow = ThemeManager.Library.MainWindow or ThemeManager.Library
+		-- Fix for accessing the actual window object
+		local Inner = W:FindFirstChild('Frame') or W
+		if ThemeManager.Library.MainWindow and ThemeManager.Library.MainWindow.SetBackgroundImage then
+			ThemeManager.Library.MainWindow:SetBackgroundImage(bgState.imageId, bgState.transparency)
+			if ThemeManager.Library.MainWindow.SetOverlayTransparency then ThemeManager.Library.MainWindow:SetOverlayTransparency(bgState.overlay) end
+			if ThemeManager.Library.MainWindow.SetBackgroundOverlayColor then ThemeManager.Library.MainWindow:SetBackgroundOverlayColor(bgState.overlayColor) end
+			if ThemeManager.Library.MainWindow.SetWindowOpacity then ThemeManager.Library.MainWindow:SetWindowOpacity(bgState.uiOpacity) end
+		end
 	end
 
 	local function addToHistory(soundId, soundName)
@@ -226,6 +230,7 @@ local ThemeManager = {} do
 		radioLooped = Toggles.RadioLooped and Toggles.RadioLooped.Value or false
 
 		local function onEnd()
+			if radioLooped then return end
 			radioPlaying = false
 			if Options.RadioPlayButton and Options.RadioPlayButton.Label then Options.RadioPlayButton.Label.Text = "Play Sound" end
 			if radioUpdateConnection then radioUpdateConnection:Disconnect() radioUpdateConnection = nil end
@@ -377,29 +382,32 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:ThemeUpdate()
-    local colorFields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
-    for _, field in next, colorFields do
-        if Options and Options[field] and field ~= 'ClickEffectColor' then
-            ThemeManager.Library[field] = Options[field].Value
-        end
-    end
-    if Options.ClickEffectColor then ThemeManager.Library.ClickEffectColor = Options.ClickEffectColor.Value end
-    
-    -- ФИКС: Используем встроенные сеттеры библиотеки, чтобы UIStroke (рамки) и затемнения обновлялись
-    if ThemeManager.Library.SetAccentColor then
-        ThemeManager.Library:SetAccentColor(ThemeManager.Library.AccentColor)
-    end
-    if ThemeManager.Library.SetOutlineColor then
-        ThemeManager.Library:SetOutlineColor(ThemeManager.Library.OutlineColor)
-    end
-    
-    -- Обновляем остальные цвета (фон, текст, основной цвет)
-    ThemeManager.Library:UpdateColorsUsingRegistry()
+		local colorFields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
+		for _, field in next, colorFields do
+			if Options and Options[field] and field ~= 'ClickEffectColor' then
+				ThemeManager.Library[field] = Options[field].Value
+			end
+		end
+		if Options.ClickEffectColor then ThemeManager.Library.ClickEffectColor = Options.ClickEffectColor.Value end
+		
+		if ThemeManager.Library.SetAccentColor then
+			ThemeManager.Library:SetAccentColor(ThemeManager.Library.AccentColor)
+		end
+		if ThemeManager.Library.SetOutlineColor then
+			ThemeManager.Library:SetOutlineColor(ThemeManager.Library.OutlineColor)
+		end
+		
+		ThemeManager.Library:UpdateColorsUsingRegistry()
 
-    if Options.UICornerRadius and ThemeManager.Library.SetWindowCorner then
-        ThemeManager.Library:SetWindowCorner(Options.UICornerRadius.Value)
-    end
-end
+		if Options.UICornerRadius and ThemeManager.Library.SetWindowCorner then
+			ThemeManager.Library:SetWindowCorner(Options.UICornerRadius.Value)
+		end
+		
+		if ThemeManager.Library.UIShadow then
+			if Options.ShadowColor then ThemeManager.Library.UIShadow.Color = Options.ShadowColor.Value end
+			if Options.ShadowRadius then ThemeManager.Library.UIShadow.Radius = UDim.new(0, Options.ShadowRadius.Value) end
+		end
+	end
 
 	function ThemeManager:SaveDefault(theme)
 		writefile(ThemeManager.Folder .. '/themes/default.txt', theme)
@@ -499,6 +507,28 @@ end
 		groupbox:AddLabel('Outline color'):AddColorPicker('OutlineColor', { Default = ThemeManager.Library.OutlineColor })
 		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = ThemeManager.Library.FontColor })
 		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = ThemeManager.Library.ClickEffectColor or Color3.fromRGB(255,255,255) })
+
+		groupbox:AddDivider()
+
+		-- UI SHADOW
+		groupbox:AddLabel('UI Shadow')
+		groupbox:AddLabel('Shadow Color'):AddColorPicker('ShadowColor', {
+			Default = ThemeManager.Library.UIShadow and ThemeManager.Library.UIShadow.Color or Color3.new(0,0,0)
+		})
+		safeOnChanged(Options.ShadowColor, function()
+			if ThemeManager.Library and ThemeManager.Library.UIShadow then
+				ThemeManager.Library.UIShadow.Color = Options.ShadowColor.Value
+			end
+		end)
+
+		groupbox:AddSlider('ShadowRadius', {
+			Text = 'Shadow Radius', Min = 0, Max = 50, Default = ThemeManager.Library.UIShadow and ThemeManager.Library.UIShadow.Radius.Offset or 0, Rounding = 0, Suffix = ' px'
+		})
+		safeOnChanged(Options.ShadowRadius, function()
+			if ThemeManager.Library and ThemeManager.Library.UIShadow then
+				ThemeManager.Library.UIShadow.Radius = UDim.new(0, Options.ShadowRadius.Value)
+			end
+		end)
 
 		groupbox:AddDivider()
 		groupbox:AddLabel('Corner Radius (px)')
@@ -603,7 +633,7 @@ end
 		groupbox:AddToggle('RadioLooped', { Text = 'Looped', Default = false, Tooltip = 'Зациклить воспроизведение' })
 		safeOnChanged(Toggles.RadioLooped, function()
 			radioLooped = Toggles.RadioLooped.Value
-			if radioSound and radioPlaying then radioSound.Looped = radioLooped end
+			if radioSound then radioSound.Looped = radioLooped end
 		end)
 
 		local statusLabel = groupbox:AddLabel("Idle")
