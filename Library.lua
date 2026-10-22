@@ -929,17 +929,17 @@ do
             local f, s = select(1, ...), select(2, ...)
             if type(f) == 'string' and type(s) == 'table' then
                 Idx = f; O.Text = s.Text or f; O.Func = s.Func; O.DoubleClick = s.DoubleClick; O.Tooltip = s.Tooltip; O.SaveState = s.SaveState; O.Value = s.Default
-                O.NoSearch = s.NoSearch -- ФИКС: парсим NoSearch
+                O.NoSearch = s.NoSearch 
                 O.StartImage, O.EndImage, O.StartImageColor, O.EndImageColor, O.StartImageOffset, O.EndImageOffset = s.StartImage, s.EndImage, s.StartImageColor, s.EndImageColor, s.StartImageOffset, s.EndImageOffset
             elseif type(f) == 'table' then
                 O.Text = f.Text; O.Func = f.Func; O.DoubleClick = f.DoubleClick; O.Tooltip = f.Tooltip; O.SaveState = f.SaveState; O.Value = f.Default
-                O.NoSearch = f.NoSearch -- ФИКС: парсим NoSearch
+                O.NoSearch = f.NoSearch 
                 O.StartImage, O.EndImage, O.StartImageColor, O.EndImageColor, O.StartImageOffset, O.EndImageOffset = f.StartImage, f.EndImage, f.StartImageColor, f.EndImageColor, f.StartImageOffset, f.EndImageOffset
             else O.Text = f; O.Func = s end
             local t = select(3, ...)
             if type(t) == 'table' then
                 O.SaveState = t.SaveState
-                O.NoSearch = t.NoSearch -- ФИКС: парсим NoSearch
+                O.NoSearch = t.NoSearch 
                 O.StartImage, O.EndImage, O.StartImageColor, O.EndImageColor, O.StartImageOffset, O.EndImageOffset = t.StartImage, t.EndImage, t.StartImageColor, t.EndImageColor, t.StartImageOffset, t.EndImageOffset
                 if t.Default ~= nil then O.Value = t.Default end
             end
@@ -1598,16 +1598,26 @@ do
         local Outer = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,0,0); ZIndex = 210; Parent = parent })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = Outer }), 'Groupbox')
         Library:CreateStroke({ Parent = Outer })
+        Library:AddToRegistry(Outer, { BackgroundColor3 = 'BackgroundColor' }) -- Фикс: Регистрируем фон мини-группы
+        
         local Inner = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); Position = UDim2.fromOffset(0,0); ZIndex = 211; Parent = Outer })
-        if title then Library:CreateLabel({ Size = UDim2.new(1,0,0,18); Position = UDim2.fromOffset(4,2); TextSize = 14; Text = title; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 213; Parent = Inner }) end
-        local Container = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0, title and 20 or 4); Size = UDim2.new(1,-4,1, title and -20 or -4); ZIndex = 211; Parent = Inner })
+        
+        if title then 
+            local TitleLabel = Library:CreateLabel({ Size = UDim2.new(1,-8,0,14); Position = UDim2.fromOffset(4,0); TextSize = 13; Text = title; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 213; Parent = Inner })
+            Library:AddToRegistry(TitleLabel, { TextColor3 = 'FontColor' }) -- Фикс: Регистрируем цвет текста
+            local Divider = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,15); ZIndex = 213; Parent = Inner })
+            Library:AddToRegistry(Divider, { BackgroundColor3 = 'OutlineColor' })
+        end
+        
+        local Container = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0, title and 18 or 4); Size = UDim2.new(1,-4,1, title and -18 or -4); ZIndex = 211; Parent = Inner })
         Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = Container })
+        
         local GB = { Container = Container; Outer = Outer; Name = title }
         setmetatable(GB, BaseGroupbox)
         function GB:Resize()
             local S = 0
             for _, E in next, Container:GetChildren() do if not E:IsA('UIListLayout') and E.Visible then S = S + E.Size.Y.Offset end end
-            Outer.Size = UDim2.new(1,0,0, (title and 20 or 4) + S + 4)
+            Outer.Size = UDim2.new(1,0,0, (title and 18 or 4) + S + 4)
         end
         GB:AddBlank(3); GB:Resize()
         return GB
@@ -1931,8 +1941,8 @@ function Library:CreateWindow(...)
     local TLL = Library:Create('UIListLayout', { Padding = UDim.new(0, Config.TabPadding); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Config.CenterTabs and Enum.HorizontalAlignment.Center or Enum.HorizontalAlignment.Left; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TA })
     local TC = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,8,0,30); Size = UDim2.new(1,-16,1,-38); ZIndex = 2; ClipsDescendants = true; Parent = MSI })
 
-    -- Индикатор для анимации вкладок (вне UIListLayout)
-    local TabIndicator = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Size = UDim2.new(0,0,0,2); Position = UDim2.new(0,0,1,-2); ZIndex = 152; Parent = TA; Visible = false })
+    -- Индикатор для анимации вкладок (вне UIListLayout, в MSI)
+    local TabIndicator = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Size = UDim2.new(0,0,0,2); ZIndex = 152; Parent = MSI; Visible = false })
     Library:AddToRegistry(TabIndicator, { BackgroundColor3 = 'AccentColor' })
     Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, 2); Parent = TabIndicator }), 'Button')
 
@@ -2037,6 +2047,8 @@ function Library:CreateWindow(...)
                             Text = entry.Name,
                             Values = entry.Object.Values,
                             Default = entry.Object.Value,
+                            Multi = entry.Object.Multi,
+                            AllowNull = true, -- ФИКС КРАША
                             NoSearch = true,
                             Callback = function(v) entry.Object:SetValue(v) end
                         })
@@ -2100,11 +2112,11 @@ function Library:CreateWindow(...)
             TF.Visible = true
             W.ActiveTab = Tb
             
-            -- Анимация индикатора
+            -- Анимация индикатора с использованием абсолютных координат
             TabIndicator.Visible = true
             TweenService:Create(TabIndicator, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = UDim2.new(TB.Position.X.Scale, TB.Position.X.Offset, 1, -2),
-                Size = UDim2.new(TB.Size.X.Scale, TB.Size.X.Offset, 0, 2)
+                Position = UDim2.new(0, TB.AbsolutePosition.X - MSI.AbsolutePosition.X, 0, TB.AbsolutePosition.Y - MSI.AbsolutePosition.Y + TB.AbsoluteSize.Y - 2),
+                Size = UDim2.new(0, TB.AbsoluteSize.X, 0, 2)
             }):Play()
         end
         
@@ -2121,17 +2133,19 @@ function Library:CreateWindow(...)
             Library:CreateStroke({ Parent = BO })
             Library:AddToRegistry(BO, { BackgroundColor3 = 'BackgroundColor' })
             
-            -- Разделитель под названием группы
-            Library:CreateLabel({ Size = UDim2.new(1,0,0,18); Position = UDim2.fromOffset(4,2); Text = Info.Name; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; Parent = BO })
-            Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,18); ZIndex = 7; Parent = BO })
+            -- Уменьшенный текст и разделитель
+            local TitleLabel = Library:CreateLabel({ Size = UDim2.new(1,-8,0,14); Position = UDim2.fromOffset(4,0); TextSize = 13; Text = Info.Name; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; Parent = BO })
+            Library:AddToRegistry(TitleLabel, { TextColor3 = 'FontColor' })
+            local Divider = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,15); ZIndex = 7; Parent = BO })
+            Library:AddToRegistry(Divider, { BackgroundColor3 = 'OutlineColor' })
 
-            local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,22); Size = UDim2.new(1,-8,1,-22); ZIndex = 10; Parent = BO })
+            local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,18); Size = UDim2.new(1,-8,1,-18); ZIndex = 10; Parent = BO })
             Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = C })
             
             function GB:Resize()
                 local s = 0
                 for _, e in next, GB.Container:GetChildren() do if not e:IsA('UIListLayout') and e.Visible then s = s + e.Size.Y.Offset end end
-                BO.Size = UDim2.new(1,0,0, 22 + s + 4)
+                BO.Size = UDim2.new(1,0,0, 18 + s + 4)
             end
             GB.Container = C
             GB.Name = Info.Name
