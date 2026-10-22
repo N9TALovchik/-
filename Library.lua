@@ -1025,7 +1025,7 @@ do
         if type(Button.Tooltip) == 'string' then Button:AddTooltip(Button.Tooltip) end
         Groupbox:AddBlank(5); Groupbox:Resize()
         if Idx then Options[Idx] = Button end
-        if not Button.NoSearch then table.insert(Library.SearchRegistry, {Name = Button.Text, Type = 'Button', Object = Button, GroupName = Groupbox.Name or 'Unknown'}) end
+        if not Button.NoSearch then table.insert(Library.SearchRegistry, {Name = Button.Text, Type = 'Button', Object = Button, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
         return Button
     end
 
@@ -1151,7 +1151,8 @@ do
         
         Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Enum.HorizontalAlignment.Right; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TL })
         
-        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); ZIndex = 10; Active = true; Parent = TRow })
+        -- ZIndex 8 чтобы быть под TL (ZIndex 9), чтобы ColorPicker (ZIndex 11) не триггерил Toggle
+        local TR = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); ZIndex = 8; Active = true; Parent = TRow })
         Library:OnHighlight(TR, TO, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
         
         function Toggle:UpdateColors() Toggle:Display() end
@@ -1190,7 +1191,7 @@ do
         Toggle.TextLabel = TL; Toggle.Container = Container; Toggle.Frame = TRow
         setmetatable(Toggle, BaseAddons)
         Toggles[Idx] = Toggle
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Toggle', Object = Toggle, GroupName = Groupbox.Name or 'Unknown'}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Toggle', Object = Toggle, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
         Library:UpdateDependencyBoxes()
         return Toggle
     end
@@ -1272,7 +1273,7 @@ do
         if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() Slider:Display() end) end
         Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
         Options[Idx] = Slider
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Slider', Object = Slider, GroupName = Groupbox.Name or 'Unknown'}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Slider', Object = Slider, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
         return Slider
     end
 
@@ -1370,7 +1371,7 @@ do
         if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() PB:Display() end) end
         Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
         Options[Idx] = PB
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'ProgressBar', Object = PB, GroupName = Groupbox.Name or 'Unknown'}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'ProgressBar', Object = PB, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
         return PB
     end
 
@@ -1396,18 +1397,19 @@ do
         local IL = Library:CreateLabel({ Position = UDim2.new(0,5,0,0); Size = UDim2.new(1,-5,1,0); TextSize = 14; Text = '--'; TextXAlignment = Enum.TextXAlignment.Left; TextWrapped = true; ZIndex = 7; Parent = DI })
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, DO) end
         local MDI = 8
-        local LO = Library:Create('Frame', { BackgroundTransparency = 1; ZIndex = 220; Visible = false; Parent = getScreenGui(DO) })
+        -- ZIndex 2000 чтобы дропдаун был поверх поиска
+        local LO = Library:Create('Frame', { BackgroundTransparency = 1; ZIndex = 2000; Visible = false; Parent = getScreenGui(DO) })
         local function RLP() LO.Position = UDim2.fromOffset(DO.AbsolutePosition.X, DO.AbsolutePosition.Y + DO.Size.Y.Offset + 1) end
         local function RLS(y) LO.Size = UDim2.fromOffset(DO.AbsoluteSize.X, y or (MDI*20+2)) end
         RLP(); RLS()
         DO:GetPropertyChangedSignal('AbsolutePosition'):Connect(RLP)
         Library:GiveSignal(RunService.Heartbeat:Connect(function() if LO.Visible then RLP() end end))
         DO:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() RLS(math.clamp(#D.Values*20, 0, MDI*20)+1) end)
-        local LI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 221; Parent = LO })
+        local LI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 2001; Parent = LO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = LI }), 'DropdownList')
         Library:CreateStroke({ Parent = LI })
         Library:AddToRegistry(LI, { BackgroundColor3 = 'MainColor' })
-        local Sc = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; CanvasSize = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 221; Parent = LI; TopImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; BottomImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; ScrollBarThickness = 3; ScrollBarImageColor3 = Library.AccentColor })
+        local Sc = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; CanvasSize = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 2001; Parent = LI; TopImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; BottomImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; ScrollBarThickness = 3; ScrollBarImageColor3 = Library.AccentColor })
         Library:AddToRegistry(Sc, { ScrollBarImageColor3 = 'AccentColor' })
         Library:Create('UIListLayout', { Padding = UDim.new(0,0); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = Sc })
         function D:Display()
@@ -1428,8 +1430,8 @@ do
             local C = 0
             for _, Value in next, V do
                 local T = {}; C = C + 1
-                local B = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-1,0,20); ZIndex = 223; Active = true; Parent = Sc })
-                local BL = Library:CreateLabel({ Active = false; Size = UDim2.new(1,-6,1,0); Position = UDim2.new(0,6,0,0); TextSize = 14; Text = Value; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 225; Parent = B })
+                local B = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-1,0,20); ZIndex = 2003; Active = true; Parent = Sc })
+                local BL = Library:CreateLabel({ Active = false; Size = UDim2.new(1,-6,1,0); Position = UDim2.new(0,6,0,0); TextSize = 14; Text = Value; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 2005; Parent = B })
                 Library:OnHighlight(B, BL, { TextColor3 = 'AccentColor' }, { TextColor3 = 'FontColor' })
                 local S
                 if Info.Multi then S = D.Value[Value] else S = D.Value == Value end
@@ -1520,7 +1522,7 @@ do
         end
         Groupbox:AddBlank(Info.BlankSize or 5); Groupbox:Resize()
         Options[Idx] = D
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, GroupName = Groupbox.Name or 'Unknown'}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
         return D
     end
 
@@ -1588,14 +1590,14 @@ do
         K.Container = Container; K.Frame = BO
         Groupbox:AddBlank(5); Groupbox:Resize()
         Options[Idx] = K
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Keybind', Object = K, GroupName = Groupbox.Name or 'Unknown'}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Keybind', Object = K, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
         return K
     end
 
     BaseGroupbox.__index = Funcs
     BaseGroupbox.__namecall = function(t, k, ...) return Funcs[k](...) end
 
-    function Library:CreateMiniGroupbox(parent, title, baseZIndex)
+    function Library:CreateMiniGroupbox(parent, title, baseZIndex, side)
         baseZIndex = baseZIndex or 210
         local Outer = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,0,0); ZIndex = baseZIndex; Parent = parent })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = Outer }), 'Groupbox')
@@ -1607,14 +1609,14 @@ do
         if title then 
             local TitleLabel = Library:CreateLabel({ Size = UDim2.new(1,-8,0,14); Position = UDim2.fromOffset(4,0); TextSize = 13; Text = title; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = baseZIndex + 2; Parent = Inner })
             Library:AddToRegistry(TitleLabel, { TextColor3 = 'FontColor' })
-            local Divider = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,15); ZIndex = baseZIndex + 2; Parent = Inner })
-            Library:AddToRegistry(Divider, { BackgroundColor3 = 'OutlineColor' })
+            local Divider = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,15); ZIndex = baseZIndex + 2; Parent = Inner })
+            Library:AddToRegistry(Divider, { BackgroundColor3 = 'MainColor' })
         end
         
         local Container = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0, title and 18 or 4); Size = UDim2.new(1,-4,1, title and -18 or -4); ZIndex = baseZIndex + 1; Parent = Inner })
         Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = Container })
         
-        local GB = { Container = Container; Outer = Outer; Name = title }
+        local GB = { Container = Container; Outer = Outer; Name = title; Side = side or 1 }
         setmetatable(GB, BaseGroupbox)
         function GB:Resize()
             local S = 0
@@ -1900,7 +1902,12 @@ function Library:CreateWindow(...)
     if Config.CenterTabs == nil then Config.CenterTabs = false end
     if type(Config.TabsOffset) ~= 'number' then Config.TabsOffset = 0 end
     if Config.Search == nil then Config.Search = false end
-    if Config.SearchPos ~= 'up' and Config.SearchPos ~= 'down' then Config.SearchPos = 'down' end
+    
+    -- ФИКС: Позиция поиска
+    local searchPos = string.lower(tostring(Config.SearchPos or 'down'))
+    if searchPos ~= 'up' and searchPos ~= 'down' then searchPos = 'down' end
+    Config.SearchPos = searchPos
+    
     if Config.Center then Config.AnchorPoint = Vector2.new(0.5,0.5) Config.Position = UDim2.fromScale(0.5,0.5) end
 
     local W = { Tabs = {}, ActiveTab = nil }
@@ -1949,7 +1956,7 @@ function Library:CreateWindow(...)
     Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, 2); Parent = TabIndicator }), 'Button')
 
     -- Поиск
-    local SearchFrame, SearchBox, SearchResults
+    local SearchFrame, SearchBox, SearchLeft, SearchRight
     local SearchConnections = {}
     
     if Config.Search then
@@ -1959,7 +1966,7 @@ function Library:CreateWindow(...)
         Library:CreateStroke({ Parent = SearchFrame })
         Library:AddToRegistry(SearchFrame, { BackgroundColor3 = 'BackgroundColor' })
         
-        -- Позиция поиска
+        -- Позиция поиска (исправлено)
         if Config.SearchPos == 'up' then
             SearchFrame.AnchorPoint = Vector2.new(0, 1)
             SearchFrame.Position = UDim2.new(0, 0, 0, -5)
@@ -1974,16 +1981,28 @@ function Library:CreateWindow(...)
         Library:CreateStroke({ Parent = SearchBox })
         Library:AddToRegistry(SearchBox, { TextColor3 = 'FontColor', BackgroundColor3 = 'MainColor' })
         
-        SearchResults = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(4, 30); Size = UDim2.new(1,-8,1,-34); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 501; Parent = SearchFrame })
-        Library:Create('UIListLayout', { Padding = UDim.new(0,6); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = SearchResults })
-        SearchResults:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() 
-            SearchResults.CanvasSize = UDim2.fromOffset(0, SearchResults.UIListLayout.AbsoluteContentSize.Y) 
+        local SR = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(4, 30); Size = UDim2.new(1,-8,1,-34); ZIndex = 501; Parent = SearchFrame })
+        Library:Create('UIListLayout', { Padding = UDim.new(0,6); FillDirection = Enum.FillDirection.Horizontal; SortOrder = Enum.SortOrder.LayoutOrder; Parent = SR })
+        
+        SearchLeft = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Size = UDim2.new(0.5,-3,1,0); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 501; Parent = SR })
+        Library:Create('UIListLayout', { Padding = UDim.new(0,6); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = SearchLeft })
+        SearchLeft:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() 
+            SearchLeft.CanvasSize = UDim2.fromOffset(0, SearchLeft.UIListLayout.AbsoluteContentSize.Y) 
+        end)
+        
+        SearchRight = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Size = UDim2.new(0.5,-3,1,0); Position = UDim2.new(0.5,3,0,0); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 501; Parent = SR })
+        Library:Create('UIListLayout', { Padding = UDim.new(0,6); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = SearchRight })
+        SearchRight:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() 
+            SearchRight.CanvasSize = UDim2.fromOffset(0, SearchRight.UIListLayout.AbsoluteContentSize.Y) 
         end)
         
         local function UpdateSearch()
             for _, conn in ipairs(SearchConnections) do conn:Disconnect() end
             table.clear(SearchConnections)
-            for _, child in ipairs(SearchResults:GetChildren()) do
+            for _, child in ipairs(SearchLeft:GetChildren()) do
+                if not child:IsA('UIListLayout') then child:Destroy() end
+            end
+            for _, child in ipairs(SearchRight:GetChildren()) do
                 if not child:IsA('UIListLayout') then child:Destroy() end
             end
             
@@ -1997,19 +2016,24 @@ function Library:CreateWindow(...)
             for _, entry in ipairs(Library.SearchRegistry) do
                 if not entry.NoSearch and entry.Name:lower():find(query) then
                     if not grouped[entry.GroupName] then
-                        grouped[entry.GroupName] = {}
+                        grouped[entry.GroupName] = { Side = entry.Side, Entries = {} }
                     end
-                    table.insert(grouped[entry.GroupName], entry)
+                    table.insert(grouped[entry.GroupName].Entries, entry)
                 end
             end
             
-            local count = 0
-            for groupName, entries in pairs(grouped) do
-                local gb = Library:CreateMiniGroupbox(SearchResults, groupName, 600) -- Передаем базовый ZIndex 600
-                gb.Outer.LayoutOrder = count
-                count = count + 1
+            local countL, countR = 0, 0
+            for groupName, data in pairs(grouped) do
+                local targetParent = data.Side == 2 and SearchRight or SearchLeft
+                local gb = Library:CreateMiniGroupbox(targetParent, groupName, 600, data.Side)
                 
-                for _, entry in ipairs(entries) do
+                if data.Side == 2 then
+                    gb.Outer.LayoutOrder = countR; countR = countR + 1
+                else
+                    gb.Outer.LayoutOrder = countL; countL = countL + 1
+                end
+                
+                for _, entry in ipairs(data.Entries) do
                     local randId = 'Search_' .. tostring(math.random(1, 1000000))
                     local proxy
                     if entry.Type == 'Toggle' then
@@ -2063,24 +2087,10 @@ function Library:CreateWindow(...)
                             Func = function() Library.BindSystem:Open(entry.Object) end
                         })
                     end
-                    
-                    -- Рекурсивно поднимаем ZIndex для элементов поиска, чтобы они были поверх SearchFrame
-                    if proxy and proxy.Frame then
-                        local function elevate(obj)
-                            obj.ZIndex = obj.ZIndex + 600
-                            for _, child in ipairs(obj:GetChildren()) do
-                                if child:IsA("GuiObject") then
-                                    elevate(child)
-                                end
-                            end
-                        end
-                        elevate(proxy.Frame)
-                        if proxy.Label then elevate(proxy.Label) end
-                    end
                 end
             end
             
-            local targetHeight = math.clamp(SearchResults.UIListLayout.AbsoluteContentSize.Y + 34, 30, 500)
+            local targetHeight = math.clamp(math.max(SearchLeft.UIListLayout.AbsoluteContentSize.Y, SearchRight.UIListLayout.AbsoluteContentSize.Y) + 34, 30, 500)
             TweenService:Create(SearchFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, targetHeight) }):Play()
         end
         
@@ -2174,8 +2184,8 @@ function Library:CreateWindow(...)
             -- Уменьшенный текст и разделитель
             local TitleLabel = Library:CreateLabel({ Size = UDim2.new(1,-8,0,14); Position = UDim2.fromOffset(4,0); TextSize = 13; Text = Info.Name; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; Parent = BO })
             Library:AddToRegistry(TitleLabel, { TextColor3 = 'FontColor' })
-            local Divider = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,15); ZIndex = 7; Parent = BO })
-            Library:AddToRegistry(Divider, { BackgroundColor3 = 'OutlineColor' })
+            local Divider = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,15); ZIndex = 7; Parent = BO })
+            Library:AddToRegistry(Divider, { BackgroundColor3 = 'MainColor' })
 
             local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,18); Size = UDim2.new(1,-8,1,-18); ZIndex = 10; Parent = BO })
             Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = C })
@@ -2187,6 +2197,7 @@ function Library:CreateWindow(...)
             end
             GB.Container = C
             GB.Name = Info.Name
+            GB.Side = Info.Side
             setmetatable(GB, BaseGroupbox)
             GB:AddBlank(3); GB:Resize()
             Tb.Groupboxes[Info.Name] = GB
@@ -2223,6 +2234,7 @@ function Library:CreateWindow(...)
                 B.InputBegan:Connect(function(Inp) if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then T:Show() T:Resize() end end)
                 T.Container = C; Tbox.Tabs[N] = T
                 setmetatable(T, BaseGroupbox)
+                T.Side = Info.Side
                 T:AddBlank(3); T:Resize()
                 if #TBs:GetChildren() == 2 then T:Show() end
                 return T
