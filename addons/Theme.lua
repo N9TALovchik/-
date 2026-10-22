@@ -53,7 +53,7 @@ local ThemeManager = {} do
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
 	local bgSettingsFile = ThemeManager.Folder .. '/settings/background.json'
 	local cornerSettingsFile = ThemeManager.Folder .. '/settings/corners.json'
-	local shadowSettingsFile = ThemeManager.Folder .. '/settings/shadow.json' -- НОВЫЙ ФАЙЛ ДЛЯ ТЕНИ
+	local shadowSettingsFile = ThemeManager.Folder .. '/settings/shadow.json'
 
 	local function safeOnChanged(ctrl, cb)
 		if ctrl and ctrl.OnChanged then ctrl:OnChanged(cb) end
@@ -104,7 +104,6 @@ local ThemeManager = {} do
 	end
 	loadBgSettings()
 
-	-- НОВЫЕ ФУНКЦИИ ДЛЯ СОХРАНЕНИЯ И ЗАГРУЗКИ ТЕНИ
 	local function loadShadowSettings()
 		if isfile(shadowSettingsFile) and ThemeManager.Library and ThemeManager.Library.UIShadow then
 			local ok, data = pcall(httpService.JSONDecode, httpService, readfile(shadowSettingsFile))
@@ -116,7 +115,6 @@ local ThemeManager = {} do
 				if data.radius then
 					ThemeManager.Library.UIShadow.BlurRadius = UDim.new(0, data.radius)
 				end
-				-- Синхронизируем UI элементы с загруженными значениями
 				if Options.ShadowColor then Options.ShadowColor:SetValueRGB(ThemeManager.Library.UIShadow.Color) end
 				if Options.ShadowRadius and data.radius then Options.ShadowRadius:SetValue(data.radius) end
 			end
@@ -132,14 +130,12 @@ local ThemeManager = {} do
 			}))
 		end)
 	end
-	-- КОНЕЦ НОВЫХ ФУНКЦИЙ
 
 	local function applyBg()
 		if not ThemeManager.Library then return end
 		local W = ThemeManager.Library.MainFrame
 		if not W then return end
 		local ActualWindow = ThemeManager.Library.MainWindow or ThemeManager.Library
-		-- Fix for accessing the actual window object
 		local Inner = W:FindFirstChild('Frame') or W
 		if ThemeManager.Library.MainWindow and ThemeManager.Library.MainWindow.SetBackgroundImage then
 			ThemeManager.Library.MainWindow:SetBackgroundImage(bgState.imageId, bgState.transparency)
@@ -549,7 +545,7 @@ local ThemeManager = {} do
 		safeOnChanged(Options.ShadowColor, function()
 			if ThemeManager.Library and ThemeManager.Library.UIShadow then
 				ThemeManager.Library.UIShadow.Color = Options.ShadowColor.Value
-				saveShadowSettings() -- СОХРАНЯЕМ ЦВЕТ ТЕНИ
+				saveShadowSettings()
 			end
 		end)
 
@@ -559,14 +555,13 @@ local ThemeManager = {} do
 		safeOnChanged(Options.ShadowRadius, function()
 			if ThemeManager.Library and ThemeManager.Library.UIShadow then
 				ThemeManager.Library.UIShadow.BlurRadius = UDim.new(0, Options.ShadowRadius.Value)
-				saveShadowSettings() -- СОХРАНЯЕМ РАДИУС ТЕНИ
+				saveShadowSettings()
 			end
 		end)
 
 		groupbox:AddDivider()
 		groupbox:AddLabel('Corner Radius (px)')
 
-		-- FIX: Window corner — теперь только окно
 		local winDefault = (ThemeManager.Library.UICorner and ThemeManager.Library.UICorner.Window) or 6
 		groupbox:AddSlider('UICornerRadius', {
 			Text = 'Window Corner',
@@ -578,7 +573,6 @@ local ThemeManager = {} do
 			saveCornerSettings()
 		end)
 
-		-- FIX: per-widget corners через SetCornerRadius
 		local cornerItems = {
 			{ 'UICornerButton',         'Button',        8 },
 			{ 'UICornerToggle',         'Toggle',        3 },
@@ -617,7 +611,6 @@ local ThemeManager = {} do
 				ThemeManager.Library:SetCornerRadius(key, val)
 			end
 			ThemeManager.Library:SetWindowCorner(6)
-			-- sync sliders
 			local slideMap = {
 				UICornerButton = 'Button', UICornerToggle = 'Toggle', UICornerSlider = 'Slider',
 				UICornerDropdown = 'Dropdown', UICornerDropdownList = 'DropdownList',
@@ -630,6 +623,33 @@ local ThemeManager = {} do
 			if ThemeManager.Library.Notify then ThemeManager.Library:Notify('Corners reset to default') end
 			saveCornerSettings()
 		end)
+
+		groupbox:AddDivider()
+		
+		-- ANIMATIONS
+		groupbox:AddLabel('Animations')
+		local animDefault = true
+		local savedAnim = loadSetting('animations_enabled', 'true')
+		if savedAnim == 'false' then animDefault = false end
+		
+		groupbox:AddToggle('AnimationsEnabled', { 
+			Text = 'Enable UI Animations', 
+			Default = animDefault, 
+			Tooltip = 'Включить/выключить анимации интерфейса' 
+		})
+		
+		safeOnChanged(Options.AnimationsEnabled, function()
+			local enabled = Options.AnimationsEnabled.Value
+			if ThemeManager.Library then
+				ThemeManager.Library.AnimationsEnabled = enabled
+			end
+			saveSetting('animations_enabled', tostring(enabled))
+		end)
+		
+		-- Применяем настройку сразу при инициализации
+		if ThemeManager.Library then
+			ThemeManager.Library.AnimationsEnabled = Options.AnimationsEnabled.Value
+		end
 
 		groupbox:AddDivider()
 		groupbox:AddLabel('Cursor & Notify Sound')
@@ -747,7 +767,7 @@ local ThemeManager = {} do
 
 		task.defer(applyBg)
 		task.defer(loadCornerSettings)
-		task.defer(loadShadowSettings) -- ЗАГРУЖАЕМ ТЕНЬ ПРИ СТАРТЕ
+		task.defer(loadShadowSettings)
 	end
 
 	function ThemeManager:GetCustomTheme(file)
