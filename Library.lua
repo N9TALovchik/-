@@ -397,9 +397,10 @@ do
             elseif m == 'Gradient' then return Info.Transparency and 384 or 362
             else return Info.Transparency and 322 or 297 end
         end
-        local Display = Library:Create('Frame', { BackgroundColor3 = CP.Value; BorderColor3 = Library:GetDarkerColor(CP.Value); BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(0,28,0,14); ZIndex = 6; Active = true; Parent = ToggleLabel })
+        -- ZIndex 11 чтобы быть выше тоггла
+        local Display = Library:Create('Frame', { BackgroundColor3 = CP.Value; BorderColor3 = Library:GetDarkerColor(CP.Value); BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(0,28,0,14); ZIndex = 11; Active = true; Parent = ToggleLabel })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.ColorPicker); Parent = Display }), 'ColorPicker')
-        Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(0,27,0,13); ZIndex = 5; Image = 'http://www.roblox.com/asset/?id=12977615774'; Visible = not not Info.Transparency; Parent = Display })
+        Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(0,27,0,13); ZIndex = 12; Image = 'http://www.roblox.com/asset/?id=12977615774'; Visible = not not Info.Transparency; Parent = Display })
         
         local PFO = Library:Create('Frame', { Name = 'Color'; BackgroundColor3 = Color3.new(1,1,1); BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18); Size = UDim2.fromOffset(230, PH(CP.Mode)); Visible = false; ZIndex = 15000; Parent = getScreenGui(ToggleLabel) })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFO }), 'Groupbox')
@@ -1598,13 +1599,13 @@ do
         local Outer = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,0,0); ZIndex = 210; Parent = parent })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = Outer }), 'Groupbox')
         Library:CreateStroke({ Parent = Outer })
-        Library:AddToRegistry(Outer, { BackgroundColor3 = 'BackgroundColor' }) -- Фикс: Регистрируем фон мини-группы
+        Library:AddToRegistry(Outer, { BackgroundColor3 = 'BackgroundColor' }) 
         
         local Inner = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); Position = UDim2.fromOffset(0,0); ZIndex = 211; Parent = Outer })
         
         if title then 
             local TitleLabel = Library:CreateLabel({ Size = UDim2.new(1,-8,0,14); Position = UDim2.fromOffset(4,0); TextSize = 13; Text = title; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 213; Parent = Inner })
-            Library:AddToRegistry(TitleLabel, { TextColor3 = 'FontColor' }) -- Фикс: Регистрируем цвет текста
+            Library:AddToRegistry(TitleLabel, { TextColor3 = 'FontColor' })
             local Divider = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,15); ZIndex = 213; Parent = Inner })
             Library:AddToRegistry(Divider, { BackgroundColor3 = 'OutlineColor' })
         end
@@ -1937,11 +1938,11 @@ function Library:CreateWindow(...)
     Library:RegisterWindowCorner(BgOCorner)
     W.BackgroundOverlay = BgO
 
-    local TA = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0, 8 + Config.TabsOffset, 0, 8); Size = UDim2.new(1,-16,0,21); ZIndex = 100; Parent = MSI })
+    local TA = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0, 8 + Config.TabsOffset, 0, 6); Size = UDim2.new(1,-16,0,23); ZIndex = 100; Parent = MSI })
     local TLL = Library:Create('UIListLayout', { Padding = UDim.new(0, Config.TabPadding); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Config.CenterTabs and Enum.HorizontalAlignment.Center or Enum.HorizontalAlignment.Left; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TA })
-    local TC = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,8,0,30); Size = UDim2.new(1,-16,1,-38); ZIndex = 2; ClipsDescendants = true; Parent = MSI })
+    local TC = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,8,0,32); Size = UDim2.new(1,-16,1,-40); ZIndex = 2; ClipsDescendants = true; Parent = MSI })
 
-    -- Индикатор для анимации вкладок (вне UIListLayout, в MSI)
+    -- Индикатор для анимации вкладок
     local TabIndicator = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Size = UDim2.new(0,0,0,2); ZIndex = 152; Parent = MSI; Visible = false })
     Library:AddToRegistry(TabIndicator, { BackgroundColor3 = 'AccentColor' })
     Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, 2); Parent = TabIndicator }), 'Button')
@@ -1951,7 +1952,7 @@ function Library:CreateWindow(...)
     local SearchConnections = {}
     
     if Config.Search then
-        SearchFrame = Library:Create('Frame', { Name = 'SearchFrame'; BackgroundColor3 = Library.BackgroundColor; BorderSizePixel = 0; ZIndex = 300; Parent = Outer; ClipsDescendants = true })
+        SearchFrame = Library:Create('Frame', { Name = 'SearchFrame'; BackgroundColor3 = Library.BackgroundColor; BorderSizePixel = 0; ZIndex = 500; ZIndexBehavior = Enum.ZIndexBehavior.Sibling; Parent = Outer; ClipsDescendants = true })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = SearchFrame }), 'Groupbox')
         Library:CreateStroke({ Parent = SearchFrame })
         Library:AddToRegistry(SearchFrame, { BackgroundColor3 = 'BackgroundColor' })
@@ -1966,12 +1967,12 @@ function Library:CreateWindow(...)
         end
         SearchFrame.Size = UDim2.new(1, 0, 0, 30)
         
-        SearchBox = Library:Create('TextBox', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-8,0,22); Position = UDim2.fromOffset(4,4); Font = Library.Font; PlaceholderText = 'Search...'; Text = ''; TextColor3 = Library.FontColor; TextSize = 14; ZIndex = 301; Parent = SearchFrame })
+        SearchBox = Library:Create('TextBox', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-8,0,22); Position = UDim2.fromOffset(4,4); Font = Library.Font; PlaceholderText = 'Search...'; Text = ''; TextColor3 = Library.FontColor; TextSize = 14; ZIndex = 2; Parent = SearchFrame })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = SearchBox }), 'Button')
         Library:CreateStroke({ Parent = SearchBox })
-        Library:AddToRegistry(SearchBox, { TextColor3 = 'FontColor' })
+        Library:AddToRegistry(SearchBox, { TextColor3 = 'FontColor', BackgroundColor3 = 'MainColor' })
         
-        SearchResults = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(4, 30); Size = UDim2.new(1,-8,1,-34); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 301; Parent = SearchFrame })
+        SearchResults = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(4, 30); Size = UDim2.new(1,-8,1,-34); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 2; Parent = SearchFrame })
         Library:Create('UIListLayout', { Padding = UDim.new(0,6); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = SearchResults })
         SearchResults:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() 
             SearchResults.CanvasSize = UDim2.fromOffset(0, SearchResults.UIListLayout.AbsoluteContentSize.Y) 
@@ -2048,7 +2049,7 @@ function Library:CreateWindow(...)
                             Values = entry.Object.Values,
                             Default = entry.Object.Value,
                             Multi = entry.Object.Multi,
-                            AllowNull = true, -- ФИКС КРАША
+                            AllowNull = true, 
                             NoSearch = true,
                             Callback = function(v) entry.Object:SetValue(v) end
                         })
@@ -2087,7 +2088,8 @@ function Library:CreateWindow(...)
         local Tb = { Groupboxes = {}; Tabboxes = {} }
         local TBW = Library:GetTextBounds(Name, Library.Font, 16)
         local TB = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0, TBW + 8 + 4, 1, 0); ZIndex = 150; Active = true; Parent = TA })
-        Library:CreateLabel({ Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,-1); Text = Name; ZIndex = 151; Parent = TB })
+        Library:CreateStroke({ Parent = TB }) -- ВОЗВРАЩАЕМ ОБВОДКУ
+        local TBLabel = Library:CreateLabel({ Position = UDim2.new(0,0,0,-1); Size = UDim2.new(1,0,1,0); Text = Name; ZIndex = 151; Parent = TB })
         
         local TF = Library:Create('Frame', { Name = 'TabFrame'; BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); Visible = false; ZIndex = 2; Parent = TC })
         Library:CreateStroke({ Parent = TF })
@@ -2112,12 +2114,31 @@ function Library:CreateWindow(...)
             TF.Visible = true
             W.ActiveTab = Tb
             
-            -- Анимация индикатора с использованием абсолютных координат
-            TabIndicator.Visible = true
-            TweenService:Create(TabIndicator, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = UDim2.new(0, TB.AbsolutePosition.X - MSI.AbsolutePosition.X, 0, TB.AbsolutePosition.Y - MSI.AbsolutePosition.Y + TB.AbsoluteSize.Y - 2),
-                Size = UDim2.new(0, TB.AbsoluteSize.X, 0, 2)
-            }):Play()
+            local targetPos = UDim2.new(0, TB.AbsolutePosition.X - MSI.AbsolutePosition.X, 0, TB.AbsolutePosition.Y - MSI.AbsolutePosition.Y + TB.AbsoluteSize.Y - 2)
+            local targetSize = UDim2.new(0, TB.AbsoluteSize.X, 0, 2)
+            
+            if not TabIndicator.Visible then
+                TabIndicator.Position = targetPos
+                TabIndicator.Size = targetSize
+                TabIndicator.Visible = true
+            else
+                -- Анимация растяжения
+                local isRight = targetPos.X.Offset > TabIndicator.Position.X.Offset
+                local stretchX = isRight and TabIndicator.Position.X.Offset or targetPos.X.Offset
+                local stretchW = isRight and (targetPos.X.Offset + targetSize.X.Offset - TabIndicator.Position.X.Offset) or (TabIndicator.Position.X.Offset + TabIndicator.Size.X.Offset - targetPos.X.Offset)
+                
+                local t1 = TweenService:Create(TabIndicator, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Position = UDim2.new(0, stretchX, 0, targetPos.Y.Offset),
+                    Size = UDim2.new(0, stretchW, 0, 2)
+                })
+                t1:Play()
+                t1.Completed:Connect(function()
+                    TweenService:Create(TabIndicator, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        Position = targetPos,
+                        Size = targetSize
+                    }):Play()
+                end)
+            end
         end
         
         function Tb:HideTab()
