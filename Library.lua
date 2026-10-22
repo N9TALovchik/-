@@ -929,14 +929,17 @@ do
             local f, s = select(1, ...), select(2, ...)
             if type(f) == 'string' and type(s) == 'table' then
                 Idx = f; O.Text = s.Text or f; O.Func = s.Func; O.DoubleClick = s.DoubleClick; O.Tooltip = s.Tooltip; O.SaveState = s.SaveState; O.Value = s.Default
+                O.NoSearch = s.NoSearch -- ФИКС: парсим NoSearch
                 O.StartImage, O.EndImage, O.StartImageColor, O.EndImageColor, O.StartImageOffset, O.EndImageOffset = s.StartImage, s.EndImage, s.StartImageColor, s.EndImageColor, s.StartImageOffset, s.EndImageOffset
             elseif type(f) == 'table' then
                 O.Text = f.Text; O.Func = f.Func; O.DoubleClick = f.DoubleClick; O.Tooltip = f.Tooltip; O.SaveState = f.SaveState; O.Value = f.Default
+                O.NoSearch = f.NoSearch -- ФИКС: парсим NoSearch
                 O.StartImage, O.EndImage, O.StartImageColor, O.EndImageColor, O.StartImageOffset, O.EndImageOffset = f.StartImage, f.EndImage, f.StartImageColor, f.EndImageColor, f.StartImageOffset, f.EndImageOffset
             else O.Text = f; O.Func = s end
             local t = select(3, ...)
             if type(t) == 'table' then
                 O.SaveState = t.SaveState
+                O.NoSearch = t.NoSearch -- ФИКС: парсим NoSearch
                 O.StartImage, O.EndImage, O.StartImageColor, O.EndImageColor, O.StartImageOffset, O.EndImageOffset = t.StartImage, t.EndImage, t.StartImageColor, t.EndImageColor, t.StartImageOffset, t.EndImageOffset
                 if t.Default ~= nil then O.Value = t.Default end
             end
@@ -1021,7 +1024,7 @@ do
         if type(Button.Tooltip) == 'string' then Button:AddTooltip(Button.Tooltip) end
         Groupbox:AddBlank(5); Groupbox:Resize()
         if Idx then Options[Idx] = Button end
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Button.Text, Type = 'Button', Object = Button, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
+        if not Button.NoSearch then table.insert(Library.SearchRegistry, {Name = Button.Text, Type = 'Button', Object = Button, GroupName = Groupbox.Name or 'Unknown'}) end
         return Button
     end
 
@@ -1186,7 +1189,7 @@ do
         Toggle.TextLabel = TL; Toggle.Container = Container; Toggle.Frame = TRow
         setmetatable(Toggle, BaseAddons)
         Toggles[Idx] = Toggle
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Toggle', Object = Toggle, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Toggle', Object = Toggle, GroupName = Groupbox.Name or 'Unknown'}) end
         Library:UpdateDependencyBoxes()
         return Toggle
     end
@@ -1268,7 +1271,7 @@ do
         if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() Slider:Display() end) end
         Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
         Options[Idx] = Slider
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Slider', Object = Slider, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Slider', Object = Slider, GroupName = Groupbox.Name or 'Unknown'}) end
         return Slider
     end
 
@@ -1366,7 +1369,7 @@ do
         if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() PB:Display() end) end
         Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
         Options[Idx] = PB
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'ProgressBar', Object = PB, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'ProgressBar', Object = PB, GroupName = Groupbox.Name or 'Unknown'}) end
         return PB
     end
 
@@ -1516,7 +1519,7 @@ do
         end
         Groupbox:AddBlank(Info.BlankSize or 5); Groupbox:Resize()
         Options[Idx] = D
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, GroupName = Groupbox.Name or 'Unknown'}) end
         return D
     end
 
@@ -1584,7 +1587,7 @@ do
         K.Container = Container; K.Frame = BO
         Groupbox:AddBlank(5); Groupbox:Resize()
         Options[Idx] = K
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Keybind', Object = K, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Keybind', Object = K, GroupName = Groupbox.Name or 'Unknown'}) end
         return K
     end
 
@@ -1885,7 +1888,7 @@ function Library:CreateWindow(...)
     if Config.CenterTabs == nil then Config.CenterTabs = false end
     if type(Config.TabsOffset) ~= 'number' then Config.TabsOffset = 0 end
     if Config.Search == nil then Config.Search = false end
-    if Config.SearchPos ~= 'up' and Config.SearchPos ~= 'down' then Config.SearchPos = 'down' end -- Позиция поиска по умолчанию 'down'
+    if Config.SearchPos ~= 'up' and Config.SearchPos ~= 'down' then Config.SearchPos = 'down' end
     if Config.Center then Config.AnchorPoint = Vector2.new(0.5,0.5) Config.Position = UDim2.fromScale(0.5,0.5) end
 
     local W = { Tabs = {}, ActiveTab = nil }
