@@ -1595,22 +1595,23 @@ do
     BaseGroupbox.__index = Funcs
     BaseGroupbox.__namecall = function(t, k, ...) return Funcs[k](...) end
 
-    function Library:CreateMiniGroupbox(parent, title)
-        local Outer = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,0,0); ZIndex = 210; Parent = parent })
+    function Library:CreateMiniGroupbox(parent, title, baseZIndex)
+        baseZIndex = baseZIndex or 210
+        local Outer = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,0,0); ZIndex = baseZIndex; Parent = parent })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = Outer }), 'Groupbox')
         Library:CreateStroke({ Parent = Outer })
         Library:AddToRegistry(Outer, { BackgroundColor3 = 'BackgroundColor' }) 
         
-        local Inner = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); Position = UDim2.fromOffset(0,0); ZIndex = 211; Parent = Outer })
+        local Inner = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,1,0); Position = UDim2.fromOffset(0,0); ZIndex = baseZIndex + 1; Parent = Outer })
         
         if title then 
-            local TitleLabel = Library:CreateLabel({ Size = UDim2.new(1,-8,0,14); Position = UDim2.fromOffset(4,0); TextSize = 13; Text = title; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 213; Parent = Inner })
+            local TitleLabel = Library:CreateLabel({ Size = UDim2.new(1,-8,0,14); Position = UDim2.fromOffset(4,0); TextSize = 13; Text = title; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = baseZIndex + 2; Parent = Inner })
             Library:AddToRegistry(TitleLabel, { TextColor3 = 'FontColor' })
-            local Divider = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,15); ZIndex = 213; Parent = Inner })
+            local Divider = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,15); ZIndex = baseZIndex + 2; Parent = Inner })
             Library:AddToRegistry(Divider, { BackgroundColor3 = 'OutlineColor' })
         end
         
-        local Container = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0, title and 18 or 4); Size = UDim2.new(1,-4,1, title and -18 or -4); ZIndex = 211; Parent = Inner })
+        local Container = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0, title and 18 or 4); Size = UDim2.new(1,-4,1, title and -18 or -4); ZIndex = baseZIndex + 1; Parent = Inner })
         Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = Container })
         
         local GB = { Container = Container; Outer = Outer; Name = title }
@@ -1968,12 +1969,12 @@ function Library:CreateWindow(...)
         end
         SearchFrame.Size = UDim2.new(1, 0, 0, 30)
         
-        SearchBox = Library:Create('TextBox', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-8,0,22); Position = UDim2.fromOffset(4,4); Font = Library.Font; PlaceholderText = 'Search...'; Text = ''; TextColor3 = Library.FontColor; TextSize = 14; ZIndex = 2; Parent = SearchFrame })
+        SearchBox = Library:Create('TextBox', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-8,0,22); Position = UDim2.fromOffset(4,4); Font = Library.Font; PlaceholderText = 'Search...'; Text = ''; TextColor3 = Library.FontColor; TextSize = 14; ZIndex = 501; Parent = SearchFrame })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = SearchBox }), 'Button')
         Library:CreateStroke({ Parent = SearchBox })
         Library:AddToRegistry(SearchBox, { TextColor3 = 'FontColor', BackgroundColor3 = 'MainColor' })
         
-        SearchResults = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(4, 30); Size = UDim2.new(1,-8,1,-34); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 2; Parent = SearchFrame })
+        SearchResults = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(4, 30); Size = UDim2.new(1,-8,1,-34); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 501; Parent = SearchFrame })
         Library:Create('UIListLayout', { Padding = UDim.new(0,6); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = SearchResults })
         SearchResults:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() 
             SearchResults.CanvasSize = UDim2.fromOffset(0, SearchResults.UIListLayout.AbsoluteContentSize.Y) 
@@ -2004,27 +2005,28 @@ function Library:CreateWindow(...)
             
             local count = 0
             for groupName, entries in pairs(grouped) do
-                local gb = Library:CreateMiniGroupbox(SearchResults, groupName)
+                local gb = Library:CreateMiniGroupbox(SearchResults, groupName, 600) -- Передаем базовый ZIndex 600
                 gb.Outer.LayoutOrder = count
                 count = count + 1
                 
                 for _, entry in ipairs(entries) do
                     local randId = 'Search_' .. tostring(math.random(1, 1000000))
+                    local proxy
                     if entry.Type == 'Toggle' then
-                        local proxy = gb:AddToggle(randId, {
+                        proxy = gb:AddToggle(randId, {
                             Text = entry.Name,
                             Default = entry.Object.Value,
                             NoSearch = true,
                             Callback = function(v) entry.Object:SetValue(v) end
                         })
                     elseif entry.Type == 'Button' then
-                        local proxy = gb:AddButton(randId, {
+                        proxy = gb:AddButton(randId, {
                             Text = entry.Name,
                             NoSearch = true,
                             Func = function() Library:SafeCallback(entry.Object.Func) end
                         })
                     elseif entry.Type == 'Slider' then
-                        local proxy = gb:AddSlider(randId, {
+                        proxy = gb:AddSlider(randId, {
                             Text = entry.Name,
                             Min = entry.Object.Min,
                             Max = entry.Object.Max,
@@ -2034,7 +2036,7 @@ function Library:CreateWindow(...)
                             Callback = function(v) entry.Object:SetValue(v) end
                         })
                     elseif entry.Type == 'ProgressBar' then
-                        local proxy = gb:AddProgressBar(randId, {
+                        proxy = gb:AddProgressBar(randId, {
                             Text = entry.Name,
                             Min = entry.Object.Min,
                             Max = entry.Object.Max,
@@ -2045,7 +2047,7 @@ function Library:CreateWindow(...)
                             Callback = function(v) entry.Object:SetValue(v) end
                         })
                     elseif entry.Type == 'Dropdown' then
-                        local proxy = gb:AddDropdown(randId, {
+                        proxy = gb:AddDropdown(randId, {
                             Text = entry.Name,
                             Values = entry.Object.Values,
                             Default = entry.Object.Value,
@@ -2055,11 +2057,25 @@ function Library:CreateWindow(...)
                             Callback = function(v) entry.Object:SetValue(v) end
                         })
                     elseif entry.Type == 'Keybind' then
-                        local proxy = gb:AddButton(randId, {
+                        proxy = gb:AddButton(randId, {
                             Text = entry.Name .. ' [' .. tostring(entry.Object.Value) .. ']',
                             NoSearch = true,
                             Func = function() Library.BindSystem:Open(entry.Object) end
                         })
+                    end
+                    
+                    -- Рекурсивно поднимаем ZIndex для элементов поиска, чтобы они были поверх SearchFrame
+                    if proxy and proxy.Frame then
+                        local function elevate(obj)
+                            obj.ZIndex = obj.ZIndex + 600
+                            for _, child in ipairs(obj:GetChildren()) do
+                                if child:IsA("GuiObject") then
+                                    elevate(child)
+                                end
+                            end
+                        end
+                        elevate(proxy.Frame)
+                        if proxy.Label then elevate(proxy.Label) end
                     end
                 end
             end
