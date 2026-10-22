@@ -53,6 +53,7 @@ local ThemeManager = {} do
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
 	local bgSettingsFile = ThemeManager.Folder .. '/settings/background.json'
 	local cornerSettingsFile = ThemeManager.Folder .. '/settings/corners.json'
+	local shadowSettingsFile = ThemeManager.Folder .. '/settings/shadow.json' -- НОВЫЙ ФАЙЛ ДЛЯ ТЕНИ
 
 	local function safeOnChanged(ctrl, cb)
 		if ctrl and ctrl.OnChanged then ctrl:OnChanged(cb) end
@@ -102,6 +103,36 @@ local ThemeManager = {} do
 		end)
 	end
 	loadBgSettings()
+
+	-- НОВЫЕ ФУНКЦИИ ДЛЯ СОХРАНЕНИЯ И ЗАГРУЗКИ ТЕНИ
+	local function loadShadowSettings()
+		if isfile(shadowSettingsFile) and ThemeManager.Library and ThemeManager.Library.UIShadow then
+			local ok, data = pcall(httpService.JSONDecode, httpService, readfile(shadowSettingsFile))
+			if ok and type(data) == "table" then
+				if data.color then
+					local okC, c = pcall(Color3.fromHex, data.color)
+					if okC then ThemeManager.Library.UIShadow.Color = c end
+				end
+				if data.radius then
+					ThemeManager.Library.UIShadow.BlurRadius = UDim.new(0, data.radius)
+				end
+				-- Синхронизируем UI элементы с загруженными значениями
+				if Options.ShadowColor then Options.ShadowColor:SetValueRGB(ThemeManager.Library.UIShadow.Color) end
+				if Options.ShadowRadius and data.radius then Options.ShadowRadius:SetValue(data.radius) end
+			end
+		end
+	end
+
+	local function saveShadowSettings()
+		if not ThemeManager.Library or not ThemeManager.Library.UIShadow then return end
+		pcall(function()
+			writefile(shadowSettingsFile, httpService:JSONEncode({
+				color = ThemeManager.Library.UIShadow.Color:ToHex(),
+				radius = ThemeManager.Library.UIShadow.BlurRadius.Offset,
+			}))
+		end)
+	end
+	-- КОНЕЦ НОВЫХ ФУНКЦИЙ
 
 	local function applyBg()
 		if not ThemeManager.Library then return end
@@ -518,6 +549,7 @@ local ThemeManager = {} do
 		safeOnChanged(Options.ShadowColor, function()
 			if ThemeManager.Library and ThemeManager.Library.UIShadow then
 				ThemeManager.Library.UIShadow.Color = Options.ShadowColor.Value
+				saveShadowSettings() -- СОХРАНЯЕМ ЦВЕТ ТЕНИ
 			end
 		end)
 
@@ -527,6 +559,7 @@ local ThemeManager = {} do
 		safeOnChanged(Options.ShadowRadius, function()
 			if ThemeManager.Library and ThemeManager.Library.UIShadow then
 				ThemeManager.Library.UIShadow.BlurRadius = UDim.new(0, Options.ShadowRadius.Value)
+				saveShadowSettings() -- СОХРАНЯЕМ РАДИУС ТЕНИ
 			end
 		end)
 
@@ -714,6 +747,7 @@ local ThemeManager = {} do
 
 		task.defer(applyBg)
 		task.defer(loadCornerSettings)
+		task.defer(loadShadowSettings) -- ЗАГРУЖАЕМ ТЕНЬ ПРИ СТАРТЕ
 	end
 
 	function ThemeManager:GetCustomTheme(file)
