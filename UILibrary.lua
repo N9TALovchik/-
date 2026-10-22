@@ -1217,7 +1217,7 @@ do
             if W <= 0 then W = 232 end
             local X = math.ceil(Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, W))
             
-            if Library.AnimationsEnabled and not (Slider:GetAttribute("AnimationsEnabled") == false) then
+            if Library.AnimationsEnabled and not (SO:GetAttribute("AnimationsEnabled") == false) then
                 TweenService:Create(Fill, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(0, X, 1, 0) }):Play()
             else
                 Fill.Size = UDim2.new(0, X, 1, 0)
