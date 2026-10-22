@@ -582,7 +582,7 @@ local ThemeManager = {} do
 			{ 'UICornerGroupbox',       'Groupbox',      6 },
 			{ 'UICornerKeyPicker',      'KeyPicker',     3 },
 			{ 'UICornerKeybind',        'Keybind',       4 },
-			{ 'UICornerNotification',   'Notification',  4 }, -- Новое скругление
+			{ 'UICornerNotification',   'Notification',  4 },
 		}
 
 		for _, item in ipairs(cornerItems) do
@@ -640,16 +640,17 @@ local ThemeManager = {} do
 			Tooltip = 'Включить/выключить анимации интерфейса' 
 		})
 		
-		safeOnChanged(Options.AnimationsEnabled, function()
-			local enabled = Options.AnimationsEnabled.Value
+        -- ИСПРАВЛЕНО: Toggles вместо Options
+		safeOnChanged(Toggles.AnimationsEnabled, function()
+			local enabled = Toggles.AnimationsEnabled.Value
 			if ThemeManager.Library then
 				ThemeManager.Library.AnimationsEnabled = enabled
 			end
 			saveSetting('animations_enabled', tostring(enabled))
 		end)
 		
-		if ThemeManager.Library then
-			ThemeManager.Library.AnimationsEnabled = Options.AnimationsEnabled.Value
+		if ThemeManager.Library and Toggles.AnimationsEnabled then
+			ThemeManager.Library.AnimationsEnabled = Toggles.AnimationsEnabled.Value
 		end
 
 		groupbox:AddDivider()
