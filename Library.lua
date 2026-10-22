@@ -1952,7 +1952,8 @@ function Library:CreateWindow(...)
     local SearchConnections = {}
     
     if Config.Search then
-        SearchFrame = Library:Create('Frame', { Name = 'SearchFrame'; BackgroundColor3 = Library.BackgroundColor; BorderSizePixel = 0; ZIndex = 500; ZIndexBehavior = Enum.ZIndexBehavior.Sibling; Parent = Outer; ClipsDescendants = true })
+        -- ФИКС: убрано свойство ZIndexBehavior у Frame
+        SearchFrame = Library:Create('Frame', { Name = 'SearchFrame'; BackgroundColor3 = Library.BackgroundColor; BorderSizePixel = 0; ZIndex = 500; Parent = Outer; ClipsDescendants = true })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = SearchFrame }), 'Groupbox')
         Library:CreateStroke({ Parent = SearchFrame })
         Library:AddToRegistry(SearchFrame, { BackgroundColor3 = 'BackgroundColor' })
