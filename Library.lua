@@ -25,7 +25,6 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 OverlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 BindGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Высокий DisplayOrder, чтобы клики по слайдерам работали при открытом меню ESC
 ScreenGui.DisplayOrder = 999
 OverlayGui.DisplayOrder = 998
 BindGui.DisplayOrder = 999
@@ -38,6 +37,7 @@ getgenv().Toggles = Toggles; getgenv().Options = Options
 
 local Library = {
     Registry = {}; RegistryMap = {}; HudRegistry = {};
+    SearchRegistry = {}; -- Реестр для поиска
     FontColor = Color3.fromRGB(255,255,255); MainColor = Color3.fromRGB(28,28,28);
     BackgroundColor = Color3.fromRGB(20,20,20); AccentColor = Color3.fromRGB(0,85,255);
     OutlineColor = Color3.fromRGB(50,50,50); RiskColor = Color3.fromRGB(255,50,50);
@@ -50,7 +50,7 @@ local Library = {
     UICorner = {
         Button = 8, Toggle = 3, Slider = 8, Dropdown = 4,
         DropdownList = 4, Groupbox = 6, KeyPicker = 3, Keybind = 4,
-        ColorPicker = 8,
+        ColorPicker = 8, Notification = 4, -- Добавлено скругление для уведомлений
     };
     CornerRefs = {}; CornerBase = {}; WindowCornerRefs = {}; OutlineStrokes = {};
     RemoveLines = true;
@@ -1021,6 +1021,7 @@ do
         if type(Button.Tooltip) == 'string' then Button:AddTooltip(Button.Tooltip) end
         Groupbox:AddBlank(5); Groupbox:Resize()
         if Idx then Options[Idx] = Button end
+        table.insert(Library.SearchRegistry, {Name = Button.Text, Type = 'Button', Object = Button, Group = Groupbox}) -- Для поиска
         return Button
     end
 
@@ -1088,6 +1089,7 @@ do
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TBO) end
         local Inner = Library:Create('Frame', { BackgroundTransparency = 1; ClipsDescendants = true; Position = UDim2.new(0,5,0,0); Size = UDim2.new(1,-5,1,0); ZIndex = 7; Parent = TBI })
         local Box = Library:Create('TextBox', { BackgroundTransparency = 1; Position = UDim2.fromOffset(0,0); Size = UDim2.new(1,0,1,0); Font = Library.Font; PlaceholderColor3 = Color3.fromRGB(190,190,190); PlaceholderText = Info.Placeholder or ''; Text = Info.Default or ''; TextColor3 = Library.FontColor; TextSize = 14; TextStrokeTransparency = 0; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; RichText = true; Parent = Inner })
+        Box.ClearTextOnFocus = false -- Чтобы текст не стирался
         Library:ApplyTextStroke(Box)
         function TB:SetValue(t)
             if Info.MaxLength and #t > Info.MaxLength then t = t:sub(1, Info.MaxLength) end
@@ -1095,8 +1097,12 @@ do
             TB.Value = t; Box.Text = t
             Library:SafeCallback(TB.Callback, TB.Value); Library:SafeCallback(TB.Changed, TB.Value)
         end
-        if TB.Finished then Box.FocusLost:Connect(function(en) if not en then return end TB:SetValue(Box.Text) Library:AttemptSave() end)
-        else Box:GetPropertyChangedSignal('Text'):Connect(function() TB:SetValue(Box.Text) Library:AttemptSave() end) end
+        -- Изменение в реальном времени, без надобности нажимать Enter
+        Box:GetPropertyChangedSignal('Text'):Connect(function() 
+            TB:SetValue(Box.Text) 
+            Library:AttemptSave() 
+        end)
+        
         local function Update()
             local P = 2; local rv = Inner.AbsoluteSize.X
             if not Box:IsFocused() or Box.TextBounds.X <= rv - 2*P then Box.Position = UDim2.new(0, P, 0, 0)
@@ -1149,7 +1155,6 @@ do
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
         
         function Toggle:Display(anim)
-            -- ИСПРАВЛЕНО: Toggle:GetAttribute -> TRow:GetAttribute
             if anim and Library.AnimationsEnabled and not (TRow:GetAttribute("AnimationsEnabled") == false) then
                 TI.AnchorPoint = Vector2.new(0.5, 0.5); TI.Position = UDim2.new(0.5, 0, 0.5, 0); TI.Size = UDim2.new(0, 2, 0, 2)
                 TweenService:Create(TI, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.new(1,0,1,0) }):Play()
@@ -1182,6 +1187,7 @@ do
         Toggle.TextLabel = TL; Toggle.Container = Container; Toggle.Frame = TRow
         setmetatable(Toggle, BaseAddons)
         Toggles[Idx] = Toggle
+        table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Toggle', Object = Toggle, Group = Groupbox}) -- Для поиска
         Library:UpdateDependencyBoxes()
         return Toggle
     end
@@ -1263,10 +1269,10 @@ do
         if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() Slider:Display() end) end
         Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
         Options[Idx] = Slider
+        table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Slider', Object = Slider, Group = Groupbox}) -- Для поиска
         return Slider
     end
 
-    -- НОВЫЙ ЭЛЕМЕНТ: PROGRESS BAR
     function Funcs:AddProgressBar(Idx, Info)
         assert(Info.Text and Info.Min and Info.Max, 'AddProgressBar: missing required fields.')
         local PB = {
@@ -1276,7 +1282,7 @@ do
             Rounding = Info.Rounding or 0,
             Type = 'ProgressBar',
             Text = Info.Text,
-            CanEdit = Info.CanEdit or false, -- Флаг, можно ли двигать бар мышкой
+            CanEdit = Info.CanEdit or false,
             Callback = Info.Callback or function() end
         }
         local Groupbox = self; local Container = Groupbox.Container
@@ -1334,7 +1340,6 @@ do
             Library:SafeCallback(PB.Callback, n); Library:SafeCallback(PB.Changed, n)
         end
 
-        -- Если CanEdit включен, разрешаем пользователю двигать прогресс-бар
         if PB.CanEdit then
             SI.InputBegan:Connect(function(Inp)
                 if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
@@ -1362,6 +1367,7 @@ do
         if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() PB:Display() end) end
         Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
         Options[Idx] = PB
+        table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'ProgressBar', Object = PB, Group = Groupbox}) -- Для поиска
         return PB
     end
 
@@ -1453,7 +1459,6 @@ do
         function D:SetValues(NV) if NV then D.Values = NV end D:BuildDropdownList() end
         
         function D:OpenDropdown() 
-            -- ИСПРАВЛЕНО: D:GetAttribute -> DO:GetAttribute
             if Library.AnimationsEnabled and not (DO:GetAttribute("AnimationsEnabled") == false) then
                 LO.Visible = true
                 LO.Size = UDim2.fromOffset(DO.AbsoluteSize.X, 0)
@@ -1512,6 +1517,7 @@ do
         end
         Groupbox:AddBlank(Info.BlankSize or 5); Groupbox:Resize()
         Options[Idx] = D
+        table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, Group = Groupbox}) -- Для поиска
         return D
     end
 
@@ -1579,6 +1585,7 @@ do
         K.Container = Container; K.Frame = BO
         Groupbox:AddBlank(5); Groupbox:Resize()
         Options[Idx] = K
+        table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Keybind', Object = K, Group = Groupbox}) -- Для поиска
         return K
     end
 
@@ -1789,11 +1796,12 @@ function Library:Notify(Text, Time)
     table.insert(activeNotifications, { Outer = O, Time = Time })
     TweenService:Create(O, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = UDim2.new(0.5, -XS/2, 1, tY) }):Play()
     local I = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 101; Parent = O })
-    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = I }), 'Button')
+    -- ИСПОЛЬЗУЕМ НОВОЕ СКРУГЛЕНИЕ ДЛЯ УВЕДОМЛЕНИЙ
+    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Notification); Parent = I }), 'Notification')
     Library:CreateStroke({ Parent = I })
     Library:AddToRegistry(I, { BackgroundColor3 = 'MainColor' }, true)
     local IF = Library:Create('Frame', { BackgroundColor3 = Color3.new(1,1,1); BorderSizePixel = 0; Position = UDim2.new(0,1,0,1); Size = UDim2.new(1,-2,1,-2); ZIndex = 102; ClipsDescendants = true; Parent = I })
-    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Button - 1, 0)); Parent = IF }), 'Button')
+    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Notification - 1, 0)); Parent = IF }), 'Notification')
     Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)), ColorSequenceKeypoint.new(1, Library.MainColor) }); Rotation = -90; Parent = IF })
     Library:CreateLabel({ Position = UDim2.new(0,8,0,0); Size = UDim2.new(1,-16,1,0); Text = Text; TextXAlignment = Enum.TextXAlignment.Center; TextSize = 14; ZIndex = 103; Parent = IF })
     local LB = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Size = UDim2.new(0.5,0,0,2); Position = UDim2.new(0.5,0,1,-2); AnchorPoint = Vector2.new(1,0); ZIndex = 104; Parent = O })
@@ -1878,6 +1886,7 @@ function Library:CreateWindow(...)
     if type(Config.TitleOffset) ~= 'number' then Config.TitleOffset = 0 end
     if Config.CenterTabs == nil then Config.CenterTabs = false end
     if type(Config.TabsOffset) ~= 'number' then Config.TabsOffset = 0 end
+    if Config.Search == nil then Config.Search = false end -- Параметр для поиска
     if Config.Center then Config.AnchorPoint = Vector2.new(0.5,0.5) Config.Position = UDim2.fromScale(0.5,0.5) end
 
     local W = { Tabs = {}, ActiveTab = nil }
@@ -1886,16 +1895,17 @@ function Library:CreateWindow(...)
     local OuterCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Groupbox, Library.UICornerRadius * 10)); Parent = Outer })
     Library:RegisterWindowCorner(OuterCorner)
     Library:MakeDraggable(Outer, 25)
+    
+    -- UIShadow вынесен на Outer, чтобы не обрезался
+    local Shadow = Library:Create('UIShadow', { Color = Color3.new(0,0,0); BlurRadius = UDim.new(0, 0); Parent = Outer })
+    W.UIShadow = Shadow
+    Library.UIShadow = Shadow
+
     local Inner = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 1; ClipsDescendants = true; Parent = Outer })
     local InnerCorner = Library:Create('UICorner', { CornerRadius = UDim.new(0, math.max(Library.UICorner.Groupbox, Library.UICornerRadius * 10)); Parent = Inner })
     Library:RegisterWindowCorner(InnerCorner)
     Library:CreateStroke({ Parent = Inner })
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor' })
-
-    -- UIShadow
-    local Shadow = Library:Create('UIShadow', { Color = Color3.new(0,0,0); BlurRadius = UDim.new(0, 0); Parent = Inner })
-    W.UIShadow = Shadow
-    Library.UIShadow = Shadow
 
     local tH = 25; local tS = Config.TitleTextSize or 16
     local WL = Library:CreateLabel({ Position = UDim2.new(0, 7 + Config.TitleOffset, 0, 0); Size = UDim2.new(1, -14, 0, tH); TextSize = tS; Text = Config.Title or ''; TextXAlignment = Config.CenterTitle and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left; ZIndex = 2; Parent = Inner })
@@ -1919,6 +1929,86 @@ function Library:CreateWindow(...)
     local TLL = Library:Create('UIListLayout', { Padding = UDim.new(0, Config.TabPadding); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Config.CenterTabs and Enum.HorizontalAlignment.Center or Enum.HorizontalAlignment.Left; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TA })
     local TC = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,8,0,30); Size = UDim2.new(1,-16,1,-38); ZIndex = 2; ClipsDescendants = true; Parent = MSI })
 
+    -- Индикатор для анимации вкладок
+    local TabIndicator = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Size = UDim2.new(0,0,0,2); Position = UDim2.new(0,0,1,-2); ZIndex = 152; Parent = TA; Visible = false })
+    Library:AddToRegistry(TabIndicator, { BackgroundColor3 = 'AccentColor' })
+    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, 2); Parent = TabIndicator }), 'Button')
+
+    -- Поиск
+    local SearchFrame
+    if Config.Search then
+        SearchFrame = Library:Create('Frame', { Name = 'SearchFrame'; BackgroundColor3 = Library.BackgroundColor; BorderSizePixel = 0; Position = UDim2.new(0, 0, 1, 5); Size = UDim2.new(1, 0, 0, 30); ZIndex = 300; Parent = Outer; ClipsDescendants = true })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = SearchFrame }), 'Groupbox')
+        Library:CreateStroke({ Parent = SearchFrame })
+        Library:AddToRegistry(SearchFrame, { BackgroundColor3 = 'BackgroundColor' })
+        
+        local SearchBox = Library:Create('TextBox', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-8,0,22); Position = UDim2.fromOffset(4,4); Font = Library.Font; PlaceholderText = 'Search...'; Text = ''; TextColor3 = Library.FontColor; TextSize = 14; ZIndex = 301; Parent = SearchFrame })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = SearchBox }), 'Button')
+        Library:CreateStroke({ Parent = SearchBox })
+        Library:AddToRegistry(SearchBox, { TextColor3 = 'FontColor' })
+        
+        local SearchResults = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(4, 30); Size = UDim2.new(1,-8,1,-34); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 301; Parent = SearchFrame })
+        Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = SearchResults })
+        SearchResults:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() 
+            SearchResults.CanvasSize = UDim2.fromOffset(0, SearchResults.UIListLayout.AbsoluteContentSize.Y) 
+        end)
+        
+        local function UpdateSearch()
+            for _, child in ipairs(SearchResults:GetChildren()) do
+                if not child:IsA('UIListLayout') then child:Destroy() end
+            end
+            
+            local query = SearchBox.Text:lower()
+            if query == '' then
+                TweenService:Create(SearchFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 30) }):Play()
+                return
+            end
+            
+            local count = 0
+            for _, entry in ipairs(Library.SearchRegistry) do
+                if entry.Name:lower():find(query) then
+                    count = count + 1
+                    local Row = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,0,20); ZIndex = 302; Parent = SearchResults })
+                    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = Row }), 'Button')
+                    
+                    local Label = Library:CreateLabel({ Size = UDim2.new(1,-10,1,0); Position = UDim2.fromOffset(5,0); Text = entry.Name; TextXAlignment = Enum.TextXAlignment.Left; TextSize = 14; ZIndex = 303; Parent = Row })
+                    
+                    if entry.Type == 'Toggle' then
+                        local Tog = Library:Create('Frame', { BackgroundColor3 = entry.Object.Value and Library.AccentColor or Library.BackgroundColor; Size = UDim2.new(0,12,0,12); Position = UDim2.new(1,-16,0,4); ZIndex = 303; Parent = Row })
+                        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = Tog }), 'Toggle')
+                        Library:CreateStroke({ Parent = Tog })
+                        Row.InputBegan:Connect(function(i) 
+                            if i.UserInputType == Enum.UserInputType.MouseButton1 then 
+                                entry.Object:SetValue(not entry.Object.Value)
+                                Tog.BackgroundColor3 = entry.Object.Value and Library.AccentColor or Library.BackgroundColor
+                            end 
+                        end)
+                    elseif entry.Type == 'Button' then
+                        Row.InputBegan:Connect(function(i) 
+                            if i.UserInputType == Enum.UserInputType.MouseButton1 then 
+                                Library:SafeCallback(entry.Object.Func) 
+                            end 
+                        end)
+                        Library:OnHighlight(Row, Row, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
+                    elseif entry.Type == 'Slider' or entry.Type == 'ProgressBar' then
+                        local ValLabel = Library:CreateLabel({ Size = UDim2.new(0,50,1,0); Position = UDim2.new(1,-55,0,0); Text = tostring(entry.Object.Value); TextXAlignment = Enum.TextXAlignment.Right; TextSize = 14; ZIndex = 303; Parent = Row })
+                        -- Для простоты в поиске просто показываем значение, изменять лучше в оригинале, но по клику можно триггерить bind
+                        Row.InputBegan:Connect(function(i)
+                            if i.UserInputType == Enum.UserInputType.MouseButton2 then
+                                Library.BindSystem:Open(entry.Object)
+                            end
+                        end)
+                    end
+                end
+            end
+            
+            local targetHeight = math.clamp(count * 24 + 34, 30, 300)
+            TweenService:Create(SearchFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, targetHeight) }):Play()
+        end
+        
+        SearchBox:GetPropertyChangedSignal('Text'):Connect(UpdateSearch)
+    end
+
     function W:SetWindowTitle(t) WL.Text = t end
     function W:SetWindowOpacity(t) t = math.clamp(t or 0, 0, 1) Inner.BackgroundTransparency = t end
     function W:SetBackgroundImage(id, tr)
@@ -1937,10 +2027,8 @@ function Library:CreateWindow(...)
         local Tb = { Groupboxes = {}; Tabboxes = {} }
         local TBW = Library:GetTextBounds(Name, Library.Font, 16)
         local TB = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(0, TBW + 8 + 4, 1, 0); ZIndex = 150; Active = true; Parent = TA })
-        Library:CreateStroke({ Parent = TB })
         Library:CreateLabel({ Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,-1); Text = Name; ZIndex = 151; Parent = TB })
-        local Blk = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Position = UDim2.new(0,0,1,0); Size = UDim2.new(1,0,0,1); BackgroundTransparency = 1; ZIndex = 152; Parent = TB })
-        Library:AddToRegistry(Blk, { BackgroundColor3 = 'AccentColor' })
+        
         local TF = Library:Create('Frame', { Name = 'TabFrame'; BackgroundTransparency = 1; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); Visible = false; ZIndex = 2; Parent = TC })
         Library:CreateStroke({ Parent = TF })
 
@@ -1961,17 +2049,18 @@ function Library:CreateWindow(...)
                 if t ~= Tb then t:HideTab() end
             end
             
-            Blk.BackgroundTransparency = 0
-            TB.BackgroundColor3 = Library.BackgroundColor
-            TB.BackgroundTransparency = 0
             TF.Visible = true
             W.ActiveTab = Tb
+            
+            -- Анимация индикатора
+            TabIndicator.Visible = true
+            TweenService:Create(TabIndicator, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = UDim2.new(TB.Position.X.Scale, TB.Position.X.Offset, 1, -2),
+                Size = UDim2.new(TB.Size.X.Scale, TB.Size.X.Offset, 0, 2)
+            }):Play()
         end
         
         function Tb:HideTab()
-            Blk.BackgroundTransparency = 1
-            TB.BackgroundColor3 = Library.BackgroundColor
-            TB.BackgroundTransparency = 1
             TF.Visible = false
             if W.ActiveTab == Tb then W.ActiveTab = nil end
         end
@@ -1984,15 +2073,17 @@ function Library:CreateWindow(...)
             Library:CreateStroke({ Parent = BO })
             Library:AddToRegistry(BO, { BackgroundColor3 = 'BackgroundColor' })
             
+            -- Разделитель под названием группы
             Library:CreateLabel({ Size = UDim2.new(1,0,0,18); Position = UDim2.fromOffset(4,2); Text = Info.Name; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; Parent = BO })
+            Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-8,0,1); Position = UDim2.fromOffset(4,18); ZIndex = 7; Parent = BO })
 
-            local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,20); Size = UDim2.new(1,-8,1,-20); ZIndex = 10; Parent = BO })
+            local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,22); Size = UDim2.new(1,-8,1,-22); ZIndex = 10; Parent = BO })
             Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = C })
             
             function GB:Resize()
                 local s = 0
                 for _, e in next, GB.Container:GetChildren() do if not e:IsA('UIListLayout') and e.Visible then s = s + e.Size.Y.Offset end end
-                BO.Size = UDim2.new(1,0,0, 20 + s + 4)
+                BO.Size = UDim2.new(1,0,0, 22 + s + 4)
             end
             GB.Container = C
             setmetatable(GB, BaseGroupbox)
@@ -2054,6 +2145,8 @@ function Library:CreateWindow(...)
         
         if not Tog then for f, _ in pairs(Library.OpenedFrames) do f.Visible = false end table.clear(Library.OpenedFrames) end
         if Tog then Outer.Visible = true end
+        if SearchFrame then SearchFrame.Visible = Tog end
+        
         for _, D in next, Outer:GetDescendants() do
             local P = {}
             if D:IsA('ImageLabel') then table.insert(P, 'ImageTransparency') table.insert(P, 'BackgroundTransparency')
