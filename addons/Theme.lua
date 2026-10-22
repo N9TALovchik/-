@@ -405,7 +405,7 @@ local ThemeManager = {} do
 		
 		if ThemeManager.Library.UIShadow then
 			if Options.ShadowColor then ThemeManager.Library.UIShadow.Color = Options.ShadowColor.Value end
-			if Options.ShadowRadius then ThemeManager.Library.UIShadow.Radius = UDim.new(0, Options.ShadowRadius.Value) end
+			if Options.ShadowRadius then ThemeManager.Library.UIShadow.BlurRadius = UDim.new(0, Options.ShadowRadius.Value) end
 		end
 	end
 
