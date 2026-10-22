@@ -1792,7 +1792,7 @@ function Library:CreateWindow(...)
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor' })
 
     -- UIShadow
-    local Shadow = Library:Create('UIShadow', { Color = Color3.new(0,0,0); Radius = UDim.new(0, 0); Parent = Inner })
+    local Shadow = Library:Create('UIShadow', { Color = Color3.new(0,0,0); BlurRadius = UDim.new(0, 0); Parent = Inner })
     W.UIShadow = Shadow
     Library.UIShadow = Shadow
 
