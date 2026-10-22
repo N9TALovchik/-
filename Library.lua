@@ -46,7 +46,7 @@ local Library = {
     ScreenGui = ScreenGui; UICornerRadius = 1; UICorners = {};
     NotifySoundId = NOTIFY_SOUND_ID; CursorImageId = CURSOR_IMAGE_ID;
     MainFrame = nil; _resizing = false; _hoveredResizeHandle = nil;
-    AnimationsEnabled = true; -- Глобальный флаг анимаций
+    AnimationsEnabled = true;
     UICorner = {
         Button = 8, Toggle = 3, Slider = 8, Dropdown = 4,
         DropdownList = 4, Groupbox = 6, KeyPicker = 3, Keybind = 4,
@@ -58,7 +58,7 @@ local Library = {
 
 getgenv().SetAnimationsEnabled = function(bool, element)
     if element then
-        element.AnimationsEnabled = bool
+        element:SetAttribute("AnimationsEnabled", bool)
     else
         Library.AnimationsEnabled = bool
     end
@@ -129,13 +129,9 @@ end
 
 function Library:SetOutlineColor(c)
     Library.OutlineColor = c
-    
-    -- Красим только те обводки, которые помечены тегом (границы кнопок, окон и т.д.)
     for _, s in ipairs(CollectionService:GetTagged('LibraryOutlineStroke')) do
         if s and s.Parent then s.Color = c end
     end
-    
-    -- Чистим удаленные обводки
     for i = #Library.OutlineStrokes, 1, -1 do
         local s = Library.OutlineStrokes[i]
         if not s or not s.Parent then 
@@ -144,7 +140,6 @@ function Library:SetOutlineColor(c)
             s.Color = c 
         end
     end
-    
     Library:UpdateColorsUsingRegistry()
 end
 
@@ -258,9 +253,11 @@ end
 function Library:OnHighlight(HL, Inst, Props, Def)
     HL.MouseEnter:Connect(function()
         local R = Library.RegistryMap[Inst]
+        local instAnim = Inst:GetAttribute("AnimationsEnabled")
+        if instAnim == nil then instAnim = true end
         for p, c in next, Props do 
             local col = Library[c] or c
-            if Library.AnimationsEnabled and not (Inst.AnimationsEnabled == false) and typeof(col) == 'Color3' and typeof(Inst[p]) == 'Color3' then
+            if Library.AnimationsEnabled and instAnim and typeof(col) == 'Color3' and typeof(Inst[p]) == 'Color3' then
                 TweenService:Create(Inst, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {[p] = col}):Play()
             else
                 Inst[p] = col 
@@ -270,9 +267,11 @@ function Library:OnHighlight(HL, Inst, Props, Def)
     end)
     HL.MouseLeave:Connect(function()
         local R = Library.RegistryMap[Inst]
+        local instAnim = Inst:GetAttribute("AnimationsEnabled")
+        if instAnim == nil then instAnim = true end
         for p, c in next, Def do 
             local col = Library[c] or c
-            if Library.AnimationsEnabled and not (Inst.AnimationsEnabled == false) and typeof(col) == 'Color3' and typeof(Inst[p]) == 'Color3' then
+            if Library.AnimationsEnabled and instAnim and typeof(col) == 'Color3' and typeof(Inst[p]) == 'Color3' then
                 TweenService:Create(Inst, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {[p] = col}):Play()
             else
                 Inst[p] = col 
@@ -326,12 +325,9 @@ function Library:UpdateColorsUsingRegistry()
                 end)
             end
         else
-            -- Собираем удаленные элементы, чтобы не ломать цикл
             table.insert(toRemove, O.Instance)
         end
     end
-    
-    -- Удаляем их ПОСЛЕ того, как цикл закончился
     for _, inst in ipairs(toRemove) do
         Library:RemoveFromRegistry(inst)
     end
@@ -345,7 +341,6 @@ end
 function Library:OnUnload(cb) Library.OnUnload = cb end
 Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(I) if Library.RegistryMap[I] then Library:RemoveFromRegistry(I) end end))
 
--- HIGHLIGHT (для LinkLabel)
 function Library:HighlightElement(Frame, Duration, Color)
     if not Frame or not Frame.Parent then return end
     Duration = Duration or 1.5
@@ -1038,7 +1033,7 @@ do
 
     function Funcs:AddLinkLabel(Text, Target, Info)
         Info = Info or {}
-        local Groupbox = self; local Container = self.Container
+        local Groupbox = self; local Container = Groupbox.Container
         local Link = { Type = 'LinkLabel' }
         local LB = Library:CreateLabel({ Size = UDim2.new(1,-4,0,15); TextSize = 14; Text = Text; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; Parent = Container })
         LB.Active = true
@@ -1154,7 +1149,7 @@ do
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
         
         function Toggle:Display(anim)
-            if anim and Library.AnimationsEnabled and not (Toggle.AnimationsEnabled == false) then
+            if anim and Library.AnimationsEnabled and not (Toggle:GetAttribute("AnimationsEnabled") == false) then
                 TI.AnchorPoint = Vector2.new(0.5, 0.5); TI.Position = UDim2.new(0.5, 0, 0.5, 0); TI.Size = UDim2.new(0, 2, 0, 2)
                 TweenService:Create(TI, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.new(1,0,1,0) }):Play()
             else
@@ -1222,7 +1217,7 @@ do
             if W <= 0 then W = 232 end
             local X = math.ceil(Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, W))
             
-            if Library.AnimationsEnabled and not (Slider.AnimationsEnabled == false) then
+            if Library.AnimationsEnabled and not (Slider:GetAttribute("AnimationsEnabled") == false) then
                 TweenService:Create(Fill, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(0, X, 1, 0) }):Play()
             else
                 Fill.Size = UDim2.new(0, X, 1, 0)
@@ -1358,7 +1353,7 @@ do
         function D:SetValues(NV) if NV then D.Values = NV end D:BuildDropdownList() end
         
         function D:OpenDropdown() 
-            if Library.AnimationsEnabled and not (D.AnimationsEnabled == false) then
+            if Library.AnimationsEnabled and not (D:GetAttribute("AnimationsEnabled") == false) then
                 LO.Visible = true
                 LO.Size = UDim2.fromOffset(DO.AbsoluteSize.X, 0)
                 TweenService:Create(LO, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(DO.AbsoluteSize.X, math.clamp(#D.Values*20, 0, MDI*20)+1)}):Play()
@@ -1796,6 +1791,11 @@ function Library:CreateWindow(...)
     Library:CreateStroke({ Parent = Inner })
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor' })
 
+    -- UIShadow
+    local Shadow = Library:Create('UIShadow', { Color = Color3.new(0,0,0); Radius = UDim.new(0, 0); Parent = Inner })
+    W.UIShadow = Shadow
+    Library.UIShadow = Shadow
+
     local tH = 25; local tS = Config.TitleTextSize or 16
     local WL = Library:CreateLabel({ Position = UDim2.new(0, 7 + Config.TitleOffset, 0, 0); Size = UDim2.new(1, -14, 0, tH); TextSize = tS; Text = Config.Title or ''; TextXAlignment = Config.CenterTitle and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left; ZIndex = 2; Parent = Inner })
 
@@ -1882,12 +1882,18 @@ function Library:CreateWindow(...)
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = BO }), 'Groupbox')
             Library:CreateStroke({ Parent = BO })
             Library:AddToRegistry(BO, { BackgroundColor3 = 'BackgroundColor' })
-            local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,2); Size = UDim2.new(1,-8,1,-4); ZIndex = 10; Parent = BO })
+            
+            -- ВОЗВРАЩЕН ЗАГОЛОВОК
+            Library:CreateLabel({ Size = UDim2.new(1,0,0,18); Position = UDim2.fromOffset(4,2); Text = Info.Name; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; Parent = BO })
+
+            -- Сдвиг контейнера вниз (20)
+            local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,20); Size = UDim2.new(1,-8,1,-20); ZIndex = 10; Parent = BO })
             Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = C })
+            
             function GB:Resize()
                 local s = 0
                 for _, e in next, GB.Container:GetChildren() do if not e:IsA('UIListLayout') and e.Visible then s = s + e.Size.Y.Offset end end
-                BO.Size = UDim2.new(1,0,0, 4 + s + 4)
+                BO.Size = UDim2.new(1,0,0, 20 + s + 4)
             end
             GB.Container = C
             setmetatable(GB, BaseGroupbox)
