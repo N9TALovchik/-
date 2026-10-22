@@ -1149,7 +1149,8 @@ do
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TR) end
         
         function Toggle:Display(anim)
-            if anim and Library.AnimationsEnabled and not (Toggle:GetAttribute("AnimationsEnabled") == false) then
+            -- ИСПРАВЛЕНО: Toggle:GetAttribute -> TRow:GetAttribute
+            if anim and Library.AnimationsEnabled and not (TRow:GetAttribute("AnimationsEnabled") == false) then
                 TI.AnchorPoint = Vector2.new(0.5, 0.5); TI.Position = UDim2.new(0.5, 0, 0.5, 0); TI.Size = UDim2.new(0, 2, 0, 2)
                 TweenService:Create(TI, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.new(1,0,1,0) }):Play()
             else
@@ -1265,6 +1266,105 @@ do
         return Slider
     end
 
+    -- НОВЫЙ ЭЛЕМЕНТ: PROGRESS BAR
+    function Funcs:AddProgressBar(Idx, Info)
+        assert(Info.Text and Info.Min and Info.Max, 'AddProgressBar: missing required fields.')
+        local PB = {
+            Value = Info.Default or Info.Min,
+            Min = Info.Min,
+            Max = Info.Max,
+            Rounding = Info.Rounding or 0,
+            Type = 'ProgressBar',
+            Text = Info.Text,
+            CanEdit = Info.CanEdit or false, -- Флаг, можно ли двигать бар мышкой
+            Callback = Info.Callback or function() end
+        }
+        local Groupbox = self; local Container = Groupbox.Container
+        if not Info.Compact then
+            Library:CreateLabel({ Size = UDim2.new(1,0,0,14); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; ZIndex = 7; Parent = Container })
+            Groupbox:AddBlank(3)
+        end
+        local SO = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-4,0,13); ZIndex = 5; Active = PB.CanEdit; ClipsDescendants = true; Parent = Container })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Slider); Parent = SO }), 'Slider')
+        Library:CreateStroke({ Parent = SO })
+        Library:AddToRegistry(SO, { BackgroundColor3 = 'MainColor' })
+
+        local SI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 6; Active = PB.CanEdit; ClipsDescendants = true; Parent = SO })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Slider); Parent = SI }), 'Slider')
+        Library:AddToRegistry(SI, { BackgroundColor3 = 'MainColor' })
+
+        local Fill = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; Size = UDim2.new(0,0,1,0); ZIndex = 7; Parent = SI })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Slider); Parent = Fill }), 'Slider')
+        Library:AddToRegistry(Fill, { BackgroundColor3 = 'AccentColor' })
+
+        local DL = Library:CreateLabel({ Size = UDim2.new(1,0,1,0); TextSize = 14; Text = '0%'; ZIndex = 9; Parent = SI })
+        if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, SO) end
+
+        function PB:UpdateColors() Fill.BackgroundColor3 = Library.AccentColor end
+
+        function PB:Display()
+            local SF = Info.Suffix or ''
+            if Info.Compact then DL.Text = Info.Text .. ': ' .. PB.Value .. SF
+            elseif Info.HideMax then DL.Text = string.format('%s', PB.Value .. SF)
+            else DL.Text = string.format('%s/%s', PB.Value .. SF, PB.Max .. SF) end
+
+            local W = SI.AbsoluteSize.X
+            if W <= 0 then W = 232 end
+            local X = math.ceil(Library:MapValue(PB.Value, PB.Min, PB.Max, 0, W))
+
+            if Library.AnimationsEnabled and not (SO:GetAttribute("AnimationsEnabled") == false) then
+                TweenService:Create(Fill, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(0, X, 1, 0) }):Play()
+            else
+                Fill.Size = UDim2.new(0, X, 1, 0)
+            end
+        end
+
+        function PB:OnChanged(f) PB.Changed = f f(PB.Value) end
+        local function Rnd(v) if PB.Rounding == 0 then return math.floor(v) end return tonumber(string.format('%.' .. PB.Rounding .. 'f', v)) end
+        function PB:GetValueFromXOffset(X)
+            local W = SI.AbsoluteSize.X
+            if W <= 0 then W = 232 end
+            return Rnd(Library:MapValue(X, 0, W, PB.Min, PB.Max))
+        end
+        function PB:SetValue(s)
+            local n = tonumber(s)
+            if not n then return end
+            n = math.clamp(n, PB.Min, PB.Max)
+            PB.Value = n; PB:Display()
+            Library:SafeCallback(PB.Callback, n); Library:SafeCallback(PB.Changed, n)
+        end
+
+        -- Если CanEdit включен, разрешаем пользователю двигать прогресс-бар
+        if PB.CanEdit then
+            SI.InputBegan:Connect(function(Inp)
+                if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
+                    local W = SI.AbsoluteSize.X; if W <= 0 then W = 232 end
+                    local mP = Mouse.X; local gP = Fill.Size.X.Offset
+                    local D = mP - (Fill.AbsolutePosition.X + gP)
+                    while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+                        local nMP = Mouse.X
+                        local nX = math.clamp(gP + (nMP - mP) + D, 0, W)
+                        local nV = PB:GetValueFromXOffset(nX)
+                        local old = PB.Value
+                        PB.Value = nV; PB:Display()
+                        if nV ~= old then Library:SafeCallback(PB.Callback, nV) Library:SafeCallback(PB.Changed, nV) end
+                        RenderStepped:Wait()
+                    end
+                    Library:AttemptSave()
+                elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then
+                    Library.BindSystem:Open(PB)
+                end
+            end)
+        end
+
+        PB:Display()
+        PB.Container = Container; PB.Frame = SO
+        if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() PB:Display() end) end
+        Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
+        Options[Idx] = PB
+        return PB
+    end
+
     function Funcs:AddDropdown(Idx, Info)
         if Info.SpecialType == 'Player' then Info.Values = GetPlayersString() Info.AllowNull = true
         elseif Info.SpecialType == 'Team' then Info.Values = GetTeamsString() Info.AllowNull = true end
@@ -1353,7 +1453,8 @@ do
         function D:SetValues(NV) if NV then D.Values = NV end D:BuildDropdownList() end
         
         function D:OpenDropdown() 
-            if Library.AnimationsEnabled and not (D:GetAttribute("AnimationsEnabled") == false) then
+            -- ИСПРАВЛЕНО: D:GetAttribute -> DO:GetAttribute
+            if Library.AnimationsEnabled and not (DO:GetAttribute("AnimationsEnabled") == false) then
                 LO.Visible = true
                 LO.Size = UDim2.fromOffset(DO.AbsoluteSize.X, 0)
                 TweenService:Create(LO, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(DO.AbsoluteSize.X, math.clamp(#D.Values*20, 0, MDI*20)+1)}):Play()
@@ -1527,7 +1628,7 @@ end
 function BindSystem:GetDefaultValue(c)
     if c.Type == 'Toggle' then return not c.Value end
     if c.Type == 'Dropdown' then if c.Values and #c.Values > 0 then return c.Values[1] end return nil end
-    if c.Type == 'Slider' then return c.Value end
+    if c.Type == 'Slider' or c.Type == 'ProgressBar' then return c.Value end
     return nil
 end
 
@@ -1551,7 +1652,7 @@ function BindSystem:ApplyTrigger(b, p)
                 else b._prevValue = c.Value c:SetValue(v) end
             end
         end
-    elseif c.Type == 'Slider' then
+    elseif c.Type == 'Slider' or c.Type == 'ProgressBar' then
         if m == 'Hold' then
             if p then b._prevValue = c.Value c:SetValue(v)
             else if b._prevValue ~= nil then c:SetValue(b._prevValue) b._prevValue = nil rel = true end end
@@ -1611,7 +1712,7 @@ function BindSystem:BuildBindCard(Sc, AB, c, eb)
     gb:AddKeybind(NBI(), { Text = 'Key'; Default = b.Key; ChangedCallback = function(k) b.Key = k end })
     gb:AddDropdown(NBI(), { Text = 'Mode'; Values = { 'Toggle', 'Hold' }; Default = b.Mode; Callback = function(v) if v then b.Mode = v end end })
     if c.Type == 'Toggle' then gb:AddToggle(NBI(), { Text = 'Value'; Default = (type(b.Value) == 'boolean') and b.Value or true; Callback = function(v) b.Value = v end })
-    elseif c.Type == 'Slider' then gb:AddSlider(NBI(), { Text = 'Value'; Min = c.Min; Max = c.Max; Rounding = c.Rounding; Default = (type(b.Value) == 'number') and b.Value or c.Value; Suffix = ''; Callback = function(v) b.Value = v end })
+    elseif c.Type == 'Slider' or c.Type == 'ProgressBar' then gb:AddSlider(NBI(), { Text = 'Value'; Min = c.Min; Max = c.Max; Rounding = c.Rounding; Default = (type(b.Value) == 'number') and b.Value or c.Value; Suffix = ''; Callback = function(v) b.Value = v end })
     elseif c.Type == 'Dropdown' then gb:AddDropdown(NBI(), { Text = 'Value'; Values = c.Values; AllowNull = true; Default = b.Value; Callback = function(v) b.Value = v end })
     elseif c.Type == 'Button' then gb:AddLabel('Triggers button callback', true) end
     gb:AddInput(NBI(), { Text = 'Press message'; Placeholder = 'Message on press'; Default = b.PressMsg or ''; Finished = true; Callback = function(v) b.PressMsg = v end })
@@ -1883,10 +1984,8 @@ function Library:CreateWindow(...)
             Library:CreateStroke({ Parent = BO })
             Library:AddToRegistry(BO, { BackgroundColor3 = 'BackgroundColor' })
             
-            -- ВОЗВРАЩЕН ЗАГОЛОВОК
             Library:CreateLabel({ Size = UDim2.new(1,0,0,18); Position = UDim2.fromOffset(4,2); Text = Info.Name; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; Parent = BO })
 
-            -- Сдвиг контейнера вниз (20)
             local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,20); Size = UDim2.new(1,-8,1,-20); ZIndex = 10; Parent = BO })
             Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = C })
             
