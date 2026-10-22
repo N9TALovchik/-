@@ -582,6 +582,7 @@ local ThemeManager = {} do
 			{ 'UICornerGroupbox',       'Groupbox',      6 },
 			{ 'UICornerKeyPicker',      'KeyPicker',     3 },
 			{ 'UICornerKeybind',        'Keybind',       4 },
+			{ 'UICornerNotification',   'Notification',  4 }, -- Новое скругление
 		}
 
 		for _, item in ipairs(cornerItems) do
@@ -605,7 +606,7 @@ local ThemeManager = {} do
 			local defaults = {
 				Window = 6, Button = 8, Toggle = 3, Slider = 8,
 				Dropdown = 4, DropdownList = 4, Groupbox = 6,
-				KeyPicker = 3, Keybind = 4,
+				KeyPicker = 3, Keybind = 4, Notification = 4,
 			}
 			for key, val in pairs(defaults) do
 				ThemeManager.Library:SetCornerRadius(key, val)
@@ -615,6 +616,7 @@ local ThemeManager = {} do
 				UICornerButton = 'Button', UICornerToggle = 'Toggle', UICornerSlider = 'Slider',
 				UICornerDropdown = 'Dropdown', UICornerDropdownList = 'DropdownList',
 				UICornerGroupbox = 'Groupbox', UICornerKeyPicker = 'KeyPicker', UICornerKeybind = 'Keybind',
+				UICornerNotification = 'Notification',
 			}
 			for idx, key in pairs(slideMap) do
 				if Options[idx] then Options[idx]:SetValue(defaults[key]) end
@@ -646,7 +648,6 @@ local ThemeManager = {} do
 			saveSetting('animations_enabled', tostring(enabled))
 		end)
 		
-		-- Применяем настройку сразу при инициализации
 		if ThemeManager.Library then
 			ThemeManager.Library.AnimationsEnabled = Options.AnimationsEnabled.Value
 		end
