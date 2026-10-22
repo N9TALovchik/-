@@ -37,7 +37,7 @@ getgenv().Toggles = Toggles; getgenv().Options = Options
 
 local Library = {
     Registry = {}; RegistryMap = {}; HudRegistry = {};
-    SearchRegistry = {}; -- Реестр для поиска
+    SearchRegistry = {}; 
     FontColor = Color3.fromRGB(255,255,255); MainColor = Color3.fromRGB(28,28,28);
     BackgroundColor = Color3.fromRGB(20,20,20); AccentColor = Color3.fromRGB(0,85,255);
     OutlineColor = Color3.fromRGB(50,50,50); RiskColor = Color3.fromRGB(255,50,50);
@@ -50,7 +50,7 @@ local Library = {
     UICorner = {
         Button = 8, Toggle = 3, Slider = 8, Dropdown = 4,
         DropdownList = 4, Groupbox = 6, KeyPicker = 3, Keybind = 4,
-        ColorPicker = 8, Notification = 4, -- Добавлено скругление для уведомлений
+        ColorPicker = 8, Notification = 4, 
     };
     CornerRefs = {}; CornerBase = {}; WindowCornerRefs = {}; OutlineStrokes = {};
     RemoveLines = true;
@@ -1021,7 +1021,7 @@ do
         if type(Button.Tooltip) == 'string' then Button:AddTooltip(Button.Tooltip) end
         Groupbox:AddBlank(5); Groupbox:Resize()
         if Idx then Options[Idx] = Button end
-        table.insert(Library.SearchRegistry, {Name = Button.Text, Type = 'Button', Object = Button, Group = Groupbox}) -- Для поиска
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Button.Text, Type = 'Button', Object = Button, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
         return Button
     end
 
@@ -1089,7 +1089,7 @@ do
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, TBO) end
         local Inner = Library:Create('Frame', { BackgroundTransparency = 1; ClipsDescendants = true; Position = UDim2.new(0,5,0,0); Size = UDim2.new(1,-5,1,0); ZIndex = 7; Parent = TBI })
         local Box = Library:Create('TextBox', { BackgroundTransparency = 1; Position = UDim2.fromOffset(0,0); Size = UDim2.new(1,0,1,0); Font = Library.Font; PlaceholderColor3 = Color3.fromRGB(190,190,190); PlaceholderText = Info.Placeholder or ''; Text = Info.Default or ''; TextColor3 = Library.FontColor; TextSize = 14; TextStrokeTransparency = 0; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 7; RichText = true; Parent = Inner })
-        Box.ClearTextOnFocus = false -- Чтобы текст не стирался
+        Box.ClearTextOnFocus = false 
         Library:ApplyTextStroke(Box)
         function TB:SetValue(t)
             if Info.MaxLength and #t > Info.MaxLength then t = t:sub(1, Info.MaxLength) end
@@ -1097,7 +1097,6 @@ do
             TB.Value = t; Box.Text = t
             Library:SafeCallback(TB.Callback, TB.Value); Library:SafeCallback(TB.Changed, TB.Value)
         end
-        -- Изменение в реальном времени, без надобности нажимать Enter
         Box:GetPropertyChangedSignal('Text'):Connect(function() 
             TB:SetValue(Box.Text) 
             Library:AttemptSave() 
@@ -1187,7 +1186,7 @@ do
         Toggle.TextLabel = TL; Toggle.Container = Container; Toggle.Frame = TRow
         setmetatable(Toggle, BaseAddons)
         Toggles[Idx] = Toggle
-        table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Toggle', Object = Toggle, Group = Groupbox}) -- Для поиска
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Toggle', Object = Toggle, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
         Library:UpdateDependencyBoxes()
         return Toggle
     end
@@ -1269,7 +1268,7 @@ do
         if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() Slider:Display() end) end
         Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
         Options[Idx] = Slider
-        table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Slider', Object = Slider, Group = Groupbox}) -- Для поиска
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Slider', Object = Slider, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
         return Slider
     end
 
@@ -1367,7 +1366,7 @@ do
         if SI then SI:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() PB:Display() end) end
         Groupbox:AddBlank(Info.BlankSize or 6); Groupbox:Resize()
         Options[Idx] = PB
-        table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'ProgressBar', Object = PB, Group = Groupbox}) -- Для поиска
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'ProgressBar', Object = PB, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
         return PB
     end
 
@@ -1517,7 +1516,7 @@ do
         end
         Groupbox:AddBlank(Info.BlankSize or 5); Groupbox:Resize()
         Options[Idx] = D
-        table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, Group = Groupbox}) -- Для поиска
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
         return D
     end
 
@@ -1585,7 +1584,7 @@ do
         K.Container = Container; K.Frame = BO
         Groupbox:AddBlank(5); Groupbox:Resize()
         Options[Idx] = K
-        table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Keybind', Object = K, Group = Groupbox}) -- Для поиска
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text, Type = 'Keybind', Object = K, GroupName = Groupbox.Name or 'Unknown', NoSearch = Info.NoSearch}) end
         return K
     end
 
@@ -1600,7 +1599,7 @@ do
         if title then Library:CreateLabel({ Size = UDim2.new(1,0,0,18); Position = UDim2.fromOffset(4,2); TextSize = 14; Text = title; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 213; Parent = Inner }) end
         local Container = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0, title and 20 or 4); Size = UDim2.new(1,-4,1, title and -20 or -4); ZIndex = 211; Parent = Inner })
         Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = Container })
-        local GB = { Container = Container; Outer = Outer }
+        local GB = { Container = Container; Outer = Outer; Name = title }
         setmetatable(GB, BaseGroupbox)
         function GB:Resize()
             local S = 0
@@ -1796,7 +1795,6 @@ function Library:Notify(Text, Time)
     table.insert(activeNotifications, { Outer = O, Time = Time })
     TweenService:Create(O, TweenInfo.new(NOTIFY_ANIMATION_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = UDim2.new(0.5, -XS/2, 1, tY) }):Play()
     local I = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 101; Parent = O })
-    -- ИСПОЛЬЗУЕМ НОВОЕ СКРУГЛЕНИЕ ДЛЯ УВЕДОМЛЕНИЙ
     Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Notification); Parent = I }), 'Notification')
     Library:CreateStroke({ Parent = I })
     Library:AddToRegistry(I, { BackgroundColor3 = 'MainColor' }, true)
@@ -1886,7 +1884,8 @@ function Library:CreateWindow(...)
     if type(Config.TitleOffset) ~= 'number' then Config.TitleOffset = 0 end
     if Config.CenterTabs == nil then Config.CenterTabs = false end
     if type(Config.TabsOffset) ~= 'number' then Config.TabsOffset = 0 end
-    if Config.Search == nil then Config.Search = false end -- Параметр для поиска
+    if Config.Search == nil then Config.Search = false end
+    if Config.SearchPos ~= 'up' and Config.SearchPos ~= 'down' then Config.SearchPos = 'down' end -- Позиция поиска по умолчанию 'down'
     if Config.Center then Config.AnchorPoint = Vector2.new(0.5,0.5) Config.Position = UDim2.fromScale(0.5,0.5) end
 
     local W = { Tabs = {}, ActiveTab = nil }
@@ -1929,31 +1928,45 @@ function Library:CreateWindow(...)
     local TLL = Library:Create('UIListLayout', { Padding = UDim.new(0, Config.TabPadding); FillDirection = Enum.FillDirection.Horizontal; HorizontalAlignment = Config.CenterTabs and Enum.HorizontalAlignment.Center or Enum.HorizontalAlignment.Left; SortOrder = Enum.SortOrder.LayoutOrder; Parent = TA })
     local TC = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,8,0,30); Size = UDim2.new(1,-16,1,-38); ZIndex = 2; ClipsDescendants = true; Parent = MSI })
 
-    -- Индикатор для анимации вкладок
+    -- Индикатор для анимации вкладок (вне UIListLayout)
     local TabIndicator = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BorderSizePixel = 0; Size = UDim2.new(0,0,0,2); Position = UDim2.new(0,0,1,-2); ZIndex = 152; Parent = TA; Visible = false })
     Library:AddToRegistry(TabIndicator, { BackgroundColor3 = 'AccentColor' })
     Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, 2); Parent = TabIndicator }), 'Button')
 
     -- Поиск
-    local SearchFrame
+    local SearchFrame, SearchBox, SearchResults
+    local SearchConnections = {}
+    
     if Config.Search then
-        SearchFrame = Library:Create('Frame', { Name = 'SearchFrame'; BackgroundColor3 = Library.BackgroundColor; BorderSizePixel = 0; Position = UDim2.new(0, 0, 1, 5); Size = UDim2.new(1, 0, 0, 30); ZIndex = 300; Parent = Outer; ClipsDescendants = true })
+        SearchFrame = Library:Create('Frame', { Name = 'SearchFrame'; BackgroundColor3 = Library.BackgroundColor; BorderSizePixel = 0; ZIndex = 300; Parent = Outer; ClipsDescendants = true })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = SearchFrame }), 'Groupbox')
         Library:CreateStroke({ Parent = SearchFrame })
         Library:AddToRegistry(SearchFrame, { BackgroundColor3 = 'BackgroundColor' })
         
-        local SearchBox = Library:Create('TextBox', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-8,0,22); Position = UDim2.fromOffset(4,4); Font = Library.Font; PlaceholderText = 'Search...'; Text = ''; TextColor3 = Library.FontColor; TextSize = 14; ZIndex = 301; Parent = SearchFrame })
+        -- Позиция поиска
+        if Config.SearchPos == 'up' then
+            SearchFrame.AnchorPoint = Vector2.new(0, 1)
+            SearchFrame.Position = UDim2.new(0, 0, 0, -5)
+        else
+            SearchFrame.AnchorPoint = Vector2.new(0, 0)
+            SearchFrame.Position = UDim2.new(0, 0, 1, 5)
+        end
+        SearchFrame.Size = UDim2.new(1, 0, 0, 30)
+        
+        SearchBox = Library:Create('TextBox', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-8,0,22); Position = UDim2.fromOffset(4,4); Font = Library.Font; PlaceholderText = 'Search...'; Text = ''; TextColor3 = Library.FontColor; TextSize = 14; ZIndex = 301; Parent = SearchFrame })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = SearchBox }), 'Button')
         Library:CreateStroke({ Parent = SearchBox })
         Library:AddToRegistry(SearchBox, { TextColor3 = 'FontColor' })
         
-        local SearchResults = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(4, 30); Size = UDim2.new(1,-8,1,-34); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 301; Parent = SearchFrame })
-        Library:Create('UIListLayout', { Padding = UDim.new(0,4); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = SearchResults })
+        SearchResults = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; Position = UDim2.fromOffset(4, 30); Size = UDim2.new(1,-8,1,-34); CanvasSize = UDim2.new(0,0,0,0); ZIndex = 301; Parent = SearchFrame })
+        Library:Create('UIListLayout', { Padding = UDim.new(0,6); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = SearchResults })
         SearchResults:WaitForChild('UIListLayout'):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() 
             SearchResults.CanvasSize = UDim2.fromOffset(0, SearchResults.UIListLayout.AbsoluteContentSize.Y) 
         end)
         
         local function UpdateSearch()
+            for _, conn in ipairs(SearchConnections) do conn:Disconnect() end
+            table.clear(SearchConnections)
             for _, child in ipairs(SearchResults:GetChildren()) do
                 if not child:IsA('UIListLayout') then child:Destroy() end
             end
@@ -1964,45 +1977,77 @@ function Library:CreateWindow(...)
                 return
             end
             
-            local count = 0
+            local grouped = {}
             for _, entry in ipairs(Library.SearchRegistry) do
-                if entry.Name:lower():find(query) then
-                    count = count + 1
-                    local Row = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,0,20); ZIndex = 302; Parent = SearchResults })
-                    Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = Row }), 'Button')
-                    
-                    local Label = Library:CreateLabel({ Size = UDim2.new(1,-10,1,0); Position = UDim2.fromOffset(5,0); Text = entry.Name; TextXAlignment = Enum.TextXAlignment.Left; TextSize = 14; ZIndex = 303; Parent = Row })
-                    
+                if not entry.NoSearch and entry.Name:lower():find(query) then
+                    if not grouped[entry.GroupName] then
+                        grouped[entry.GroupName] = {}
+                    end
+                    table.insert(grouped[entry.GroupName], entry)
+                end
+            end
+            
+            local count = 0
+            for groupName, entries in pairs(grouped) do
+                local gb = Library:CreateMiniGroupbox(SearchResults, groupName)
+                gb.Outer.LayoutOrder = count
+                count = count + 1
+                
+                for _, entry in ipairs(entries) do
+                    local randId = 'Search_' .. tostring(math.random(1, 1000000))
                     if entry.Type == 'Toggle' then
-                        local Tog = Library:Create('Frame', { BackgroundColor3 = entry.Object.Value and Library.AccentColor or Library.BackgroundColor; Size = UDim2.new(0,12,0,12); Position = UDim2.new(1,-16,0,4); ZIndex = 303; Parent = Row })
-                        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Toggle); Parent = Tog }), 'Toggle')
-                        Library:CreateStroke({ Parent = Tog })
-                        Row.InputBegan:Connect(function(i) 
-                            if i.UserInputType == Enum.UserInputType.MouseButton1 then 
-                                entry.Object:SetValue(not entry.Object.Value)
-                                Tog.BackgroundColor3 = entry.Object.Value and Library.AccentColor or Library.BackgroundColor
-                            end 
-                        end)
+                        local proxy = gb:AddToggle(randId, {
+                            Text = entry.Name,
+                            Default = entry.Object.Value,
+                            NoSearch = true,
+                            Callback = function(v) entry.Object:SetValue(v) end
+                        })
                     elseif entry.Type == 'Button' then
-                        Row.InputBegan:Connect(function(i) 
-                            if i.UserInputType == Enum.UserInputType.MouseButton1 then 
-                                Library:SafeCallback(entry.Object.Func) 
-                            end 
-                        end)
-                        Library:OnHighlight(Row, Row, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
-                    elseif entry.Type == 'Slider' or entry.Type == 'ProgressBar' then
-                        local ValLabel = Library:CreateLabel({ Size = UDim2.new(0,50,1,0); Position = UDim2.new(1,-55,0,0); Text = tostring(entry.Object.Value); TextXAlignment = Enum.TextXAlignment.Right; TextSize = 14; ZIndex = 303; Parent = Row })
-                        -- Для простоты в поиске просто показываем значение, изменять лучше в оригинале, но по клику можно триггерить bind
-                        Row.InputBegan:Connect(function(i)
-                            if i.UserInputType == Enum.UserInputType.MouseButton2 then
-                                Library.BindSystem:Open(entry.Object)
-                            end
-                        end)
+                        local proxy = gb:AddButton(randId, {
+                            Text = entry.Name,
+                            NoSearch = true,
+                            Func = function() Library:SafeCallback(entry.Object.Func) end
+                        })
+                    elseif entry.Type == 'Slider' then
+                        local proxy = gb:AddSlider(randId, {
+                            Text = entry.Name,
+                            Min = entry.Object.Min,
+                            Max = entry.Object.Max,
+                            Rounding = entry.Object.Rounding,
+                            Default = entry.Object.Value,
+                            NoSearch = true,
+                            Callback = function(v) entry.Object:SetValue(v) end
+                        })
+                    elseif entry.Type == 'ProgressBar' then
+                        local proxy = gb:AddProgressBar(randId, {
+                            Text = entry.Name,
+                            Min = entry.Object.Min,
+                            Max = entry.Object.Max,
+                            Rounding = entry.Object.Rounding,
+                            Default = entry.Object.Value,
+                            CanEdit = entry.Object.CanEdit,
+                            NoSearch = true,
+                            Callback = function(v) entry.Object:SetValue(v) end
+                        })
+                    elseif entry.Type == 'Dropdown' then
+                        local proxy = gb:AddDropdown(randId, {
+                            Text = entry.Name,
+                            Values = entry.Object.Values,
+                            Default = entry.Object.Value,
+                            NoSearch = true,
+                            Callback = function(v) entry.Object:SetValue(v) end
+                        })
+                    elseif entry.Type == 'Keybind' then
+                        local proxy = gb:AddButton(randId, {
+                            Text = entry.Name .. ' [' .. tostring(entry.Object.Value) .. ']',
+                            NoSearch = true,
+                            Func = function() Library.BindSystem:Open(entry.Object) end
+                        })
                     end
                 end
             end
             
-            local targetHeight = math.clamp(count * 24 + 34, 30, 300)
+            local targetHeight = math.clamp(SearchResults.UIListLayout.AbsoluteContentSize.Y + 34, 30, 500)
             TweenService:Create(SearchFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, targetHeight) }):Play()
         end
         
@@ -2086,6 +2131,7 @@ function Library:CreateWindow(...)
                 BO.Size = UDim2.new(1,0,0, 22 + s + 4)
             end
             GB.Container = C
+            GB.Name = Info.Name
             setmetatable(GB, BaseGroupbox)
             GB:AddBlank(3); GB:Resize()
             Tb.Groupboxes[Info.Name] = GB
