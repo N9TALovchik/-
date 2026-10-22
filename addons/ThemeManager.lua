@@ -522,11 +522,11 @@ local ThemeManager = {} do
 		end)
 
 		groupbox:AddSlider('ShadowRadius', {
-			Text = 'Shadow Radius', Min = 0, Max = 50, Default = ThemeManager.Library.UIShadow and ThemeManager.Library.UIShadow.Radius.Offset or 0, Rounding = 0, Suffix = ' px'
+			Text = 'Shadow Radius', Min = 0, Max = 50, Default = ThemeManager.Library.UIShadow and ThemeManager.Library.UIShadow.BlurRadius.Offset or 0, Rounding = 0, Suffix = ' px'
 		})
 		safeOnChanged(Options.ShadowRadius, function()
 			if ThemeManager.Library and ThemeManager.Library.UIShadow then
-				ThemeManager.Library.UIShadow.Radius = UDim.new(0, Options.ShadowRadius.Value)
+				ThemeManager.Library.UIShadow.BlurRadius = UDim.new(0, Options.ShadowRadius.Value)
 			end
 		end)
 
