@@ -398,9 +398,12 @@ do
             else return Info.Transparency and 322 or 297 end
         end
         local zb = (self.ZIndex or 6) + 10
-        local Display = Library:Create('Frame', { Name = 'ColorPickerDisplay'; BackgroundColor3 = CP.Value; BorderColor3 = Library:GetDarkerColor(CP.Value); BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(0,28,0,14); ZIndex = zb; Active = true; Parent = ToggleLabel })
+        local Display = Library:Create('Frame', { Name = 'ColorPickerDisplay'; BackgroundTransparency = 1; BorderColor3 = Library:GetDarkerColor(CP.Value); BorderMode = Enum.BorderMode.Inset; Size = UDim2.new(0,28,0,14); ZIndex = zb; Active = true; Parent = ToggleLabel; ClipsDescendants = true })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.ColorPicker); Parent = Display }), 'ColorPicker')
-        Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(0,27,0,13); ZIndex = zb + 1; Image = 'http://www.roblox.com/asset/?id=12977615774'; Visible = not not Info.Transparency; Parent = Display })
+        
+        Library:Create('ImageLabel', { BorderSizePixel = 0; Size = UDim2.new(1,0,1,0); ZIndex = zb; Image = 'rbxassetid://12978095818'; ScaleType = Enum.ScaleType.Tile; TileSize = UDim2.new(0, 5, 0, 5); Visible = not not Info.Transparency; Parent = Display })
+        
+        local ColorLayer = Library:Create('Frame', { BackgroundColor3 = CP.Value; Size = UDim2.new(1,0,1,0); ZIndex = zb + 1; Parent = Display })
         
         local PFO = Library:Create('Frame', { Name = 'Color'; BackgroundColor3 = Color3.new(1,1,1); BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18); Size = UDim2.fromOffset(230, PH(CP.Mode)); Visible = false; ZIndex = 2000; Parent = getScreenGui(ToggleLabel) })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFO }), 'Groupbox')
@@ -559,7 +562,9 @@ do
             end
             uRS(); uGS()
             local dc = CP:GetEffectiveColor()
-            Display.BackgroundColor3 = dc; Display.BorderColor3 = Library:GetDarkerColor(dc)
+            ColorLayer.BackgroundColor3 = dc
+            ColorLayer.BackgroundTransparency = CP.Transparency
+            Display.BorderColor3 = Library:GetDarkerColor(dc)
             if TBI then TBI.BackgroundColor3 = CP.Value; TBC.Position = UDim2.new(1 - CP.Transparency, 0, 0, 0) end
             Library:SafeCallback(CP.Callback, CP.Value, CP.Transparency)
             Library:SafeCallback(CP.Changed, CP.Value, CP.Transparency)
@@ -748,7 +753,7 @@ do
             if CP.Mode == 'Rainbow' then local t = RainbowClock * CP.RainbowSpeed; c = Color3.fromHSV(t % 1, 1, CP.RainbowBrightness)
             elseif CP.Mode == 'Gradient' then local t = (math.sin(RainbowClock * CP.GradientSpeed) + 1) * 0.5; c = CP.GradientColorA:Lerp(CP.GradientColorB, t)
             else return end
-            CP.Value = c; Display.BackgroundColor3 = c; Display.BorderColor3 = Library:GetDarkerColor(c)
+            CP.Value = c; ColorLayer.BackgroundColor3 = c; Display.BorderColor3 = Library:GetDarkerColor(c)
             if TBI then TBI.BackgroundColor3 = c end
             Library:SafeCallback(CP.Callback, c, CP.Transparency); Library:SafeCallback(CP.Changed, c, CP.Transparency)
         end))
@@ -766,7 +771,7 @@ do
             SyncToggleState = Info.SyncToggleState or false,
         }
         if KP.SyncToggleState then Info.Modes = { 'Toggle' } Info.Mode = 'Toggle' end
-        local PO = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; BorderColor3 = Library.OutlineColor; Size = UDim2.new(0,52,0,15); ZIndex = zb; Active = true; Parent = ToggleLabel })
+        local PO = Library:Create('Frame', { Name = 'KeyPickerDisplay'; BackgroundColor3 = Library.OutlineColor; BorderColor3 = Library.OutlineColor; Size = UDim2.new(0,52,0,15); ZIndex = zb; Active = true; Parent = ToggleLabel })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.KeyPicker); Parent = PO }), 'KeyPicker')
         Library:AddToRegistry(PO, { BackgroundColor3 = 'OutlineColor'; BorderColor3 = 'OutlineColor' })
         local PI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,1,0); ZIndex = zb + 1; ClipsDescendants = true; Parent = PO })
@@ -1186,10 +1191,9 @@ do
         
         TR.InputBegan:Connect(function(Inp)
             if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
-                local cp = TL:FindFirstChild('ColorPickerDisplay')
-                if cp then
-                    local ap, as = cp.AbsolutePosition, cp.AbsoluteSize
-                    if Mouse.X >= ap.X and Mouse.X <= ap.X+as.X and Mouse.Y >= ap.Y and Mouse.Y <= ap.Y+as.Y then return end
+                local objs = InputService:GetGuiObjectsAtPosition(Mouse.X, Mouse.Y)
+                for _, obj in ipairs(objs) do
+                    if obj:IsDescendantOf(TL) then return end
                 end
                 Toggle:SetValue(not Toggle.Value) Library:AttemptSave()
             elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then Library.BindSystem:Open(Toggle) end
