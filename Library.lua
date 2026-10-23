@@ -1190,14 +1190,26 @@ do
         end
         
         TR.InputBegan:Connect(function(Inp)
-            if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
-                local objs = InputService:GetGuiObjectsAtPosition(Mouse.X, Mouse.Y)
-                for _, obj in ipairs(objs) do
-                    if obj:IsDescendantOf(TL) then return end
+    if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
+        -- Проверяем, не кликнули ли мы по колорпикеру или кейпикеру внутри текста (TL)
+        local isOverAddon = false
+        for _, child in ipairs(TL:GetChildren()) do
+            if child.Name == "ColorPickerDisplay" or child.Name == "KeyPickerDisplay" then
+                local ap, as = child.AbsolutePosition, child.AbsoluteSize
+                if Mouse.X >= ap.X and Mouse.X <= ap.X + as.X and Mouse.Y >= ap.Y and Mouse.Y <= ap.Y + as.Y then
+                    isOverAddon = true
+                    break
                 end
-                Toggle:SetValue(not Toggle.Value) Library:AttemptSave()
-            elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then Library.BindSystem:Open(Toggle) end
-        end)
+            end
+        end
+        if isOverAddon then return end -- Если кликнули по пикеру, тумблер не трогаем
+
+        Toggle:SetValue(not Toggle.Value) 
+        Library:AttemptSave()
+    elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then 
+        Library.BindSystem:Open(Toggle) 
+    end
+end)
         
         if Toggle.Risky then Library:RemoveFromRegistry(TL) TL.TextColor3 = Library.RiskColor Library:AddToRegistry(TL, { TextColor3 = 'RiskColor' }) end
         
