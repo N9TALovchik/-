@@ -598,7 +598,6 @@ do
             elseif nm == 'Standard' and savedStd then CP.Hue, CP.Sat, CP.Vib = savedStd[1], savedStd[2], savedStd[3] end
             CP:Display()
         end
-        -- FIX: ZIndex кнопок ВЫШЕ ZIndex ModeList (3005) чтобы их не перекрывал фон
         for _, opt in ipairs({ 'Standard', 'Rainbow', 'Gradient' }) do
             local OB = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,0,18); ZIndex = 3006; Active = true; Parent = ModeList })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = OB }), 'Button')
@@ -1421,7 +1420,7 @@ do
     end
 
     -- ═══════════════════════════════════════════════════════════════
-    -- AddDropdown с PerElementSettings
+    -- AddDropdown с PerElementSettings (поддержка ВСЕХ типов виджетов)
     -- ═══════════════════════════════════════════════════════════════
     function Funcs:AddDropdown(Idx, Info)
         if Info.SpecialType == 'Player' then Info.Values = GetPlayersString() Info.AllowNull = true
@@ -1488,7 +1487,7 @@ do
         end
 
         -- ═══════════════════════════════════════════════════════════
-        -- Per-Element Settings
+        -- Per-Element Settings — поддержка любых виджетов
         -- ═══════════════════════════════════════════════════════════
         local perElementWindow = nil
         local function ClosePerElementWindow()
@@ -1568,6 +1567,7 @@ do
                         Callback = function(c)
                             data[sId] = c
                             fireChange()
+                            if schema.Callback then Library:SafeCallback(schema.Callback, c, value, data) end
                         end;
                     })
                 elseif schema.Type == 'Slider' then
@@ -1586,6 +1586,7 @@ do
                         Callback = function(v)
                             data[sId] = v
                             fireChange()
+                            if schema.Callback then Library:SafeCallback(schema.Callback, v, value, data) end
                         end;
                     })
                 elseif schema.Type == 'Toggle' then
@@ -1596,6 +1597,7 @@ do
                         Callback = function(v)
                             data[sId] = v
                             fireChange()
+                            if schema.Callback then Library:SafeCallback(schema.Callback, v, value, data) end
                         end;
                     })
                 elseif schema.Type == 'Input' then
@@ -1606,8 +1608,44 @@ do
                         Callback = function(v)
                             data[sId] = v
                             fireChange()
+                            if schema.Callback then Library:SafeCallback(schema.Callback, v, value, data) end
                         end;
                     })
+                elseif schema.Type == 'Button' then
+                    gb:AddButton(optId, {
+                        Text = schema.Text or sId;
+                        Tooltip = schema.Tooltip;
+                        Func = function()
+                            if schema.Callback then Library:SafeCallback(schema.Callback, value, data) end
+                        end;
+                    })
+                elseif schema.Type == 'Keybind' then
+                    gb:AddKeybind(optId, {
+                        Text = schema.Text or sId;
+                        Default = tostring(data[sId] or schema.Default or 'None');
+                        Callback = function(v)
+                            data[sId] = v
+                            fireChange()
+                            if schema.Callback then Library:SafeCallback(schema.Callback, v, value, data) end
+                        end;
+                    })
+                elseif schema.Type == 'Dropdown' then
+                    gb:AddDropdown(optId, {
+                        Text = schema.Text or sId;
+                        Values = schema.Values or {};
+                        Default = data[sId] or schema.Default;
+                        Multi = schema.Multi;
+                        AllowNull = schema.AllowNull;
+                        Callback = function(v)
+                            data[sId] = v
+                            fireChange()
+                            if schema.Callback then Library:SafeCallback(schema.Callback, v, value, data) end
+                        end;
+                    })
+                elseif schema.Type == 'Divider' then
+                    gb:AddDivider()
+                elseif schema.Type == 'Label' then
+                    gb:AddLabel(schema.Text or sId)
                 end
             end
 
