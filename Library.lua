@@ -598,10 +598,11 @@ do
             elseif nm == 'Standard' and savedStd then CP.Hue, CP.Sat, CP.Vib = savedStd[1], savedStd[2], savedStd[3] end
             CP:Display()
         end
+        -- === FIX: ZIndex внутри ModeList должен быть ВЫШЕ ZIndex ModeList (2005), иначе фон перекрывает кнопки ===
         for _, opt in ipairs({ 'Standard', 'Rainbow', 'Gradient' }) do
-            local OB = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,0,18); ZIndex = 2003; Active = true; Parent = ModeList })
+            local OB = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,0,18); ZIndex = 2006; Active = true; Parent = ModeList })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = OB }), 'Button')
-            local OL = Library:CreateLabel({ Size = UDim2.new(1,-6,1,0); Position = UDim2.fromOffset(6,0); Text = opt; TextXAlignment = Enum.TextXAlignment.Left; TextSize = 13; ZIndex = 2004; Parent = OB })
+            local OL = Library:CreateLabel({ Size = UDim2.new(1,-6,1,0); Position = UDim2.fromOffset(6,0); Text = opt; TextXAlignment = Enum.TextXAlignment.Left; TextSize = 13; ZIndex = 2007; Parent = OB })
             if CP.OnlyStandart and opt ~= 'Standard' then OL.TextColor3 = Color3.fromRGB(100,100,100)
             else
                 Library:OnHighlight(OB, OB, { BackgroundColor3 = 'AccentColor' }, { BackgroundColor3 = 'MainColor' })
@@ -1037,11 +1038,13 @@ do
         return Button
     end
 
+    -- === FIX: Divider регистрируется в Registry, чтобы его цвет обновлялся при SetOutlineColor ===
     function Funcs:AddDivider()
         local Groupbox = self; local Container = self.Container
         local zb = (self.ZIndex or 6) + 2
         Groupbox:AddBlank(2)
-        Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; Size = UDim2.new(1,-4,0,1); ZIndex = zb; Parent = Container })
+        local div = Library:Create('Frame', { BackgroundColor3 = Library.OutlineColor; BorderSizePixel = 0; Size = UDim2.new(1,-4,0,1); ZIndex = zb; Parent = Container })
+        Library:AddToRegistry(div, { BackgroundColor3 = 'OutlineColor' })
         Groupbox:AddBlank(9); Groupbox:Resize()
     end
 
@@ -1190,26 +1193,25 @@ do
         end
         
         TR.InputBegan:Connect(function(Inp)
-    if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
-        -- Проверяем, не кликнули ли мы по колорпикеру или кейпикеру внутри текста (TL)
-        local isOverAddon = false
-        for _, child in ipairs(TL:GetChildren()) do
-            if child.Name == "ColorPickerDisplay" or child.Name == "KeyPickerDisplay" then
-                local ap, as = child.AbsolutePosition, child.AbsoluteSize
-                if Mouse.X >= ap.X and Mouse.X <= ap.X + as.X and Mouse.Y >= ap.Y and Mouse.Y <= ap.Y + as.Y then
-                    isOverAddon = true
-                    break
+            if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
+                local isOverAddon = false
+                for _, child in ipairs(TL:GetChildren()) do
+                    if child.Name == "ColorPickerDisplay" or child.Name == "KeyPickerDisplay" then
+                        local ap, as = child.AbsolutePosition, child.AbsoluteSize
+                        if Mouse.X >= ap.X and Mouse.X <= ap.X + as.X and Mouse.Y >= ap.Y and Mouse.Y <= ap.Y + as.Y then
+                            isOverAddon = true
+                            break
+                        end
+                    end
                 end
-            end
-        end
-        if isOverAddon then return end -- Если кликнули по пикеру, тумблер не трогаем
+                if isOverAddon then return end
 
-        Toggle:SetValue(not Toggle.Value) 
-        Library:AttemptSave()
-    elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then 
-        Library.BindSystem:Open(Toggle) 
-    end
-end)
+                Toggle:SetValue(not Toggle.Value) 
+                Library:AttemptSave()
+            elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then 
+                Library.BindSystem:Open(Toggle) 
+            end
+        end)
         
         if Toggle.Risky then Library:RemoveFromRegistry(TL) TL.TextColor3 = Library.RiskColor Library:AddToRegistry(TL, { TextColor3 = 'RiskColor' }) end
         
@@ -1405,13 +1407,22 @@ end)
         return PB
     end
 
+    -- ═══════════════════════════════════════════════════════════════
+    -- AddDropdown с поддержкой PerElementSettings
+    -- Каждый элемент дропдауна можно настроить отдельно: ПКМ → мини-окно с настройками
+    -- ═══════════════════════════════════════════════════════════════
     function Funcs:AddDropdown(Idx, Info)
         if Info.SpecialType == 'Player' then Info.Values = GetPlayersString() Info.AllowNull = true
         elseif Info.SpecialType == 'Team' then Info.Values = GetTeamsString() Info.AllowNull = true end
         assert(Info.Values, 'AddDropdown: Missing dropdown value list.')
         assert(Info.AllowNull or Info.Default, 'AddDropdown: Missing default value.')
         if not Info.Text then Info.Compact = true end
-        local D = { Values = Info.Values; Value = Info.Multi and {}; Multi = Info.Multi; Type = 'Dropdown'; Text = Info.Text or ''; SpecialType = Info.SpecialType; Callback = Info.Callback or function() end }
+        local D = {
+            Values = Info.Values; Value = Info.Multi and {}; Multi = Info.Multi;
+            Type = 'Dropdown'; Text = Info.Text or ''; SpecialType = Info.SpecialType;
+            Callback = Info.Callback or function() end;
+            PerElementData = {};
+        }
         local Groupbox = self; local Container = Groupbox.Container
         local zb = (self.ZIndex or 6) + 2
         if not Info.Compact then
@@ -1454,6 +1465,155 @@ end)
             if Info.Multi then local t = {} for v, _ in next, D.Value do table.insert(t, v) end return t
             else return D.Value and 1 or 0 end
         end
+
+        -- ═══ Per-Element Settings window ═══
+        local perElementWindow = nil
+        local function ClosePerElementWindow()
+            if perElementWindow then
+                pcall(function() perElementWindow:Destroy() end)
+                perElementWindow = nil
+            end
+        end
+        local function OpenPerElementWindow(value)
+            ClosePerElementWindow()
+            if not Info.PerElementSettings then return end
+            D:CloseDropdown()
+
+            D.PerElementData = D.PerElementData or {}
+            D.PerElementData[value] = D.PerElementData[value] or {}
+            local data = D.PerElementData[value]
+
+            for _, schema in ipairs(Info.PerElementSettings) do
+                if data[schema.Id] == nil and schema.Default ~= nil then
+                    data[schema.Id] = schema.Default
+                end
+            end
+
+            local parentGui = getScreenGui(DO)
+            local mp = InputService:GetMouseLocation()
+            local w = 240
+            local approxH = 40 + #Info.PerElementSettings * 45
+            local h = math.min(approxH, 420)
+
+            local outer = Library:Create('Frame', {
+                Name = 'PerElementWindow';
+                BackgroundColor3 = Library.BackgroundColor;
+                BorderSizePixel = 0;
+                Position = UDim2.fromOffset(mp.X + 5, mp.Y + 5);
+                Size = UDim2.fromOffset(w, h);
+                ZIndex = 200;
+                Parent = parentGui;
+            })
+            Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = outer }), 'Groupbox')
+            Library:CreateStroke({ Parent = outer })
+            Library:AddToRegistry(outer, { BackgroundColor3 = 'BackgroundColor' })
+
+            local scroll = Library:Create('ScrollingFrame', {
+                BackgroundTransparency = 1;
+                BorderSizePixel = 0;
+                Position = UDim2.fromOffset(4, 4);
+                Size = UDim2.new(1, -8, 1, -8);
+                CanvasSize = UDim2.new(0, 0, 0, 0);
+                ScrollBarThickness = 3;
+                ScrollBarImageColor3 = Library.AccentColor;
+                TopImage = ''; BottomImage = '';
+                ZIndex = 202;
+                Parent = outer;
+            })
+            Library:AddToRegistry(scroll, { ScrollBarImageColor3 = 'AccentColor' })
+            local layout = Library:Create('UIListLayout', { Padding = UDim.new(0, 4); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = scroll })
+            Library:Create('UIPadding', { PaddingLeft = UDim.new(0, 2); PaddingRight = UDim.new(0, 2); PaddingTop = UDim.new(0, 2); PaddingBottom = UDim.new(0, 2); Parent = scroll })
+            layout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
+                scroll.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 4)
+            end)
+
+            local gb = Library:CreateMiniGroupbox(scroll, tostring(value), 210)
+
+            local function fireChange()
+                Library:SafeCallback(D.Callback, D.Value, D.PerElementData)
+                Library:SafeCallback(D.Changed, D.Value, D.PerElementData)
+            end
+
+            for _, schema in ipairs(Info.PerElementSettings) do
+                local sId = schema.Id
+                local optId = 'PE_' .. tostring(Idx) .. '_' .. tostring(value) .. '_' .. sId
+                if schema.Type == 'ColorPicker' then
+                    local lbl = gb:AddLabel(schema.Title or sId)
+                    lbl:AddColorPicker(optId, {
+                        Default = data[sId];
+                        Title = schema.Title or sId;
+                        Transparency = schema.Transparency;
+                        Callback = function(c)
+                            data[sId] = c
+                            fireChange()
+                        end;
+                    })
+                elseif schema.Type == 'Slider' then
+                    gb:AddSlider(optId, {
+                        Text = schema.Text or sId;
+                        Default = tonumber(data[sId]) or tonumber(schema.Default) or 0;
+                        Min = schema.Min or 0;
+                        Max = schema.Max or 1;
+                        Rounding = schema.Rounding or 0;
+                        Suffix = schema.Suffix;
+                        Callback = function(v)
+                            data[sId] = v
+                            fireChange()
+                        end;
+                    })
+                elseif schema.Type == 'Toggle' then
+                    gb:AddToggle(optId, {
+                        Text = schema.Text or sId;
+                        Default = data[sId] == true;
+                        Tooltip = schema.Tooltip;
+                        Callback = function(v)
+                            data[sId] = v
+                            fireChange()
+                        end;
+                    })
+                elseif schema.Type == 'Input' then
+                    gb:AddInput(optId, {
+                        Text = schema.Text or sId;
+                        Default = tostring(data[sId] or schema.Default or '');
+                        Placeholder = schema.Placeholder;
+                        Callback = function(v)
+                            data[sId] = v
+                            fireChange()
+                        end;
+                    })
+                end
+            end
+
+            gb:AddButton('Close', function() ClosePerElementWindow() end)
+            Library:MakeDraggable(outer, 25)
+            perElementWindow = outer
+        end
+
+        function D:GetElementSettings(value)
+            if not Info.PerElementSettings then return nil end
+            return D.PerElementData and D.PerElementData[value]
+        end
+        function D:SetElementSetting(value, settingId, settingValue)
+            if not Info.PerElementSettings then return end
+            D.PerElementData = D.PerElementData or {}
+            D.PerElementData[value] = D.PerElementData[value] or {}
+            D.PerElementData[value][settingId] = settingValue
+            Library:SafeCallback(D.Callback, D.Value, D.PerElementData)
+            Library:SafeCallback(D.Changed, D.Value, D.PerElementData)
+        end
+        function D:GetAllElementData() return D.PerElementData end
+
+        -- Close per-element window on outside click
+        Library:GiveSignal(InputService.InputBegan:Connect(function(Inp)
+            if not perElementWindow then return end
+            if Inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+            if Library:MouseIsOverOpenedFrame() then return end
+            local ap, as = perElementWindow.AbsolutePosition, perElementWindow.AbsoluteSize
+            if Mouse.X < ap.X or Mouse.X > ap.X+as.X or Mouse.Y < ap.Y or Mouse.Y > ap.Y+as.Y then
+                ClosePerElementWindow()
+            end
+        end))
+
         function D:BuildDropdownList()
             local V = D.Values; local Buttons = {}
             for _, E in next, Sc:GetChildren() do if not E:IsA('UIListLayout') then E:Destroy() end end
@@ -1482,8 +1642,12 @@ end)
                                 for _, OB in next, Buttons do OB:UpdateButton() end
                             end
                             T:UpdateButton(); D:Display()
-                            Library:SafeCallback(D.Callback, D.Value); Library:SafeCallback(D.Changed, D.Value); Library:AttemptSave()
+                            Library:SafeCallback(D.Callback, D.Value, D.PerElementData)
+                            Library:SafeCallback(D.Changed, D.Value, D.PerElementData)
+                            Library:AttemptSave()
                         end
+                    elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and Info.PerElementSettings then
+                        OpenPerElementWindow(Value)
                     end
                 end)
                 T:UpdateButton(); D:Display(); Buttons[B] = T
@@ -1512,7 +1676,7 @@ end)
             DA.Rotation = 0 
         end
         
-        function D:OnChanged(f) D.Changed = f f(D.Value) end
+        function D:OnChanged(f) D.Changed = f f(D.Value, D.PerElementData) end
         function D:SetValue(V)
             if D.Multi then
                 local nt = {}
@@ -1523,7 +1687,8 @@ end)
                 elseif table.find(D.Values, V) then D.Value = V end
             end
             D:BuildDropdownList()
-            Library:SafeCallback(D.Callback, D.Value); Library:SafeCallback(D.Changed, D.Value)
+            Library:SafeCallback(D.Callback, D.Value, D.PerElementData)
+            Library:SafeCallback(D.Changed, D.Value, D.PerElementData)
         end
         DO.InputBegan:Connect(function(Inp)
             if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
