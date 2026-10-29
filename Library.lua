@@ -598,7 +598,7 @@ do
             elseif nm == 'Standard' and savedStd then CP.Hue, CP.Sat, CP.Vib = savedStd[1], savedStd[2], savedStd[3] end
             CP:Display()
         end
-        -- === FIX: ZIndex внутри ModeList должен быть ВЫШЕ ZIndex ModeList (2005), иначе фон перекрывает кнопки ===
+        -- FIX: ZIndex кнопок ВЫШЕ ZIndex ModeList (2005) чтобы их не перекрывал фон
         for _, opt in ipairs({ 'Standard', 'Rainbow', 'Gradient' }) do
             local OB = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,0,18); ZIndex = 2006; Active = true; Parent = ModeList })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = OB }), 'Button')
@@ -1038,7 +1038,6 @@ do
         return Button
     end
 
-    -- === FIX: Divider регистрируется в Registry, чтобы его цвет обновлялся при SetOutlineColor ===
     function Funcs:AddDivider()
         local Groupbox = self; local Container = self.Container
         local zb = (self.ZIndex or 6) + 2
@@ -1408,8 +1407,12 @@ do
     end
 
     -- ═══════════════════════════════════════════════════════════════
-    -- AddDropdown с поддержкой PerElementSettings
-    -- Каждый элемент дропдауна можно настроить отдельно: ПКМ → мини-окно с настройками
+    -- AddDropdown с PerElementSettings
+    -- Per-element окно:
+    --   • открывается ПОД дропдауном
+    --   • можно таскать (MakeDraggable)
+    --   • клик внутри окна НЕ закрывает дропдаун
+    --   • закрытие дропдауна закрывает окно
     -- ═══════════════════════════════════════════════════════════════
     function Funcs:AddDropdown(Idx, Info)
         if Info.SpecialType == 'Player' then Info.Values = GetPlayersString() Info.AllowNull = true
@@ -1466,7 +1469,9 @@ do
             else return D.Value and 1 or 0 end
         end
 
-        -- ═══ Per-Element Settings window ═══
+        -- ═══════════════════════════════════════════════════════════
+        -- Per-Element Settings
+        -- ═══════════════════════════════════════════════════════════
         local perElementWindow = nil
         local function ClosePerElementWindow()
             if perElementWindow then
@@ -1474,10 +1479,10 @@ do
                 perElementWindow = nil
             end
         end
+
         local function OpenPerElementWindow(value)
             ClosePerElementWindow()
             if not Info.PerElementSettings then return end
-            D:CloseDropdown()
 
             D.PerElementData = D.PerElementData or {}
             D.PerElementData[value] = D.PerElementData[value] or {}
@@ -1490,18 +1495,18 @@ do
             end
 
             local parentGui = getScreenGui(DO)
-            local mp = InputService:GetMouseLocation()
             local w = 240
-            local approxH = 40 + #Info.PerElementSettings * 45
-            local h = math.min(approxH, 420)
+            local approxH = 40 + #Info.PerElementSettings * 48
+            local h = math.min(approxH, 460)
 
+            -- ✅ ПОД дропдауном
             local outer = Library:Create('Frame', {
                 Name = 'PerElementWindow';
                 BackgroundColor3 = Library.BackgroundColor;
                 BorderSizePixel = 0;
-                Position = UDim2.fromOffset(mp.X + 5, mp.Y + 5);
+                Position = UDim2.fromOffset(LO.AbsolutePosition.X, LO.AbsolutePosition.Y + LO.AbsoluteSize.Y + 6);
                 Size = UDim2.fromOffset(w, h);
-                ZIndex = 200;
+                ZIndex = 2500;
                 Parent = parentGui;
             })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = outer }), 'Groupbox')
@@ -1517,7 +1522,7 @@ do
                 ScrollBarThickness = 3;
                 ScrollBarImageColor3 = Library.AccentColor;
                 TopImage = ''; BottomImage = '';
-                ZIndex = 202;
+                ZIndex = 2501;
                 Parent = outer;
             })
             Library:AddToRegistry(scroll, { ScrollBarImageColor3 = 'AccentColor' })
@@ -1527,7 +1532,7 @@ do
                 scroll.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 4)
             end)
 
-            local gb = Library:CreateMiniGroupbox(scroll, tostring(value), 210)
+            local gb = Library:CreateMiniGroupbox(scroll, tostring(value), 2502)
 
             local function fireChange()
                 Library:SafeCallback(D.Callback, D.Value, D.PerElementData)
@@ -1540,7 +1545,7 @@ do
                 if schema.Type == 'ColorPicker' then
                     local lbl = gb:AddLabel(schema.Title or sId)
                     lbl:AddColorPicker(optId, {
-                        Default = data[sId];
+                        Default = data[sId] or schema.Default or Color3.new(1,1,1);
                         Title = schema.Title or sId;
                         Transparency = schema.Transparency;
                         Callback = function(c)
@@ -1549,11 +1554,16 @@ do
                         end;
                     })
                 elseif schema.Type == 'Slider' then
+                    local sMin = tonumber(schema.Min) or 0
+                    local sMax = tonumber(schema.Max) or 1
+                    if sMax <= sMin then sMax = sMin + 1 end
+                    local sDef = tonumber(data[sId]) or tonumber(schema.Default) or sMin
+                    if sDef < sMin then sDef = sMin elseif sDef > sMax then sDef = sMax end
                     gb:AddSlider(optId, {
                         Text = schema.Text or sId;
-                        Default = tonumber(data[sId]) or tonumber(schema.Default) or 0;
-                        Min = schema.Min or 0;
-                        Max = schema.Max or 1;
+                        Default = sDef;
+                        Min = sMin;
+                        Max = sMax;
                         Rounding = schema.Rounding or 0;
                         Suffix = schema.Suffix;
                         Callback = function(v)
@@ -1584,8 +1594,11 @@ do
                 end
             end
 
-            gb:AddButton('Close', function() ClosePerElementWindow() end)
+            gb:AddButton('Закрыть', function() ClosePerElementWindow() end)
+
+            -- ✅ Можно таскать
             Library:MakeDraggable(outer, 25)
+
             perElementWindow = outer
         end
 
@@ -1602,17 +1615,6 @@ do
             Library:SafeCallback(D.Changed, D.Value, D.PerElementData)
         end
         function D:GetAllElementData() return D.PerElementData end
-
-        -- Close per-element window on outside click
-        Library:GiveSignal(InputService.InputBegan:Connect(function(Inp)
-            if not perElementWindow then return end
-            if Inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-            if Library:MouseIsOverOpenedFrame() then return end
-            local ap, as = perElementWindow.AbsolutePosition, perElementWindow.AbsoluteSize
-            if Mouse.X < ap.X or Mouse.X > ap.X+as.X or Mouse.Y < ap.Y or Mouse.Y > ap.Y+as.Y then
-                ClosePerElementWindow()
-            end
-        end))
 
         function D:BuildDropdownList()
             local V = D.Values; local Buttons = {}
@@ -1674,6 +1676,7 @@ do
             LO.Visible = false 
             Library.OpenedFrames[LO] = nil 
             DA.Rotation = 0 
+            ClosePerElementWindow()
         end
         
         function D:OnChanged(f) D.Changed = f f(D.Value, D.PerElementData) end
@@ -1695,12 +1698,20 @@ do
                 if LO.Visible then D:CloseDropdown() else D:OpenDropdown() end
             elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then Library.BindSystem:Open(D) end
         end)
-        InputService.InputBegan:Connect(function(Inp)
-            if Inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                local ap, as = LO.AbsolutePosition, LO.AbsoluteSize
-                if Mouse.X < ap.X or Mouse.X > ap.X+as.X or Mouse.Y < (ap.Y-21) or Mouse.Y > ap.Y+as.Y then D:CloseDropdown() end
+        -- ✅ Клик внутри per-element окна НЕ закрывает дропдаун
+        Library:GiveSignal(InputService.InputBegan:Connect(function(Inp)
+            if Inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+            if perElementWindow and perElementWindow.Parent then
+                local pap, pas = perElementWindow.AbsolutePosition, perElementWindow.AbsoluteSize
+                if Mouse.X >= pap.X and Mouse.X <= pap.X+pas.X and Mouse.Y >= pap.Y and Mouse.Y <= pap.Y+pas.Y then
+                    return
+                end
             end
-        end)
+            local ap, as = LO.AbsolutePosition, LO.AbsoluteSize
+            if Mouse.X < ap.X or Mouse.X > ap.X+as.X or Mouse.Y < (ap.Y-21) or Mouse.Y > ap.Y+as.Y then
+                D:CloseDropdown()
+            end
+        end))
         D.Container = Container; D.Frame = DO; D.ZIndex = zb + 2
         D:BuildDropdownList(); D:Display()
         local Def = {}
