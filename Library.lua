@@ -405,7 +405,7 @@ do
         
         local ColorLayer = Library:Create('Frame', { BackgroundColor3 = CP.Value; Size = UDim2.new(1,0,1,0); ZIndex = zb + 1; Parent = Display })
         
-        local PFO = Library:Create('Frame', { Name = 'Color'; BackgroundColor3 = Color3.new(1,1,1); BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18); Size = UDim2.fromOffset(230, PH(CP.Mode)); Visible = false; ZIndex = 3000; Parent = getScreenGui(ToggleLabel) })
+        local PFO = Library:Create('Frame', { Name = 'Color'; BackgroundColor3 = Color3.new(1,1,1); BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(Display.AbsolutePosition.X, Display.AbsolutePosition.Y + 18); Size = UDim2.fromOffset(230, PH(CP.Mode)); Visible = false; ZIndex = 3000; Active = true; Parent = getScreenGui(ToggleLabel) })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = PFO }), 'Groupbox')
         Library:AddToRegistry(PFO, { BorderColor3 = 'OutlineColor' })
         local function UpdatePFO()
@@ -627,7 +627,7 @@ do
         
         local CM = {}
         do
-            CM.Container = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; ZIndex = 3005; Visible = false; Parent = getScreenGui(ToggleLabel) })
+            CM.Container = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; ZIndex = 3005; Visible = false; Active = true; Parent = getScreenGui(ToggleLabel) })
             Library:AddToRegistry(CM.Container, { BorderColor3 = 'OutlineColor' })
             CM.Inner = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Size = UDim2.fromScale(1,1); ZIndex = 3006; Parent = CM.Container })
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = CM.Inner }), 'DropdownList')
@@ -793,7 +793,7 @@ do
         Library:CreateStroke({ Parent = PI })
         Library:AddToRegistry(PI, { BackgroundColor3 = 'BackgroundColor' })
         local DL = Library:CreateLabel({ Size = UDim2.new(1,0,1,0); TextSize = 13; Text = Info.Default; TextWrapped = false; TextTruncate = Enum.TextTruncate.AtEnd; ZIndex = zb + 2; Parent = PI })
-        local MSO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(ToggleLabel.AbsolutePosition.X + ToggleLabel.AbsoluteSize.X + 4, ToggleLabel.AbsolutePosition.Y + 1); Size = UDim2.new(0,60,0,32); Visible = false; ZIndex = 2000; Parent = getScreenGui(ToggleLabel) })
+        local MSO = Library:Create('Frame', { BorderColor3 = Library.OutlineColor; Position = UDim2.fromOffset(ToggleLabel.AbsolutePosition.X + ToggleLabel.AbsoluteSize.X + 4, ToggleLabel.AbsolutePosition.Y + 1); Size = UDim2.new(0,60,0,32); Visible = false; ZIndex = 2000; Active = true; Parent = getScreenGui(ToggleLabel) })
         Library:AddToRegistry(MSO, { BorderColor3 = 'OutlineColor' })
         local function UpdateMSO()
             if MSO and MSO.Parent and ToggleLabel and ToggleLabel.Parent then
@@ -802,7 +802,7 @@ do
         end
         ToggleLabel:GetPropertyChangedSignal('AbsolutePosition'):Connect(UpdateMSO)
         Library:GiveSignal(RunService.Heartbeat:Connect(UpdateMSO))
-        local MSI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,1,0); ZIndex = 2001; Parent = MSO })
+        local MSI = Library:Create('Frame', { BackgroundColor3 = Library.BackgroundColor; Size = UDim2.new(1,0,1,0); ZIndex = 2001; Active = true; Parent = MSO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = MSI }), 'DropdownList')
         Library:CreateStroke({ Parent = MSI })
         Library:AddToRegistry(MSI, { BackgroundColor3 = 'BackgroundColor' })
@@ -1110,8 +1110,8 @@ do
         local zb = (self.ZIndex or 6) + 2
         Library:CreateLabel({ Size = UDim2.new(1,0,0,15); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = zb; Parent = Container })
         Groupbox:AddBlank(1)
-        local TBO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-4,0,20); ZIndex = zb; Parent = Container })
-        local TBI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = zb + 1; ClipsDescendants = true; Parent = TBO })
+        local TBO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-4,0,20); ZIndex = zb; Active = true; Parent = Container })
+        local TBI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = zb + 1; ClipsDescendants = true; Active = true; Parent = TBO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = TBI }), 'Button')
         Library:CreateStroke({ Parent = TBI })
         Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = TBI })
@@ -1450,7 +1450,7 @@ do
         local IL = Library:CreateLabel({ Position = UDim2.new(0,5,0,0); Size = UDim2.new(1,-5,1,0); TextSize = 14; Text = '--'; TextXAlignment = Enum.TextXAlignment.Left; TextWrapped = true; ZIndex = zb + 2; Parent = DI })
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, DO) end
         local MDI = 8
-        local LO = Library:Create('Frame', { BackgroundTransparency = 1; ZIndex = 2000; Visible = false; Parent = getScreenGui(DO) })
+        local LO = Library:Create('Frame', { BackgroundTransparency = 1; ZIndex = 2000; Visible = false; Active = true; Parent = getScreenGui(DO) })
         local function RLP() 
             local screenHeight = workspace.CurrentCamera.ViewportSize.Y
             local dropdownHeight = LO.AbsoluteSize.Y
@@ -1466,11 +1466,11 @@ do
         DO:GetPropertyChangedSignal('AbsolutePosition'):Connect(RLP)
         Library:GiveSignal(RunService.Heartbeat:Connect(function() if LO.Visible then RLP() end end))
         DO:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() RLS(math.clamp(#D.Values*20, 0, MDI*20)+1) end)
-        local LI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 2001; Parent = LO })
+        local LI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 2001; Active = true; Parent = LO })
         Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = LI }), 'DropdownList')
         Library:CreateStroke({ Parent = LI })
         Library:AddToRegistry(LI, { BackgroundColor3 = 'MainColor' })
-        local Sc = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; CanvasSize = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 2001; Parent = LI; TopImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; BottomImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; ScrollBarThickness = 3; ScrollBarImageColor3 = Library.AccentColor })
+        local Sc = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; CanvasSize = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 2001; Active = true; Parent = LI; TopImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; BottomImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; ScrollBarThickness = 3; ScrollBarImageColor3 = Library.AccentColor })
         Library:AddToRegistry(Sc, { ScrollBarImageColor3 = 'AccentColor' })
         Library:Create('UIListLayout', { Padding = UDim.new(0,0); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = Sc })
         function D:Display()
@@ -1520,6 +1520,7 @@ do
                 Name = 'PerElementWindow';
                 BackgroundColor3 = Library.BackgroundColor;
                 BorderSizePixel = 0;
+                Active = true;
                 Position = UDim2.fromOffset(LO.AbsolutePosition.X, LO.AbsolutePosition.Y + LO.AbsoluteSize.Y + 6);
                 Size = UDim2.fromOffset(w, h);
                 ZIndex = 2500;
@@ -1532,6 +1533,7 @@ do
             local scroll = Library:Create('ScrollingFrame', {
                 BackgroundTransparency = 1;
                 BorderSizePixel = 0;
+                Active = true;
                 Position = UDim2.fromOffset(4, 4);
                 Size = UDim2.new(1, -8, 1, -8);
                 CanvasSize = UDim2.new(0, 0, 0, 0);
@@ -1785,6 +1787,149 @@ do
             end
             D:BuildDropdownList(); D:Display()
         end
+        Groupbox:AddBlank(Info.BlankSize or 5); Groupbox:Resize()
+        Options[Idx] = D
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
+        return D
+    end
+
+    -- AddPictureDropdown — дропбокс с превью-картинкой для каждого элемента
+    -- Info.Values = { 'Nebula', 'Galaxy' } + Info.Images = { 'rbxassetid://...', 'rbxassetid://...' }
+    -- ИЛИ Info.Values = { {Name='Nebula', Image='rbxassetid://...'}, ... }
+    function Funcs:AddPictureDropdown(Idx, Info)
+        assert(Info.Values, 'AddPictureDropdown: Missing dropdown value list.')
+        assert(Info.AllowNull or Info.Default, 'AddPictureDropdown: Missing default value.')
+        if not Info.Text then Info.Compact = true end
+
+        local Items = {}
+        if type(Info.Values[1]) == 'table' then
+            for _, v in ipairs(Info.Values) do
+                table.insert(Items, { Name = tostring(v.Name or v[1] or '?'), Image = v.Image or v[2] })
+            end
+        else
+            for i, v in ipairs(Info.Values) do
+                local img = (Info.Images and Info.Images[i]) or nil
+                table.insert(Items, { Name = tostring(v), Image = img })
+            end
+        end
+
+        local D = { Items = Items; Value = nil; Type = 'Dropdown'; Text = Info.Text or ''; Callback = Info.Callback or function() end }
+        local Groupbox = self; local Container = Groupbox.Container
+        local zb = (self.ZIndex or 6) + 2
+        if not Info.Compact then
+            Library:CreateLabel({ Size = UDim2.new(1,0,0,14); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; StartImage = Info.StartImage; EndImage = Info.EndImage; StartImageColor = Info.StartImageColor; EndImageColor = Info.EndImageColor; StartImageOffset = Info.StartImageOffset; EndImageOffset = Info.EndImageOffset; ZIndex = zb; Parent = Container })
+            Groupbox:AddBlank(3)
+        end
+
+        local DO = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-4,0,20); ZIndex = zb; Active = true; Parent = Container })
+        local DI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = zb + 1; ClipsDescendants = true; Active = true; Parent = DO })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Dropdown); Parent = DI }), 'Dropdown')
+        Library:CreateStroke({ Parent = DI })
+        Library:Create('UIGradient', { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = DI })
+        Library:AddToRegistry(DI, { BackgroundColor3 = 'MainColor' })
+        local DA = Library:Create('ImageLabel', { AnchorPoint = Vector2.new(0,0.5); BackgroundTransparency = 1; Position = UDim2.new(1,-16,0.5,0); Size = UDim2.new(0,12,0,12); Image = 'http://www.roblox.com/asset/?id=6282522798'; ZIndex = zb + 3; Parent = DI })
+        local CImg = Library:Create('ImageLabel', { BackgroundTransparency = 1; AnchorPoint = Vector2.new(0,0.5); Position = UDim2.new(0,4,0.5,0); Size = UDim2.new(0,16,0,16); Image = ''; ZIndex = zb + 2; Parent = DI })
+        local IL = Library:CreateLabel({ Position = UDim2.new(0,24,0,0); Size = UDim2.new(1,-40,1,0); TextSize = 14; Text = '--'; TextXAlignment = Enum.TextXAlignment.Left; TextWrapped = true; ZIndex = zb + 2; Parent = DI })
+        if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, DO) end
+
+        local OPT_H = 52; local MDI = 6
+        local LO = Library:Create('Frame', { BackgroundTransparency = 1; ZIndex = 2000; Visible = false; Active = true; Parent = getScreenGui(DO) })
+        local function RLP()
+            local screenHeight = workspace.CurrentCamera.ViewportSize.Y
+            local dropdownHeight = LO.AbsoluteSize.Y
+            local posY = DO.AbsolutePosition.Y + DO.Size.Y.Offset + 1
+            if posY + dropdownHeight > screenHeight then posY = DO.AbsolutePosition.Y - dropdownHeight - 1 end
+            if posY < 0 then posY = 0 end
+            LO.Position = UDim2.fromOffset(DO.AbsolutePosition.X, posY)
+        end
+        local function RLS(y) LO.Size = UDim2.fromOffset(DO.AbsoluteSize.X, y or (MDI*OPT_H+2)) end
+        RLP(); RLS()
+        DO:GetPropertyChangedSignal('AbsolutePosition'):Connect(RLP)
+        Library:GiveSignal(RunService.Heartbeat:Connect(function() if LO.Visible then RLP() end end))
+        DO:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() RLS(math.clamp(#Items*OPT_H, 0, MDI*OPT_H)+2) end)
+        local LI = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,1,0); ZIndex = 2001; Active = true; Parent = LO })
+        Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.DropdownList); Parent = LI }), 'DropdownList')
+        Library:CreateStroke({ Parent = LI })
+        Library:AddToRegistry(LI, { BackgroundColor3 = 'MainColor' })
+        local Sc = Library:Create('ScrollingFrame', { BackgroundTransparency = 1; BorderSizePixel = 0; CanvasSize = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 2001; Active = true; Parent = LI; TopImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; BottomImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; ScrollBarThickness = 3; ScrollBarImageColor3 = Library.AccentColor })
+        Library:AddToRegistry(Sc, { ScrollBarImageColor3 = 'AccentColor' })
+        Library:Create('UIListLayout', { Padding = UDim.new(0,1); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = Sc })
+        Library:Create('UIPadding', { PaddingLeft = UDim.new(0,3); PaddingRight = UDim.new(0,3); PaddingTop = UDim.new(0,3); PaddingBottom = UDim.new(0,3); Parent = Sc })
+
+        local function findItem(v) for _, it in ipairs(Items) do if it.Name == v then return it end end return nil end
+
+        function D:Display()
+            local it = findItem(D.Value)
+            if it then
+                IL.Text = it.Name
+                CImg.Image = it.Image or ''
+                CImg.Visible = (it.Image ~= nil and it.Image ~= '')
+            else
+                IL.Text = '--'
+                CImg.Image = ''
+                CImg.Visible = false
+            end
+        end
+
+        function D:BuildDropdownList()
+            for _, E in next, Sc:GetChildren() do if not E:IsA('UIListLayout') and not E:IsA('UIPadding') then E:Destroy() end end
+            for _, it in ipairs(Items) do
+                local B = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,0,OPT_H); ZIndex = 2003; Active = true; Parent = Sc })
+                local Img = Library:Create('ImageLabel', { BackgroundColor3 = Library.BackgroundColor; BorderColor3 = Library.OutlineColor; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,0,OPT_H-18); Image = it.Image or ''; ScaleType = Enum.ScaleType.Fit; ZIndex = 2004; Parent = B })
+                if not it.Image or it.Image == '' then Img.Visible = false end
+                Library:AddToRegistry(Img, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor' })
+                local Lbl = Library:CreateLabel({ Position = UDim2.new(0,2,0,OPT_H-17); Size = UDim2.new(1,-4,0,16); TextSize = 13; Text = it.Name; TextXAlignment = Enum.TextXAlignment.Center; ZIndex = 2005; Parent = B })
+                local S = (D.Value == it.Name)
+                local function update() S = (D.Value == it.Name); Lbl.TextColor3 = S and Library.AccentColor or Library.FontColor end
+                B.MouseEnter:Connect(function() if not S then Lbl.TextColor3 = Library.AccentColor end end)
+                B.MouseLeave:Connect(function() if not S then Lbl.TextColor3 = Library.FontColor end end)
+                B.InputBegan:Connect(function(Inp)
+                    if Inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                        if D.Value == it.Name and not Info.AllowNull then D:CloseDropdown() return end
+                        D.Value = it.Name
+                        D:Display()
+                        D:CloseDropdown()
+                        Library:SafeCallback(D.Callback, D.Value)
+                        Library:SafeCallback(D.Changed, D.Value)
+                        Library:AttemptSave()
+                    end
+                end)
+                update()
+            end
+            Sc.CanvasSize = UDim2.fromOffset(0, #Items*OPT_H + 4)
+        end
+
+        function D:OpenDropdown()
+            LO.Visible = true
+            LO.Size = UDim2.fromOffset(DO.AbsoluteSize.X, math.clamp(#Items*OPT_H, 0, MDI*OPT_H)+6)
+            Library.OpenedFrames[LO] = true
+            DA.Rotation = 180
+        end
+        function D:CloseDropdown()
+            LO.Visible = false
+            Library.OpenedFrames[LO] = nil
+            DA.Rotation = 0
+        end
+        function D:OnChanged(f) D.Changed = f; f(D.Value) end
+        function D:SetValue(V)
+            if not V then D.Value = nil elseif findItem(V) then D.Value = V end
+            D:BuildDropdownList(); D:Display()
+            Library:SafeCallback(D.Callback, D.Value); Library:SafeCallback(D.Changed, D.Value)
+        end
+        DO.InputBegan:Connect(function(Inp)
+            if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
+                if LO.Visible then D:CloseDropdown() else D:OpenDropdown() end
+            end
+        end)
+        Library:GiveSignal(InputService.InputBegan:Connect(function(Inp)
+            if Inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+            if Library:MouseIsOverOpenedFrame() then return end
+            local ap, as = LO.AbsolutePosition, LO.AbsoluteSize
+            if Mouse.X < ap.X or Mouse.X > ap.X+as.X or Mouse.Y < (ap.Y-21) or Mouse.Y > ap.Y+as.Y then D:CloseDropdown() end
+        end))
+        D.Container = Container; D.Frame = DO; D.ZIndex = zb + 2
+        D:BuildDropdownList(); D:Display()
+        if Info.Default then D:SetValue(Info.Default) end
         Groupbox:AddBlank(Info.BlankSize or 5); Groupbox:Resize()
         Options[Idx] = D
         if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
