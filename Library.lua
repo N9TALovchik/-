@@ -1801,17 +1801,21 @@ do
         assert(Info.AllowNull or Info.Default, 'AddPictureDropdown: Missing default value.')
         if not Info.Text then Info.Compact = true end
 
-        local Items = {}
-        if type(Info.Values[1]) == 'table' then
-            for _, v in ipairs(Info.Values) do
-                table.insert(Items, { Name = tostring(v.Name or v[1] or '?'), Image = v.Image or v[2] })
+        local function parseValues(V)
+            local out = {}
+            if type(V[1]) == 'table' then
+                for _, v in ipairs(V) do
+                    table.insert(out, { Name = tostring(v.Name or v[1] or '?'), Image = v.Image or v[2] })
+                end
+            else
+                for i, v in ipairs(V) do
+                    local img = (Info.Images and Info.Images[i]) or nil
+                    table.insert(out, { Name = tostring(v), Image = img })
+                end
             end
-        else
-            for i, v in ipairs(Info.Values) do
-                local img = (Info.Images and Info.Images[i]) or nil
-                table.insert(Items, { Name = tostring(v), Image = img })
-            end
+            return out
         end
+        local Items = parseValues(Info.Values)
 
         local D = { Items = Items; Value = nil; Type = 'Dropdown'; Text = Info.Text or ''; Callback = Info.Callback or function() end }
         local Groupbox = self; local Container = Groupbox.Container
@@ -1917,6 +1921,10 @@ do
             if not V then D.Value = nil elseif findItem(V) then D.Value = V end
             D:BuildDropdownList(); D:Display()
             Library:SafeCallback(D.Callback, D.Value); Library:SafeCallback(D.Changed, D.Value)
+        end
+        function D:SetValues(NV)
+            if NV then Items = parseValues(NV) end
+            D:BuildDropdownList(); D:Display()
         end
         DO.InputBegan:Connect(function(Inp)
             if Inp.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
