@@ -1874,10 +1874,12 @@ do
         function D:BuildDropdownList()
             for _, E in next, Sc:GetChildren() do if not E:IsA('UIListLayout') and not E:IsA('UIPadding') then E:Destroy() end end
             for _, it in ipairs(Items) do
-                local B = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,0,0,OPT_H); ZIndex = 2003; Active = true; Parent = Sc })
-                local Img = Library:Create('ImageLabel', { BackgroundColor3 = Library.BackgroundColor; BorderColor3 = Library.OutlineColor; Position = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,0,OPT_H-18); Image = it.Image or ''; ScaleType = Enum.ScaleType.Fit; ZIndex = 2004; Parent = B })
+                local B = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,0,0,OPT_H); ZIndex = 2003; Active = true; Parent = Sc })
+                Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Button); Parent = B }), 'Button')
+                Library:CreateStroke({ Parent = B })
+                Library:AddToRegistry(B, { BackgroundColor3 = 'MainColor' })
+                local Img = Library:Create('ImageLabel', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,4); Size = UDim2.new(1,-8,0,OPT_H-22); Image = it.Image or ''; ScaleType = Enum.ScaleType.Fit; ZIndex = 2004; Parent = B })
                 if not it.Image or it.Image == '' then Img.Visible = false end
-                Library:AddToRegistry(Img, { BackgroundColor3 = 'BackgroundColor'; BorderColor3 = 'OutlineColor' })
                 local Lbl = Library:CreateLabel({ Position = UDim2.new(0,2,0,OPT_H-17); Size = UDim2.new(1,-4,0,16); TextSize = 13; Text = it.Name; TextXAlignment = Enum.TextXAlignment.Center; ZIndex = 2005; Parent = B })
                 local S = (D.Value == it.Name)
                 local function update() S = (D.Value == it.Name); Lbl.TextColor3 = S and Library.AccentColor or Library.FontColor end
