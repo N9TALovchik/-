@@ -305,10 +305,24 @@ do
         local HB = Library:Create('TextBox', { Name = "HexBox"; BackgroundTransparency = 1; Position = UDim2.new(0,5,0,0); Size = UDim2.new(1,-5,1,0); Font = Library.Font; PlaceholderColor3 = Color3.fromRGB(190,190,190); PlaceholderText = 'Hex color'; Text = '#FFFFFF'; TextColor3 = Library.FontColor; TextSize = 14; TextStrokeTransparency = 0; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 30003; Parent = HBI })
         Library:ApplyTextStroke(HB)
         Library:AddToRegistry(HB, { TextColor3 = 'FontColor' })
+        
         local RBB = Library:Create(HBO:Clone(), { Name = "RGB_Outer"; Position = UDim2.new(0.5,2,0,203); Size = UDim2.new(0.5,-6,0,20); Parent = StdContent })
         Library:AddToRegistry(RBB, { BorderColor3 = 'OutlineColor' })
-        local RB = Library:Create(RBB.Frame:FindFirstChild('TextBox'), { Text = '255, 255, 255'; PlaceholderText = 'RGB color'; TextColor3 = Library.FontColor })
-        Library:AddToRegistry(RB, { TextColor3 = 'FontColor' })
+        
+        local RB
+        local clonedHexInner = RBB:FindFirstChild('Hex_Inner')
+        if clonedHexInner then
+            clonedHexInner.Name = "RGB_Inner"
+            RB = clonedHexInner:FindFirstChild('HexBox')
+            if RB then
+                RB.Name = "RGBBox"
+                RB.Text = '255, 255, 255'
+                RB.PlaceholderText = 'RGB color'
+                RB.TextColor3 = Library.FontColor
+                Library:AddToRegistry(RB, { TextColor3 = 'FontColor' })
+            end
+        end
+
         local RC = Library:Create('Frame', { Name = "RainbowContent"; BackgroundTransparency = 1; Position = UDim2.fromOffset(0, CY); Size = UDim2.new(1,0,0,70); Visible = false; ZIndex = 30001; Parent = PFI })
         local RSL = Library:CreateLabel({ Name = "RainbowSpeedLabel"; Position = UDim2.fromOffset(5,0); Size = UDim2.new(1,-10,0,14); Text = 'Rainbow Speed: 1.0'; TextXAlignment = Enum.TextXAlignment.Left; TextSize = 13; ZIndex = 30002; Parent = RC })
         local RSO = Library:Create('Frame', { Name = "RainbowSpeed_Outer"; BackgroundColor3 = Library.MainColor; BorderColor3 = Library.OutlineColor; BorderMode = Enum.BorderMode.Inset; Position = UDim2.fromOffset(5,16); Size = UDim2.new(1,-10,0,12); ZIndex = 30002; Active = true; Parent = RC })
@@ -389,7 +403,9 @@ do
                 CO.Position = UDim2.new(CP.Sat, 0, 1 - CP.Vib, 0)
                 HC.Position = UDim2.new(0, 0, CP.Hue, 0)
                 HB.Text = '#' .. CP.Value:ToHex()
-                RB.Text = table.concat({ math.floor(CP.Value.R*255), math.floor(CP.Value.G*255), math.floor(CP.Value.B*255) }, ', ')
+                if RB then
+                    RB.Text = table.concat({ math.floor(CP.Value.R*255), math.floor(CP.Value.G*255), math.floor(CP.Value.B*255) }, ', ')
+                end
             elseif CP.Mode == 'Gradient' then
                 local nc = Color3.fromHSV(CP.Hue, CP.Sat, CP.Vib)
                 if CP.GradientEditTarget == 'A' then CP.GradientColorA = nc else CP.GradientColorB = nc end
@@ -503,10 +519,12 @@ do
             if enter then local ok, r = pcall(Color3.fromHex, HB.Text) if ok and typeof(r) == 'Color3' then CP.Hue, CP.Sat, CP.Vib = Color3.toHSV(r) end end
             CP:Display()
         end)
-        RB.FocusLost:Connect(function(enter)
-            if enter then local r,g,b = RB.Text:match('(%d+),%s*(%d+),%s*(%d+)') if r then CP.Hue, CP.Sat, CP.Vib = Color3.toHSV(Color3.fromRGB(r,g,b)) end end
-            CP:Display()
-        end)
+        if RB then
+            RB.FocusLost:Connect(function(enter)
+                if enter then local r,g,b = RB.Text:match('(%d+),%s*(%d+),%s*(%d+)') if r then CP.Hue, CP.Sat, CP.Vib = Color3.toHSV(Color3.fromRGB(r,g,b)) end end
+                CP:Display()
+            end)
+        end
         RSO.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then
             while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
                 local mnX = RSO.AbsolutePosition.X; local mxX = mnX + RSO.AbsoluteSize.X
@@ -1528,7 +1546,7 @@ do
                 local targetY = nil
                 for _, child in ipairs(InnerList:GetChildren()) do
                     if child:IsA('Frame') and child:GetAttribute('Value') == val then
-                        targetY = child.Position.Y.Offset
+                        targetY = child.AbsolutePosition.Y - InnerList.AbsolutePosition.Y
                         break
                     end
                 end
