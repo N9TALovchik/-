@@ -20,18 +20,6 @@ local ThemeManager = {} do
 		['Neverlose'] 	= { 4, httpService:JSONDecode('{"MainColor":"080e21","AccentColor":"120d64","OutlineColor":"100c31","BackgroundColor":"0c0a1c","FontColor":"ffffff"}') },
 	}
 
-	local CLICK_EFFECT_MAX_SIZE = 40
-	local CLICK_EFFECT_GROW_TIME = 0.4
-	local CLICK_EFFECT_FADE_TIME = 0.2
-	local CLICK_EFFECT_INITIAL_TRANSPARENCY = 0.4
-	local CLICK_EFFECT_THICKNESS = 1
-	local DEBOUNCE_TIME = 0.05
-
-	local clickEffectEnabled = true
-	local inputConnection = nil
-	local lastClickTime = 0
-	local ClickEffectGui = nil
-
 	local radioSound = nil
 	local radioPlaying = false
 	local radioUpdateConnection = nil
@@ -41,17 +29,8 @@ local ThemeManager = {} do
 	local radioDuration = 0
 	local radioLooped = false
 
-	local bgState = {
-		imageId = '',
-		transparency = 0.5,
-		overlay = 0.5,
-		uiOpacity = 0.6,
-		overlayColor = Color3.new(0, 0, 0),
-	}
-
 	local soundHistory = {}
 	local historyFile = ThemeManager.Folder .. '/settings/sound_history.json'
-	local bgSettingsFile = ThemeManager.Folder .. '/settings/background.json'
 	local cornerSettingsFile = ThemeManager.Folder .. '/settings/corners.json'
 	local shadowSettingsFile = ThemeManager.Folder .. '/settings/shadow.json'
 
@@ -62,10 +41,7 @@ local ThemeManager = {} do
 	local function loadSoundHistory()
 		if isfile(historyFile) then
 			local success, data = pcall(httpService.JSONDecode, httpService, readfile(historyFile))
-			if success and type(data) == "table" then
-				soundHistory = data
-				return
-			end
+			if success and type(data) == "table" then soundHistory = data return end
 		end
 		soundHistory = {}
 	end
@@ -74,35 +50,6 @@ local ThemeManager = {} do
 	local function saveSoundHistory()
 		pcall(function() writefile(historyFile, httpService:JSONEncode(soundHistory)) end)
 	end
-
-	local function loadBgSettings()
-		if isfile(bgSettingsFile) then
-			local ok, data = pcall(httpService.JSONDecode, httpService, readfile(bgSettingsFile))
-			if ok and type(data) == "table" then
-				bgState.imageId = data.imageId or ''
-				bgState.transparency = data.transparency or 0.5
-				bgState.overlay = data.overlay or 0.5
-				bgState.uiOpacity = data.uiOpacity or 0.6
-				if data.overlayColor then
-					local ok2, c = pcall(Color3.fromHex, data.overlayColor)
-					if ok2 then bgState.overlayColor = c end
-				end
-			end
-		end
-	end
-
-	local function saveBgSettings()
-		pcall(function()
-			writefile(bgSettingsFile, httpService:JSONEncode({
-				imageId = bgState.imageId,
-				transparency = bgState.transparency,
-				overlay = bgState.overlay,
-				uiOpacity = bgState.uiOpacity,
-				overlayColor = bgState.overlayColor:ToHex(),
-			}))
-		end)
-	end
-	loadBgSettings()
 
 	local function loadShadowSettings()
 		if isfile(shadowSettingsFile) and ThemeManager.Library and ThemeManager.Library.UIShadow then
@@ -129,20 +76,6 @@ local ThemeManager = {} do
 				radius = ThemeManager.Library.UIShadow.BlurRadius.Offset,
 			}))
 		end)
-	end
-
-	local function applyBg()
-		if not ThemeManager.Library then return end
-		local W = ThemeManager.Library.MainFrame
-		if not W then return end
-		local ActualWindow = ThemeManager.Library.MainWindow or ThemeManager.Library
-		local Inner = W:FindFirstChild('Frame') or W
-		if ThemeManager.Library.MainWindow and ThemeManager.Library.MainWindow.SetBackgroundImage then
-			ThemeManager.Library.MainWindow:SetBackgroundImage(bgState.imageId, bgState.transparency)
-			if ThemeManager.Library.MainWindow.SetOverlayTransparency then ThemeManager.Library.MainWindow:SetOverlayTransparency(bgState.overlay) end
-			if ThemeManager.Library.MainWindow.SetBackgroundOverlayColor then ThemeManager.Library.MainWindow:SetBackgroundOverlayColor(bgState.overlayColor) end
-			if ThemeManager.Library.MainWindow.SetWindowOpacity then ThemeManager.Library.MainWindow:SetWindowOpacity(bgState.uiOpacity) end
-		end
 	end
 
 	local function addToHistory(soundId, soundName)
@@ -219,20 +152,19 @@ local ThemeManager = {} do
 		return sound
 	end
 
-	local function playSound(soundId, volume, callback, onError)
-		return playSoundInternal(soundId, volume, callback, onError, false)
-	end
-
 	local function updateRadioUI()
 		if not Options.RadioStatus then return end
-		local label = Options.RadioStatus
+		local bar = Options.RadioStatus
 		if radioPlaying and radioSound and radioSound.Parent then
 			local time = radioSound.TimePosition or 0
-			local duration = radioSound.TimeLength or 0
+			local duration = radioSound.TimeLength or 1
 			local displayName = radioName ~= "" and radioName or radioSoundId
-			label.TextLabel.Text = string.format("%s [%.1fs/%.1fs]%s", displayName, time, duration, radioLooped and " [LOOP]" or "")
+			local percent = math.clamp((time / math.max(duration, 0.01)) * 100, 0, 100)
+			bar:SetStatus(string.format("%s [%.1fs/%.1fs]%s", displayName, time, duration, radioLooped and " [LOOP]" or ""))
+			bar:SetValue(percent)
 		else
-			label.TextLabel.Text = "Idle"
+			bar:SetStatus("Idle")
+			bar:SetValue(0)
 		end
 	end
 
@@ -282,84 +214,6 @@ local ThemeManager = {} do
 		end
 	end
 
-	local function ensureClickEffectGui()
-		if ClickEffectGui and ClickEffectGui.Parent then return ClickEffectGui end
-		local gui = Instance.new('ScreenGui')
-		gui.Name = 'LinoriaClickEffect'
-		gui.IgnoreGuiInset = true
-		gui.ResetOnSpawn = false
-		gui.DisplayOrder = 2147483647
-		gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-		if gethui then gui.Parent = gethui()
-		elseif syn and syn.protect_gui then syn.protect_gui(gui) gui.Parent = CoreGui
-		else gui.Parent = CoreGui end
-		ClickEffectGui = gui
-		return gui
-	end
-
-	function ThemeManager:InitClickEffect()
-		if inputConnection then inputConnection:Disconnect() inputConnection = nil end
-		lastClickTime = 0
-		inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-			if not clickEffectEnabled then return end
-			if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-			if gameProcessed then return end
-			local now = tick()
-			if now - lastClickTime < DEBOUNCE_TIME then return end
-			lastClickTime = now
-			local mousePos = UserInputService:GetMouseLocation()
-			ThemeManager:CreateClickEffect(mousePos.X, mousePos.Y)
-			if ThemeManager.Library and ThemeManager.Library.ClickSoundId and ThemeManager.Library.ClickSoundId ~= "" then
-				local sound = playSound(ThemeManager.Library.ClickSoundId, 0.5)
-				if sound then
-					task.delay(sound.TimeLength or 1, function() pcall(function() sound:Destroy() end) end)
-				end
-			end
-		end)
-	end
-
-	function ThemeManager:CreateClickEffect(x, y)
-		if not ThemeManager.Library then return end
-		local gui = ensureClickEffectGui()
-		local color = ThemeManager.Library.ClickEffectColor or ThemeManager.Library.BackgroundColor or Color3.fromRGB(255,255,255)
-
-		local holder = Instance.new('Frame')
-		holder.Name = 'Ripple'
-		holder.BackgroundTransparency = 1
-		holder.BorderSizePixel = 0
-		holder.AnchorPoint = Vector2.new(0.5, 0.5)
-		holder.Position = UDim2.fromOffset(x, y)
-		holder.Size = UDim2.fromOffset(0, 0)
-		holder.ZIndex = 2147483647
-		holder.Parent = gui
-
-		local fill = Instance.new('Frame')
-		fill.Name = 'Fill'
-		fill.BackgroundColor3 = color
-		fill.BackgroundTransparency = 0.85
-		fill.BorderSizePixel = 0
-		fill.Size = UDim2.fromScale(1, 1)
-		fill.ZIndex = holder.ZIndex
-		fill.Parent = holder
-		Instance.new('UICorner', { CornerRadius = UDim.new(1, 0), Parent = fill })
-
-		local stroke = Instance.new('UIStroke')
-		stroke.Color = color
-		stroke.Thickness = CLICK_EFFECT_THICKNESS
-		stroke.Transparency = CLICK_EFFECT_INITIAL_TRANSPARENCY
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		stroke.LineJoinMode = Enum.LineJoinMode.Round
-		stroke.Parent = holder
-
-		TweenService:Create(holder, TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(CLICK_EFFECT_MAX_SIZE, CLICK_EFFECT_MAX_SIZE) }):Play()
-		TweenService:Create(stroke, TweenInfo.new(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
-		TweenService:Create(fill, TweenInfo.new(CLICK_EFFECT_GROW_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
-
-		task.delay(CLICK_EFFECT_GROW_TIME + CLICK_EFFECT_FADE_TIME + 0.05, function()
-			if holder and holder.Parent then holder:Destroy() end
-		end)
-	end
-
 	local function loadCornerSettings()
 		if isfile(cornerSettingsFile) and ThemeManager.Library then
 			local ok, data = pcall(httpService.JSONDecode, httpService, readfile(cornerSettingsFile))
@@ -386,36 +240,41 @@ local ThemeManager = {} do
 		local themeData = customThemeData or scheme
 
 		for idx, col in next, themeData do
-			if idx ~= 'ClickEffectColor' and idx ~= 'UICornerRadius' then
-				ThemeManager.Library[idx] = Color3.fromHex(col)
-				if Options[idx] then Options[idx]:SetValueRGB(Color3.fromHex(col)) end
+			if idx ~= 'UICornerRadius' and idx ~= 'UICorner' and idx ~= 'Shadow' then
+				if type(col) == 'table' and col.type == 'ColorPicker' then
+					if Options[idx] and Options[idx].LoadSaveData then Options[idx]:LoadSaveData(col) end
+				elseif type(col) == 'string' then
+					ThemeManager.Library[idx] = Color3.fromHex(col)
+					if Options[idx] then Options[idx]:SetValueRGB(Color3.fromHex(col)) end
+				end
 			end
 		end
 
-		if themeData.ClickEffectColor then
-			ThemeManager.Library.ClickEffectColor = Color3.fromHex(themeData.ClickEffectColor)
-		elseif themeData.BackgroundColor then
-			ThemeManager.Library.ClickEffectColor = Color3.fromHex(themeData.BackgroundColor)
-		else
-			ThemeManager.Library.ClickEffectColor = Color3.fromRGB(255,255,255)
-		end
-		if Options.ClickEffectColor then Options.ClickEffectColor:SetValueRGB(ThemeManager.Library.ClickEffectColor) end
-
 		if themeData.UICornerRadius and Options.UICornerRadius then
 			Options.UICornerRadius:SetValue(tonumber(themeData.UICornerRadius) or 6)
+		end
+
+		if themeData.UICorner and ThemeManager.Library.UICorner then
+			for k, v in pairs(themeData.UICorner) do
+				ThemeManager.Library:SetCornerRadius(k, v)
+			end
+		end
+
+		if themeData.Shadow and ThemeManager.Library.UIShadow then
+			if themeData.Shadow.Color and Options.ShadowColor then Options.ShadowColor:SetValueRGB(Color3.fromHex(themeData.Shadow.Color)) end
+			if themeData.Shadow.Radius and Options.ShadowRadius then Options.ShadowRadius:SetValue(themeData.Shadow.Radius) end
 		end
 
 		ThemeManager:ThemeUpdate()
 	end
 
 	function ThemeManager:ThemeUpdate()
-		local colorFields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor", "ClickEffectColor" }
+		local colorFields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
 		for _, field in next, colorFields do
-			if Options and Options[field] and field ~= 'ClickEffectColor' then
+			if Options and Options[field] then
 				ThemeManager.Library[field] = Options[field].Value
 			end
 		end
-		if Options.ClickEffectColor then ThemeManager.Library.ClickEffectColor = Options.ClickEffectColor.Value end
 		
 		if ThemeManager.Library.SetAccentColor then
 			ThemeManager.Library:SetAccentColor(ThemeManager.Library.AccentColor)
@@ -436,9 +295,7 @@ local ThemeManager = {} do
 		end
 	end
 
-	function ThemeManager:SaveDefault(theme)
-		writefile(ThemeManager.Folder .. '/themes/default.txt', theme)
-	end
+	function ThemeManager:SaveDefault(theme) writefile(ThemeManager.Folder .. '/themes/default.txt', theme) end
 
 	function ThemeManager:LoadDefault()
 		local theme = 'Default'
@@ -458,86 +315,17 @@ local ThemeManager = {} do
 		if isfile(path) then return readfile(path) end
 		return default
 	end
-	local function saveSetting(key, value)
-		writefile(ThemeManager.Folder .. '/settings/' .. key .. '.txt', value)
-	end
+	local function saveSetting(key, value) writefile(ThemeManager.Folder .. '/settings/' .. key .. '.txt', value) end
 
 	function ThemeManager:CreateThemeManager(groupbox)
-		-- BACKGROUND
-		groupbox:AddLabel('Window Background')
-		groupbox:AddInput('WindowBgImage', {
-			Text = 'Image ID', Default = bgState.imageId or '',
-			Placeholder = 'rbxassetid:// or ID', Finished = true,
-			Tooltip = 'Вставь rbxassetid:// или просто число'
-		})
-		safeOnChanged(Options.WindowBgImage, function()
-			local v = Options.WindowBgImage.Value or ''
-			if v == '' or v == 'none' or v == 'clear' then bgState.imageId = ''
-			else
-				if not v:find('rbxassetid://') and not v:find('rbxasset://') and not v:find('http') then
-					local digits = v:gsub('%D', '')
-					if #digits > 0 then v = 'rbxassetid://' .. digits end
-				end
-				bgState.imageId = v
-			end
-			applyBg(); saveBgSettings()
-		end)
-
-		groupbox:AddSlider('WindowBgTransparency', {
-			Text = 'Image Transparency', Min = 0, Max = 1, Default = bgState.transparency or 0.5, Rounding = 2,
-			Suffix = '', Tooltip = '0 = картинка видна, 1 = прозрачная'
-		})
-		safeOnChanged(Options.WindowBgTransparency, function()
-			bgState.transparency = Options.WindowBgTransparency.Value
-			applyBg(); saveBgSettings()
-		end)
-
-		groupbox:AddSlider('WindowBgOverlay', {
-			Text = 'Overlay Darkening', Min = 0, Max = 1, Default = bgState.overlay or 0.5, Rounding = 2,
-			Suffix = '', Tooltip = 'Затемнение поверх картинки'
-		})
-		safeOnChanged(Options.WindowBgOverlay, function()
-			bgState.overlay = Options.WindowBgOverlay.Value
-			applyBg(); saveBgSettings()
-		end)
-
-		groupbox:AddSlider('WindowBgUIOpacity', {
-			Text = 'UI Opacity', Min = 0, Max = 0.9, Default = bgState.uiOpacity or 0.6, Rounding = 2,
-			Suffix = '', Tooltip = 'Насколько прозрачны панели поверх картинки'
-		})
-		safeOnChanged(Options.WindowBgUIOpacity, function()
-			bgState.uiOpacity = Options.WindowBgUIOpacity.Value
-			applyBg(); saveBgSettings()
-		end)
-
-		groupbox:AddLabel('Overlay Color'):AddColorPicker('WindowBgOverlayColor', {
-			Default = bgState.overlayColor or Color3.new(0,0,0)
-		})
-		safeOnChanged(Options.WindowBgOverlayColor, function()
-			bgState.overlayColor = Options.WindowBgOverlayColor.Value
-			applyBg(); saveBgSettings()
-		end)
-
-		groupbox:AddButton('Clear Background', function()
-			bgState.imageId = ''
-			applyBg(); saveBgSettings()
-			if Options.WindowBgImage then Options.WindowBgImage:SetValue('') end
-			if ThemeManager.Library then ThemeManager.Library:Notify('Background cleared') end
-		end)
-
 		groupbox:AddDivider()
-
-		-- THEME COLORS
 		groupbox:AddLabel('Background color'):AddColorPicker('BackgroundColor', { Default = ThemeManager.Library.BackgroundColor })
 		groupbox:AddLabel('Main color'):AddColorPicker('MainColor', { Default = ThemeManager.Library.MainColor })
 		groupbox:AddLabel('Accent color'):AddColorPicker('AccentColor', { Default = ThemeManager.Library.AccentColor })
 		groupbox:AddLabel('Outline color'):AddColorPicker('OutlineColor', { Default = ThemeManager.Library.OutlineColor })
 		groupbox:AddLabel('Font color'):AddColorPicker('FontColor', { Default = ThemeManager.Library.FontColor })
-		groupbox:AddLabel('Click effect color'):AddColorPicker('ClickEffectColor', { Default = ThemeManager.Library.ClickEffectColor or Color3.fromRGB(255,255,255) })
 
 		groupbox:AddDivider()
-
-		-- UI SHADOW
 		groupbox:AddLabel('UI Shadow')
 		groupbox:AddLabel('Shadow Color'):AddColorPicker('ShadowColor', {
 			Default = ThemeManager.Library.UIShadow and ThemeManager.Library.UIShadow.Color or Color3.new(0,0,0)
@@ -627,8 +415,7 @@ local ThemeManager = {} do
 		end)
 
 		groupbox:AddDivider()
-		
-		-- ANIMATIONS
+
 		groupbox:AddLabel('Animations')
 		local animDefault = true
 		local savedAnim = loadSetting('animations_enabled', 'true')
@@ -640,12 +427,9 @@ local ThemeManager = {} do
 			Tooltip = 'Включить/выключить анимации интерфейса' 
 		})
 		
-        -- ИСПРАВЛЕНО: Toggles вместо Options
 		safeOnChanged(Toggles.AnimationsEnabled, function()
 			local enabled = Toggles.AnimationsEnabled.Value
-			if ThemeManager.Library then
-				ThemeManager.Library.AnimationsEnabled = enabled
-			end
+			if ThemeManager.Library then ThemeManager.Library.AnimationsEnabled = enabled end
 			saveSetting('animations_enabled', tostring(enabled))
 		end)
 		
@@ -691,8 +475,11 @@ local ThemeManager = {} do
 			if radioSound then radioSound.Looped = radioLooped end
 		end)
 
-		local statusLabel = groupbox:AddLabel("Idle")
-		Options.RadioStatus = statusLabel
+		local statusBar = groupbox:AddProgressBar('RadioStatus', {
+			Text = 'Radio Status',
+			Min = 0, Max = 100, Default = 0, CanEdit = false, HideMax = true
+		})
+		Options.RadioStatus = statusBar
 
 		local playButton = groupbox:AddButton('Play Sound', function()
 			if radioPlaying then stopRadio() else startRadio() end
@@ -765,9 +552,7 @@ local ThemeManager = {} do
 		safeOnChanged(Options.AccentColor, UpdateTheme)
 		safeOnChanged(Options.OutlineColor, UpdateTheme)
 		safeOnChanged(Options.FontColor, UpdateTheme)
-		safeOnChanged(Options.ClickEffectColor, UpdateTheme)
 
-		task.defer(applyBg)
 		task.defer(loadCornerSettings)
 		task.defer(loadShadowSettings)
 	end
@@ -783,11 +568,20 @@ local ThemeManager = {} do
 	function ThemeManager:SaveCustomTheme(file)
 		if file:gsub(' ', '') == '' then return ThemeManager.Library:Notify('Invalid file name for theme (empty)', 3) end
 		local theme = {}
-		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
-		for _, field in next, fields do
-			if Options[field] then theme[field] = Options[field].Value:ToHex() end
+		for idx, obj in pairs(Options) do
+			if obj.Type == 'ColorPicker' and obj.GetSaveData then
+				theme[idx] = obj:GetSaveData()
+			end
 		end
-		if Options.ClickEffectColor then theme.ClickEffectColor = Options.ClickEffectColor.Value:ToHex() end
+		if ThemeManager.Library.UICorner then
+			theme.UICorner = ThemeManager.Library.UICorner
+		end
+		if ThemeManager.Library.UIShadow then
+			theme.Shadow = {
+				Color = ThemeManager.Library.UIShadow.Color:ToHex(),
+				Radius = ThemeManager.Library.UIShadow.BlurRadius.Offset
+			}
+		end
 		theme.UICornerRadius = Options.UICornerRadius and Options.UICornerRadius.Value or 6
 		writefile(ThemeManager.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
 		ThemeManager.Library:Notify(string.format('Theme "%s" saved', file))
@@ -808,19 +602,8 @@ local ThemeManager = {} do
 		return out
 	end
 
-	function ThemeManager:CleanupClickEffect()
-		if inputConnection then inputConnection:Disconnect(); inputConnection = nil end
-		clickEffectEnabled = false
-		if ClickEffectGui and ClickEffectGui.Parent then
-			ClickEffectGui:Destroy()
-			ClickEffectGui = nil
-		end
-	end
-
 	function ThemeManager:SetLibrary(lib)
 		ThemeManager.Library = lib
-		ThemeManager:InitClickEffect()
-		if lib.OnUnload then lib:OnUnload(function() ThemeManager:CleanupClickEffect() end) end
 	end
 
 	function ThemeManager:BuildFolderTree()
@@ -836,25 +619,10 @@ local ThemeManager = {} do
 		end
 	end
 
-	function ThemeManager:SetFolder(folder)
-		ThemeManager.Folder = folder
-		ThemeManager:BuildFolderTree()
-	end
-
-	function ThemeManager:CreateGroupBox(tab)
-		assert(ThemeManager.Library, 'Must set ThemeManager.Library first!')
-		return tab:AddLeftGroupbox('Theme Manager & Other')
-	end
-
-	function ThemeManager:ApplyToTab(tab)
-		assert(ThemeManager.Library, 'Must set ThemeManager.Library first!')
-		ThemeManager:CreateThemeManager(ThemeManager:CreateGroupBox(tab))
-	end
-
-	function ThemeManager:ApplyToGroupbox(groupbox)
-		assert(ThemeManager.Library, 'Must set ThemeManager.Library first!')
-		ThemeManager:CreateThemeManager(groupbox)
-	end
+	function ThemeManager:SetFolder(folder) ThemeManager.Folder = folder ThemeManager:BuildFolderTree() end
+	function ThemeManager:CreateGroupBox(tab) return tab:AddLeftGroupbox('Theme Manager & Other') end
+	function ThemeManager:ApplyToTab(tab) ThemeManager:CreateThemeManager(ThemeManager:CreateGroupBox(tab)) end
+	function ThemeManager:ApplyToGroupbox(groupbox) ThemeManager:CreateThemeManager(groupbox) end
 
 	ThemeManager:BuildFolderTree()
 end
