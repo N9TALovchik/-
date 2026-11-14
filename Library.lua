@@ -1307,7 +1307,6 @@ do
         Library:CreateStroke({ Parent = LI })
         Library:AddToRegistry(LI, { BackgroundColor3 = 'MainColor' })
         
-        -- ScrollingFrame и InnerList разделены для правильного отображения
         local Sc = Library:Create('ScrollingFrame', { Name = "DropdownScrollFrame"; BackgroundTransparency = 1; BorderSizePixel = 0; CanvasSize = UDim2.new(0,0,0,0); Size = UDim2.new(1,0,1,0); ZIndex = 2001; Active = true; Parent = LI; TopImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; BottomImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png'; ScrollBarThickness = 3; ScrollBarImageColor3 = Library.AccentColor })
         Library:AddToRegistry(Sc, { ScrollBarImageColor3 = 'AccentColor' })
         
@@ -2445,7 +2444,13 @@ function Library:CreateWindow(...)
         local RS = Library:Create('ScrollingFrame', { Name = "RightGroupboxesScroll"; BackgroundTransparency = 1; BorderSizePixel = 0; Position = UDim2.new(0.5,5,0,20); Size = UDim2.new(0.5,-10,1,-28); CanvasSize = UDim2.new(0,0,0,0); BottomImage = ''; TopImage = ''; ScrollBarThickness = 0; ZIndex = 5; Parent = TF })
         Library:Create('UIListLayout', { Name = "LeftLayout"; Padding = UDim.new(0,8); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; HorizontalAlignment = Enum.HorizontalAlignment.Center; Parent = LS })
         Library:Create('UIListLayout', { Name = "RightLayout"; Padding = UDim.new(0,8); FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; HorizontalAlignment = Enum.HorizontalAlignment.Center; Parent = RS })
-        for _, S in next, { LS, RS } do S:WaitForChild(S.Name:gsub("Scroll", "Layout")):GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() S.CanvasSize = UDim2.fromOffset(0, S:FindFirstChildWhichIsA("UIListLayout").AbsoluteContentSize.Y) end) end
+        
+        for _, S in next, { LS, RS } do 
+            local layout = S:FindFirstChildWhichIsA('UIListLayout')
+            layout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function() 
+                S.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y) 
+            end) 
+        end
         
         function Tb:ShowTab()
             if W.ActiveTab == Tb then
@@ -2505,7 +2510,7 @@ function Library:CreateWindow(...)
             indicatorTween = t1
             t1:Play()
 
-            t1.Completed:Once(function()
+            t1.Completed:Connect(function()
                 if indicatorTween ~= t1 then return end
 
                 local t2 = TweenService:Create(
@@ -2523,7 +2528,6 @@ function Library:CreateWindow(...)
             TF.Visible = false
             if W.ActiveTab == Tb then 
                 W.ActiveTab = nil 
-                -- Мы убрали сброс видимости отсюда, чтобы не ломать анимацию
             end
         end
         
