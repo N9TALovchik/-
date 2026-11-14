@@ -220,6 +220,7 @@ function Library:MakeDraggable(Instance, Cutoff)
     Library:GiveSignal(InputService.InputBegan:Connect(function(Input, gp)
         if gp then return end
         if Library._resizing or Library._hoveredResizeHandle then return end
+        if Library:MouseIsOverOpenedFrame() then return end
         if Input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
         local ap, as = Instance.AbsolutePosition, Instance.AbsoluteSize
         if Mouse.X < ap.X or Mouse.X > ap.X+as.X or Mouse.Y < ap.Y or Mouse.Y > ap.Y+as.Y then return end
@@ -237,27 +238,38 @@ function Library:MakeDraggable(Instance, Cutoff)
 end
 function Library:AddToolTip(InfoStr, Hover)
     local X, Y = Library:GetTextBounds(InfoStr, Library.Font, 14)
-    local TT = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; BorderColor3 = Library.OutlineColor; Size = UDim2.fromOffset(X+5, Y+4); ZIndex = 1000; Parent = getScreenGui(Hover); Visible = false })
-    local L = Library:CreateLabel({ Position = UDim2.fromOffset(3,1); Size = UDim2.fromOffset(X,Y); TextSize = 14; Text = InfoStr; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 1001; Parent = TT })
+    local TT = Library:Create('Frame', { BackgroundColor3 = Library.MainColor; BorderColor3 = Library.OutlineColor; Size = UDim2.fromOffset(X+5, Y+4); ZIndex = 10000; Parent = getScreenGui(Hover); Visible = false })
+    local L = Library:CreateLabel({ Position = UDim2.fromOffset(3,1); Size = UDim2.fromOffset(X,Y); TextSize = 14; Text = InfoStr; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 10001; Parent = TT })
     Library:AddToRegistry(TT, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor' })
     Library:AddToRegistry(L, { TextColor3 = 'FontColor' })
+    
     local hov = false
+    local delayToken = 0
+    
     Hover.MouseEnter:Connect(function()
-        hov = true; TT.Visible = true
-        task.spawn(function()
-            while hov do
-                RunService.Heartbeat:Wait()
-                if hov and TT and TT.Parent then
-                    TT.Position = UDim2.fromOffset(Mouse.X+15, Mouse.Y+12)
-                else hov = false end
+        hov = true
+        delayToken = delayToken + 1
+        local myToken = delayToken
+        task.delay(2.5, function()
+            if hov and myToken == delayToken and TT and TT.Parent then
+                TT.Visible = true
             end
         end)
     end)
+    
     Hover.MouseLeave:Connect(function()
         hov = false
-        task.delay(0.15, function()
-            if not hov and TT and TT.Parent then TT.Visible = false end
-        end)
+        delayToken = delayToken + 1
+        TT.Visible = false
+    end)
+
+    task.spawn(function()
+        while true do
+            RunService.Heartbeat:Wait()
+            if hov and TT and TT.Parent and TT.Visible then
+                TT.Position = UDim2.fromOffset(Mouse.X+15, Mouse.Y+12)
+            end
+        end
     end)
 end
 
@@ -1487,7 +1499,6 @@ do
                 Name = 'PerElementWindow';
                 BackgroundColor3 = Library.BackgroundColor;
                 BorderSizePixel = 0;
-                Active = true;
                 Position = UDim2.fromOffset(LO.AbsolutePosition.X, LO.AbsolutePosition.Y + LO.AbsoluteSize.Y + 6);
                 Size = UDim2.fromOffset(w, h);
                 ZIndex = 25000;
@@ -1501,7 +1512,6 @@ do
             local scroll = Library:Create('ScrollingFrame', {
                 BackgroundTransparency = 1;
                 BorderSizePixel = 0;
-                Active = true;
                 Position = UDim2.fromOffset(4, 4);
                 Size = UDim2.new(1, -8, 1, -8);
                 CanvasSize = UDim2.new(0, 0, 0, 0);
@@ -1652,7 +1662,7 @@ do
                 local targetY = nil
                 for _, child in ipairs(Sc:GetChildren()) do
                     if child:IsA('Frame') and child:GetAttribute('Value') == val then
-                        targetY = child.Position.Y.Offset
+                        targetY = child.AbsolutePosition.Y - Sc.AbsolutePosition.Y + Sc.CanvasPosition.Y
                         break
                     end
                 end
@@ -2346,7 +2356,7 @@ function Library:CreateWindow(...)
     Library:AddToRegistry(Inner, { BackgroundColor3 = 'MainColor' })
 
     local tH = 25; local tS = Config.TitleTextSize or 16
-    local WL = Library:CreateLabel({ Position = UDim2.new(0, 7 + Config.TitleOffset, 0, 0); Size = UDim2.new(1, -14, 0, tH); TextSize = tS; Text = Config.Title or ''; TextXAlignment = Config.CenterTitle and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left; ZIndex = 2; Parent = Inner })
+    local WL = Library:CreateLabel({ Position = UDim2.new(0, 7 + Config.TitleOffset, 0, 0); Size = UDim2.new(1, -30, 0, tH); TextSize = tS; Text = Config.Title or ''; TextXAlignment = Config.CenterTitle and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left; ZIndex = 2; Parent = Inner })
 
     local HideBtn = Library:Create('TextButton', { BackgroundTransparency = 1; Text = 'v'; TextSize = 14; TextColor3 = Library.FontColor; Font = Library.Font; Position = UDim2.new(1, -25, 0, 5); Size = UDim2.fromOffset(16, 16); Parent = Inner; ZIndex = 2 })
     Library:AddToRegistry(HideBtn, { TextColor3 = 'FontColor' })
@@ -2631,9 +2641,23 @@ function Library:CreateWindow(...)
             local C = Library:Create('Frame', { BackgroundTransparency = 1; Position = UDim2.new(0,4,0,18); Size = UDim2.new(1,-8,1,-18); ZIndex = 8; Parent = BO })
             Library:Create('UIListLayout', { FillDirection = Enum.FillDirection.Vertical; SortOrder = Enum.SortOrder.LayoutOrder; Parent = C })
             
+            local HideBtn = Library:Create('TextButton', { BackgroundTransparency = 1; Text = 'v'; TextSize = 14; TextColor3 = Library.FontColor; Font = Library.Font; Position = UDim2.new(1, -18, 0, 0); Size = UDim2.fromOffset(16, 16); Parent = BO; ZIndex = 9 })
+            Library:AddToRegistry(HideBtn, { TextColor3 = 'FontColor' })
+            HideBtn.MouseButton1Click:Connect(function()
+                C.Visible = not C.Visible
+                HideBtn.Text = C.Visible and 'v' or '^'
+                GB:Resize()
+            end)
+
             function GB:Resize()
                 local s = 0
-                for _, e in next, GB.Container:GetChildren() do if not e:IsA('UIListLayout') and e.Visible then s = s + e.Size.Y.Offset end end
+                if C.Visible then
+                    for _, e in next, C:GetChildren() do 
+                        if not e:IsA('UIListLayout') and e.Visible then 
+                            s = s + e.Size.Y.Offset 
+                        end 
+                    end
+                end
                 BO.Size = UDim2.new(1,0,0, 18 + s + 4)
             end
             GB.Container = C
@@ -2700,7 +2724,12 @@ function Library:CreateWindow(...)
         if Fading then return end
         local FT = Config.MenuFadeTime; Fading = true; Tog = not Tog; ME.Modal = Tog
         
-        if not Tog then for f, _ in pairs(Library.OpenedFrames) do f.Visible = false end table.clear(Library.OpenedFrames) end
+        if not Tog then 
+            for f, _ in pairs(Library.OpenedFrames) do 
+                if f and f.Parent then f.Visible = false end 
+            end 
+            table.clear(Library.OpenedFrames) 
+        end
         if Tog then Outer.Visible = true end
         if SearchFrame then SearchFrame.Visible = Tog end
         
