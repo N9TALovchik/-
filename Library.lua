@@ -243,9 +243,17 @@ function Library:AddToolTip(InfoStr, Hover)
     Library:AddToRegistry(L, { TextColor3 = 'FontColor' })
     local hov = false
     Hover.MouseEnter:Connect(function()
-        if Library:MouseIsOverOpenedFrame() then return end
         hov = true; TT.Visible = true
-        while hov do RunService.Heartbeat:Wait() TT.Position = UDim2.fromOffset(Mouse.X+15, Mouse.Y+12) end
+        task.spawn(function()
+            while hov do
+                RunService.Heartbeat:Wait()
+                if hov and TT and TT.Parent then
+                    TT.Position = UDim2.fromOffset(Mouse.X+15, Mouse.Y+12)
+                else
+                    hov = false
+                end
+            end
+        end)
     end)
     Hover.MouseLeave:Connect(function() hov = false; TT.Visible = false end)
 end
@@ -1492,6 +1500,7 @@ do
         local perElementWindow = nil
         local function ClosePerElementWindow()
             if perElementWindow then
+                Library.OpenedFrames[perElementWindow] = nil
                 pcall(function() perElementWindow:Destroy() end)
                 perElementWindow = nil
             end
@@ -1526,6 +1535,7 @@ do
                 ZIndex = 2500;
                 Parent = parentGui;
             })
+            Library.OpenedFrames[outer] = true
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = outer }), 'Groupbox')
             Library:CreateStroke({ Parent = outer })
             Library:AddToRegistry(outer, { BackgroundColor3 = 'BackgroundColor' })
@@ -1669,13 +1679,34 @@ do
         end
         function D:GetAllElementData() return D.PerElementData end
 
+        local SelectionFrame
         function D:BuildDropdownList()
             local V = D.Values; local Buttons = {}
-            for _, E in next, Sc:GetChildren() do if not E:IsA('UIListLayout') then E:Destroy() end end
+            for _, E in next, Sc:GetChildren() do if not E:IsA('UIListLayout') and E ~= SelectionFrame then E:Destroy() end end
+            
+            if not SelectionFrame then
+                SelectionFrame = Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; BackgroundTransparency = 0.8; Size = UDim2.new(1, 0, 0, 20); ZIndex = 2002; Visible = false; Parent = Sc })
+                Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; Size = UDim2.new(0, 2, 1, 0); ZIndex = 2003; Parent = SelectionFrame })
+                Library:Create('Frame', { BackgroundColor3 = Library.AccentColor; Size = UDim2.new(0, 2, 1, 0); Position = UDim2.new(1, -2, 0, 0); ZIndex = 2003; Parent = SelectionFrame })
+            end
+            
+            local function updateSelection(val)
+                if not val then SelectionFrame.Visible = false return end
+                for _, child in ipairs(Sc:GetChildren()) do
+                    if child:IsA('Frame') and child:GetAttribute('Value') == val then
+                        SelectionFrame.Position = child.Position
+                        SelectionFrame.Size = UDim2.new(1, 0, 0, child.Size.Y.Offset)
+                        SelectionFrame.Visible = true
+                        break
+                    end
+                end
+            end
+            
             local C = 0
             for _, Value in next, V do
                 local T = {}; C = C + 1
                 local B = Library:Create('Frame', { BackgroundTransparency = 1; Size = UDim2.new(1,-1,0,20); ZIndex = 2003; Active = true; Parent = Sc })
+                B:SetAttribute('Value', Value)
                 local BL = Library:CreateLabel({ Active = false; Size = UDim2.new(1,-6,1,0); Position = UDim2.new(0,6,0,0); TextSize = 14; Text = Value; TextXAlignment = Enum.TextXAlignment.Left; ZIndex = 2005; Parent = B })
                 
                 local S
@@ -1688,11 +1719,15 @@ do
                 
                 B.MouseEnter:Connect(function()
                     if not S then BL.TextColor3 = Library.AccentColor end
+                    updateSelection(Value)
                 end)
                 B.MouseLeave:Connect(function()
                     if not S then BL.TextColor3 = Library.FontColor end
+                    local currentSelected = D.Value
+                    if Info.Multi then currentSelected = nil end
+                    if not currentSelected then updateSelection(nil) else updateSelection(currentSelected) end
                 end)
-
+                
                 BL.InputBegan:Connect(function(Inp)
                     if Inp.UserInputType == Enum.UserInputType.MouseButton1 then
                         local Try = not S
@@ -1717,6 +1752,7 @@ do
             end
             Sc.CanvasSize = UDim2.fromOffset(0, (C*20)+1)
             RLS(math.clamp(C*20, 0, MDI*20)+1)
+            if D.Value then updateSelection(D.Value) end
         end
         function D:SetValues(NV) if NV then D.Values = NV end D:BuildDropdownList() end
         
@@ -1942,7 +1978,7 @@ do
         if Info.Default then D:SetValue(Info.Default) end
         Groupbox:AddBlank(Info.BlankSize or 5); Groupbox:Resize()
         Options[Idx] = D
-        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'Dropdown', Object = D, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
+        if not Info.NoSearch then table.insert(Library.SearchRegistry, {Name = Info.Text or 'Dropdown', Type = 'PictureDropdown', Object = D, GroupName = Groupbox.Name or 'Unknown', Side = Groupbox.Side}) end
         return D
     end
 
@@ -2500,6 +2536,17 @@ function Library:CreateWindow(...)
                             Default = entry.Object.Value,
                             Multi = entry.Object.Multi,
                             AllowNull = true, 
+                            NoSearch = true,
+                            Callback = function(v) entry.Object:SetValue(v) end
+                        })
+                    elseif entry.Type == 'PictureDropdown' then
+                        local picVals = {}
+                        for _, it in ipairs(entry.Object.Items) do table.insert(picVals, it.Name) end
+                        proxy = gb:AddDropdown(randId, {
+                            Text = entry.Name,
+                            Values = picVals,
+                            Default = entry.Object.Value,
+                            AllowNull = true,
                             NoSearch = true,
                             Callback = function(v) entry.Object:SetValue(v) end
                         })
