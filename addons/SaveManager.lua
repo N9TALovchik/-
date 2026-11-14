@@ -1,9 +1,4 @@
 local httpService = game:GetService('HttpService')
-
--- ═══════════════════════════════════════════════════════════════════════════
--- BASE64
--- ═══════════════════════════════════════════════════════════════════════════
-
 local b64encode, b64decode
 
 if crypt and crypt.base64encode and crypt.base64decode then
@@ -38,16 +33,10 @@ else
 		end))
 	end
 end
-
--- ═══════════════════════════════════════════════════════════════════════════
--- SAVEMANAGER
--- ═══════════════════════════════════════════════════════════════════════════
-
 local SaveManager = {} do
 	SaveManager.Folder = 'LinoriaLibSettings'
 	SaveManager.Ignore = {}
 
-	-- Находим idx контрола (Toggle / Option) по ссылке
 	local function FindControlIdx(control)
 		if not control then return nil end
 		for idx, t in next, Toggles do if t == control then return idx end end
@@ -123,7 +112,6 @@ local SaveManager = {} do
 			if entry then table.insert(data.objects, entry) end
 		end
 
-		-- ─── БИНДЫ ───
 		local BS = self.Library and self.Library.BindSystem
 		if BS and BS.AllBindings then
 			for _, b in ipairs(BS.AllBindings) do
@@ -148,15 +136,11 @@ local SaveManager = {} do
 		return true
 	end
 
-	-- Внутренняя загрузка binds (общая для Load / ImportFromString)
 	local function ApplyBinds(self, decoded)
 		if not decoded.binds then return end
 		local BS = self.Library and self.Library.BindSystem
 		if not BS then return end
-
-		-- очищаем массив in-place, чтобы ссылка не потерялась
 		for i = #BS.AllBindings, 1, -1 do BS.AllBindings[i] = nil end
-
 		for _, bd in ipairs(decoded.binds) do
 			local ctrl = Toggles[bd.controlIdx] or Options[bd.controlIdx]
 			if ctrl then
@@ -190,9 +174,7 @@ local SaveManager = {} do
 			if not okB64 then return false, 'decode error (not json, not base64)' end
 			local okDecode, parsed = pcall(httpService.JSONDecode, httpService, decodedB64)
 			if not okDecode then return false, 'decode error (invalid base64 json)' end
-			if type(parsed) ~= 'table' or not parsed.objects then
-				return false, 'invalid config structure'
-			end
+			if type(parsed) ~= 'table' or not parsed.objects then return false, 'invalid config structure' end
 			decoded = parsed
 		end
 
@@ -202,12 +184,10 @@ local SaveManager = {} do
 			end
 		end
 
-		-- немного ждём, чтобы объекты применили значения
 		task.spawn(function()
 			task.wait(0.15)
 			ApplyBinds(self, decoded)
 		end)
-
 		return true
 	end
 
@@ -218,9 +198,7 @@ local SaveManager = {} do
 		local content = readfile(file)
 		if not content then return false, 'failed to read file' end
 		local okJson, parsedJson = pcall(httpService.JSONDecode, httpService, content)
-		if okJson and type(parsedJson) == 'table' and parsedJson.objects then
-			content = b64encode(content)
-		end
+		if okJson and type(parsedJson) == 'table' and parsedJson.objects then content = b64encode(content) end
 		local success = pcall(function() setclipboard(content) end)
 		if success then self.Library:Notify(string.format('Config "%s" (base64) copied to clipboard', name)); return true
 		else return false, 'clipboard not supported' end
@@ -229,7 +207,6 @@ local SaveManager = {} do
 	function SaveManager:ImportFromString(input)
 		if not input or input:gsub('%s', '') == '' then return false, 'empty string' end
 		local cleaned = input:gsub('%s+', '')
-
 		local decoded
 		local okJson, parsedJson = pcall(httpService.JSONDecode, httpService, input)
 		if okJson and type(parsedJson) == 'table' and parsedJson.objects then
@@ -239,23 +216,18 @@ local SaveManager = {} do
 			if not okB64 then return false, 'base64 decode error' end
 			local okDecode, parsed = pcall(httpService.JSONDecode, httpService, decodedB64)
 			if not okDecode then return false, 'invalid base64 or JSON' end
-			if type(parsed) ~= 'table' or not parsed.objects then
-				return false, 'invalid config structure'
-			end
+			if type(parsed) ~= 'table' or not parsed.objects then return false, 'invalid config structure' end
 			decoded = parsed
 		end
-
 		for _, option in next, decoded.objects do
 			if self.Parser[option.type] then
 				task.spawn(function() self.Parser[option.type].Load(option.idx, option) end)
 			end
 		end
-
 		task.spawn(function()
 			task.wait(0.15)
 			ApplyBinds(self, decoded)
 		end)
-
 		self.Library:Notify('Config imported')
 		return true
 	end
@@ -269,10 +241,7 @@ local SaveManager = {} do
 
 	function SaveManager:BuildFolderTree()
 		local paths = { self.Folder, self.Folder .. '/themes', self.Folder .. '/settings' }
-		for i = 1, #paths do
-			local str = paths[i]
-			if not isfolder(str) then makefolder(str) end
-		end
+		for i = 1, #paths do if not isfolder(paths[i]) then makefolder(paths[i]) end end
 	end
 
 	function SaveManager:RefreshConfigList()
@@ -284,9 +253,7 @@ local SaveManager = {} do
 				local pos = file:find('.json', 1, true)
 				local start = pos
 				local char = file:sub(pos, pos)
-				while char ~= '/' and char ~= '\\' and char ~= '' do
-					pos = pos - 1; char = file:sub(pos, pos)
-				end
+				while char ~= '/' and char ~= '\\' and char ~= '' do pos = pos - 1; char = file:sub(pos, pos) end
 				if char == '/' or char == '\\' then table.insert(out, file:sub(pos + 1, start - 1)) end
 			end
 		end
@@ -296,8 +263,11 @@ local SaveManager = {} do
 	function SaveManager:SetLibrary(library) self.Library = library end
 
 	function SaveManager:LoadAutoloadConfig()
-		if isfile(self.Folder .. '/settings/autoload.txt') then
-			local name = readfile(self.Folder .. '/settings/autoload.txt')
+		local placeFile = self.Folder .. '/settings/autoload_' .. game.PlaceId .. '.txt'
+		local globalFile = self.Folder .. '/settings/autoload.txt'
+		local file = isfile(placeFile) and placeFile or (isfile(globalFile) and globalFile or nil)
+		if file then
+			local name = readfile(file)
 			local success, err = self:Load(name)
 			if not success then return self.Library:Notify('Failed to load autoload config: ' .. err) end
 			self.Library:Notify(string.format('Auto loaded config %q', name))
@@ -335,19 +305,26 @@ local SaveManager = {} do
 			Options.SaveManager_ConfigList:SetValue(nil)
 			Options.SaveManager_ConfigName:SetValue('')
 		end)
-		section:AddButton('Set as autoload', function()
+		
+		section:AddDivider()
+		section:AddButton('Set as Autoload (Global)', function()
 			local name = Options.SaveManager_ConfigList.Value
+			if not name then return end
 			writefile(self.Folder .. '/settings/autoload.txt', name)
-			SaveManager.AutoloadLabel:SetText('Current autoload config: ' .. name)
-			self.Library:Notify(string.format('Set %q to auto load', name))
+			self.Library:Notify(string.format('Set %q to auto load (Global)', name))
 		end)
-		section:AddButton('Clear autoload', function()
-			local path = self.Folder .. '/settings/autoload.txt'
-			if isfile(path) then
-				delfile(path)
-				self.Library:Notify('Autoload config cleared')
-			else self.Library:Notify('No autoload config to clear', 2) end
-			SaveManager.AutoloadLabel:SetText('Current autoload config: none')
+		section:AddButton('Set as Autoload (This Place)', function()
+			local name = Options.SaveManager_ConfigList.Value
+			if not name then return end
+			writefile(self.Folder .. '/settings/autoload_' .. game.PlaceId .. '.txt', name)
+			self.Library:Notify(string.format('Set %q to auto load (This Place)', name))
+		end)
+		section:AddButton('Clear Autoload', function()
+			local path1 = self.Folder .. '/settings/autoload.txt'
+			local path2 = self.Folder .. '/settings/autoload_' .. game.PlaceId .. '.txt'
+			if isfile(path1) then delfile(path1) end
+			if isfile(path2) then delfile(path2) end
+			self.Library:Notify('Autoload config cleared')
 		end)
 		section:AddInput('SaveManager_ImportString', { Text = ' ', Placeholder = 'Paste base64 or JSON config here' })
 		section:AddButton('Import config', function()
@@ -357,17 +334,12 @@ local SaveManager = {} do
 			if not success then self.Library:Notify('Import failed: ' .. err, 3)
 			else Options.SaveManager_ImportString:SetValue('') end
 		end)
-		section:AddButton('Export config (base64)', function()
+		section:AddButton('Export config', function()
 			local name = Options.SaveManager_ConfigList.Value
 			if not name then return self.Library:Notify('Select a config first', 2) end
 			local success, err = self:ExportConfig(name)
 			if not success then self.Library:Notify('Export failed: ' .. err, 3) end
 		end)
-		SaveManager.AutoloadLabel = section:AddLabel('Current autoload config: none', true)
-		if isfile(self.Folder .. '/settings/autoload.txt') then
-			local name = readfile(self.Folder .. '/settings/autoload.txt')
-			SaveManager.AutoloadLabel:SetText('Current autoload config: ' .. name)
-		end
 		self:SetIgnoreIndexes({ 'SaveManager_ConfigList', 'SaveManager_ConfigName', 'SaveManager_ImportString' })
 	end
 
