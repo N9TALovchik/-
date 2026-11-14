@@ -1380,12 +1380,12 @@ do
                 Name = 'PerElementWindow';
                 BackgroundColor3 = Library.BackgroundColor;
                 BorderSizePixel = 0;
+                ClipsDescendants = true;
                 Position = UDim2.fromOffset(LO.AbsolutePosition.X, LO.AbsolutePosition.Y + LO.AbsoluteSize.Y + 6);
                 Size = UDim2.fromOffset(w, h);
                 ZIndex = 25000;
                 Parent = parentGui;
             })
-            Library.OpenedFrames[outer] = true
             Library:RegisterCorner(Library:Create('UICorner', { CornerRadius = UDim.new(0, Library.UICorner.Groupbox); Parent = outer }), 'Groupbox')
             Library:CreateStroke({ Parent = outer })
             Library:AddToRegistry(outer, { BackgroundColor3 = 'BackgroundColor' })
@@ -1542,12 +1542,25 @@ do
                 if E:IsA('Frame') then E:Destroy() end 
             end
             
+            local selectionTween
             local function updateSelection(val, instant)
+                if selectionTween then
+                    pcall(function() selectionTween:Cancel() end)
+                    selectionTween = nil
+                end
+                if not val or type(val) ~= 'string' then
+                    SelectionFrame.Visible = false
+                    return
+                end
                 local targetY = nil
+                local idx = 0
                 for _, child in ipairs(InnerList:GetChildren()) do
-                    if child:IsA('Frame') and child:GetAttribute('Value') == val then
-                        targetY = child.AbsolutePosition.Y - InnerList.AbsolutePosition.Y
-                        break
+                    if child:IsA('Frame') then
+                        if child:GetAttribute('Value') == val then
+                            targetY = idx * 20
+                            break
+                        end
+                        idx = idx + 1
                     end
                 end
                 if targetY then
@@ -1555,9 +1568,10 @@ do
                     if instant then
                         SelectionFrame.Position = UDim2.new(0, 0, 0, targetY)
                     else
-                        TweenService:Create(SelectionFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                            Position = UDim2.new(0, 0, 0, targetY)
-                        }):Play()
+                        selectionTween = TweenService:Create(SelectionFrame,
+                            TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                            { Position = UDim2.new(0, 0, 0, targetY) })
+                        selectionTween:Play()
                     end
                 else
                     SelectionFrame.Visible = false
@@ -1580,10 +1594,12 @@ do
                 end
                 
                 B.MouseEnter:Connect(function()
+                    if not LO.Visible then return end
                     if not S then BL.TextColor3 = Library.AccentColor end
                     updateSelection(Value)
                 end)
                 B.MouseLeave:Connect(function()
+                    if not LO.Visible then return end
                     if not S then BL.TextColor3 = Library.FontColor end
                     if not Info.Multi then
                         updateSelection(D.Value)
@@ -1605,6 +1621,9 @@ do
                             Library:SafeCallback(D.Callback, D.Value, D.PerElementData)
                             Library:SafeCallback(D.Changed, D.Value, D.PerElementData)
                             Library:AttemptSave()
+                            if D.Value then
+                                updateSelection(D.Value, true)
+                            end
                         end
                     elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and Info.PerElementSettings then
                         OpenPerElementWindow(Value)
