@@ -1181,12 +1181,18 @@ do
             Type = 'ProgressBar',
             Text = Info.Text,
             CanEdit = Info.CanEdit or false,
+            ShowValue = Info.ShowValue ~= false,
             Callback = Info.Callback or function() end
         }
         local Groupbox = self; local Container = Groupbox.Container
         local zb = (self.ZIndex or 6) + 2
         if not Info.Compact then
-            Library:CreateLabel({ Name = "ProgressLabel"; Size = UDim2.new(1,0,0,14); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; ZIndex = zb; Parent = Container })
+            local TL = Library:CreateLabel({ Name = "ProgressLabel"; Size = UDim2.new(1,0,0,14); TextSize = 14; Text = Info.Text; TextXAlignment = Enum.TextXAlignment.Left; TextYAlignment = Enum.TextYAlignment.Bottom; ZIndex = zb; Active = true; Parent = Container })
+            TL.InputBegan:Connect(function(Inp)
+                if Inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    PB:SetShowValue(not PB.ShowValue)
+                end
+            end)
             Groupbox:AddBlank(3)
         end
         local SO = Library:Create('Frame', { Name = "ProgressOuter"; BackgroundColor3 = Library.MainColor; Size = UDim2.new(1,-4,0,13); ZIndex = zb; Active = PB.CanEdit; ClipsDescendants = true; Parent = Container })
@@ -1212,11 +1218,19 @@ do
             PB:Display()
         end
 
+        function PB:SetShowValue(b)
+            PB.ShowValue = not not b
+            PB:Display()
+        end
+        function PB:ToggleShowValue() PB:SetShowValue(not PB.ShowValue) end
+
         function PB:Display()
             local SF = Info.Suffix or ''
-            if Info.Compact then DL.Text = Info.Text .. ': ' .. PB.Value .. SF
-            elseif Info.HideMax then DL.Text = string.format('%s', Info.Text .. ' ' .. PB.Value .. SF)
-            else DL.Text = string.format('%s %s/%s', Info.Text, PB.Value .. SF, PB.Max .. SF) end
+            local txt
+            if Info.Compact then txt = Info.Text .. ': ' .. PB.Value .. SF
+            elseif Info.HideMax then txt = string.format('%s', Info.Text .. ' ' .. PB.Value .. SF)
+            else txt = string.format('%s %s/%s', Info.Text, PB.Value .. SF, PB.Max .. SF) end
+            DL.Text = PB.ShowValue and txt or ''
 
             local W = SI.AbsoluteSize.X
             if W <= 0 then W = 232 end
@@ -1300,7 +1314,7 @@ do
         Library:Create('UIGradient', { Name = "DropdownGradient"; Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(212,212,212)) }); Rotation = 90; Parent = DI })
         Library:AddToRegistry(DI, { BackgroundColor3 = 'MainColor' })
         local DA = Library:Create('ImageLabel', { Name = "DropdownArrow"; AnchorPoint = Vector2.new(0,0.5); BackgroundTransparency = 1; Position = UDim2.new(1,-16,0.5,0); Size = UDim2.new(0,12,0,12); Image = 'http://www.roblox.com/asset/?id=6282522798'; ZIndex = zb + 3; Parent = DI })
-        local IL = Library:CreateLabel({ Name = "DropdownValueLabel"; Position = UDim2.new(0,5,0,0); Size = UDim2.new(1,-5,1,0); TextSize = 14; Text = '--'; TextXAlignment = Enum.TextXAlignment.Left; TextWrapped = true; ZIndex = zb + 2; Parent = DI })
+        local IL = Library:CreateLabel({ Name = "DropdownValueLabel"; Position = UDim2.new(0,5,0,0); Size = UDim2.new(1,-5,1,0); TextSize = 14; Text = '--'; TextXAlignment = Enum.TextXAlignment.Left; TextWrapped = false; TextTruncate = Enum.TextTruncate.AtEnd; ZIndex = zb + 2; Parent = DI })
         Library:AddToRegistry(IL, { TextColor3 = 'FontColor' })
         if type(Info.Tooltip) == 'string' then Library:AddToolTip(Info.Tooltip, DO) end
         local MDI = 8
@@ -1381,6 +1395,7 @@ do
                 BackgroundColor3 = Library.BackgroundColor;
                 BorderSizePixel = 0;
                 ClipsDescendants = true;
+                Active = true;
                 Position = UDim2.fromOffset(LO.AbsolutePosition.X, LO.AbsolutePosition.Y + LO.AbsoluteSize.Y + 6);
                 Size = UDim2.fromOffset(w, h);
                 ZIndex = 25000;
@@ -1577,7 +1592,33 @@ do
                     SelectionFrame.Visible = false
                 end
             end
-            
+
+            local SelectionFrames = {}
+            local function refreshSelectedHighlights()
+                for _, f in ipairs(SelectionFrames) do pcall(function() f:Destroy() end) end
+                SelectionFrames = {}
+                if not Info.Multi then
+                    if D.Value then updateSelection(D.Value, true) end
+                    return
+                end
+                local idx = 0
+                for _, child in ipairs(InnerList:GetChildren()) do
+                    if child:IsA('Frame') then
+                        local v = child:GetAttribute('Value')
+                        if v and D.Value[v] then
+                            local f = SelectionFrame:Clone()
+                            f.Name = 'SelectionHighlight_sel'
+                            f.Position = UDim2.new(0, 0, 0, idx * 20)
+                            f.Visible = true
+                            f.Active = false
+                            f.Parent = Sc
+                            table.insert(SelectionFrames, f)
+                        end
+                        idx = idx + 1
+                    end
+                end
+            end
+
             local C = 0
             for _, Value in next, V do
                 local T = {}; C = C + 1
@@ -1603,6 +1644,8 @@ do
                     if not S then BL.TextColor3 = Library.FontColor end
                     if not Info.Multi then
                         updateSelection(D.Value)
+                    else
+                        SelectionFrame.Visible = false
                     end
                 end)
                 
@@ -1624,6 +1667,7 @@ do
                             if D.Value then
                                 updateSelection(D.Value, true)
                             end
+                            refreshSelectedHighlights()
                         end
                     elseif Inp.UserInputType == Enum.UserInputType.MouseButton2 and Info.PerElementSettings then
                         OpenPerElementWindow(Value)
@@ -1634,7 +1678,7 @@ do
             InnerList.Size = UDim2.new(1, 0, 0, (C*20) + 1)
             Sc.CanvasSize = UDim2.fromOffset(0, (C*20)+1)
             RLS(math.clamp(C*20, 0, MDI*20)+1)
-            if D.Value then updateSelection(D.Value, true) end
+            refreshSelectedHighlights()
         end
         function D:SetValues(NV) if NV then D.Values = NV end D:BuildDropdownList() end
         
@@ -2038,11 +2082,13 @@ function BindSystem:HandleInput(Inp, p)
     for _, b in ipairs(self.AllBindings) do
         if b.Key == n then
             if p then
+                -- разлипание: если релиз потерялся (alt-tab / окно), сбрасываем
+                if b._down and not self:IsKeyDown(n) then b._down = false end
                 if not b._down then
                     b._down = true
                     if b.PressMsg and b.PressMsg ~= '' then Library:Notify(b.PressMsg, 3) end
                     local rel = self:ApplyTrigger(b, true)
-                    if rel and b.ReleaseMsg and b.ReleaseMsg ~= '' then Library:Notify(b.ReleaseMsg, 3) end
+                    if rel and b.Mode ~= 'Toggle' and b.ReleaseMsg and b.ReleaseMsg ~= '' then Library:Notify(b.ReleaseMsg, 3) end
                 end
             else
                 if b._down then
